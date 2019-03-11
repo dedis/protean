@@ -1,0 +1,12 @@
+FROM golang:1.10
+WORKDIR /root/
+COPY exe/conode.Linux.x86_64 ./conode
+COPY run_nodes.sh .
+RUN mkdir /conode_data
+RUN mkdir -p .local/share .config
+RUN ln -s /conode_data .local/share/conode
+RUN ln -s /conode_data .config/conode
+
+EXPOSE 7770 7771
+
+CMD "./run_nodes.sh -d /conode_data -v 2"
