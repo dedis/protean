@@ -17,6 +17,9 @@ import (
 	"path"
 
 	_ "github.com/ceyhunalp/protean_code/byzcoin"
+	_ "github.com/ceyhunalp/protean_code/compiler"
+	_ "go.dedis.ch/cothority/v3/blscosi"
+	_ "go.dedis.ch/cothority/v3/calypso"
 
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/onet/v3/app"
@@ -31,7 +34,7 @@ import (
 
 func main() {
 	cliApp := cli.NewApp()
-	cliApp.Name = "cothority_template"
+	cliApp.Name = "protean"
 	cliApp.Usage = "basic file for an app"
 	cliApp.Version = "0.1"
 
@@ -47,7 +50,7 @@ func main() {
 				if c.String("debug") != "" {
 					log.Fatal("[-] Debug option cannot be used for the 'setup' command")
 				}
-				app.InteractiveConfig(cothority.Suite, "cothority_template")
+				app.InteractiveConfig(cothority.Suite, "protean")
 				return nil
 			},
 		},
@@ -67,7 +70,7 @@ func main() {
 		},
 		cli.StringFlag{
 			Name:  "config, c",
-			Value: path.Join(cfgpath.GetConfigPath("cothority_template"), app.DefaultServerConfig),
+			Value: path.Join(cfgpath.GetConfigPath("protean"), app.DefaultServerConfig),
 			Usage: "Configuration file of the server",
 		},
 	}

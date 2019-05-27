@@ -1,0 +1,3 @@
+0,calypso,7,2
+1,drand,7,2
+2,byzcoin,7,2
