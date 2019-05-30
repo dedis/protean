@@ -2,19 +2,37 @@ package utils
 
 import (
 	"bufio"
+	"crypto/sha256"
 	"fmt"
 	"github.com/ceyhunalp/protean_code/compiler"
 	"go.dedis.ch/cothority/v3"
+	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	//"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/kyber/v3"
+	"go.dedis.ch/kyber/v3/pairing"
 	"go.dedis.ch/kyber/v3/util/encoding"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/app"
 	"go.dedis.ch/onet/v3/log"
+	"go.dedis.ch/protobuf"
 	"os"
 	"strconv"
 	"strings"
 )
+
+var ps = pairing.NewSuiteBn256()
+
+//func VerifySignature(s interface{}, sig protocol.BlsSignature, publics []kyber.Point) error {
+func VerifySignature(s interface{}, sig protocol.BlsSignature, publics []kyber.Point) error {
+	data, err := protobuf.Encode(s)
+	if err != nil {
+		log.Errorf("protobuf encode failed: %v", err)
+		return err
+	}
+	h := sha256.New()
+	h.Write(data)
+	return sig.Verify(ps, h.Sum(nil), publics)
+}
 
 func CreateWorkflow(wfFilePtr *string, uData map[string]string, tData map[string]string) ([]*compiler.WfNode, error) {
 	var wf []*compiler.WfNode
@@ -42,10 +60,10 @@ func CreateWorkflow(wfFilePtr *string, uData map[string]string, tData map[string
 			}
 		}
 		wf = append(wf, &compiler.WfNode{
-			Index: idx,
-			UId:   uData[tokens[1]],
-			TId:   tData[tokens[2]],
-			Deps:  deps})
+			//Index: idx,
+			UID:  uData[tokens[1]],
+			TID:  tData[tokens[2]],
+			Deps: deps})
 		idx++
 	}
 	return wf, nil
@@ -79,12 +97,12 @@ func PrepareUnits(roster *onet.Roster, uFilePtr *string, tFilePtr *string) ([]*c
 			return nil, err
 		}
 		fu := &compiler.FunctionalUnit{
-			UnitType:   uType,
-			UnitName:   tokens[1],
-			Roster:     roster,
-			PublicKeys: roster.Publics(),
-			NumNodes:   numNodes,
-			NumFaulty:  numFaulty,
+			UnitType:  uType,
+			UnitName:  tokens[1],
+			Roster:    roster,
+			Publics:   roster.Publics(),
+			NumNodes:  numNodes,
+			NumFaulty: numFaulty,
 		}
 		units = append(units, fu)
 	}
@@ -186,8 +204,8 @@ func generateDirectoryData(reply *compiler.CreateUnitsReply) (map[string]string,
 	unitMap := make(map[string]string)
 	txnMap := make(map[string]string)
 	for i := 0; i < len(reply.Data); i++ {
-		fmt.Println("In utils:", reply.Data[i].UnitName, reply.Data[i].UnitId)
-		unitMap[reply.Data[i].UnitName] = reply.Data[i].UnitId
+		fmt.Println("In utils:", reply.Data[i].UnitName, reply.Data[i].UnitID)
+		unitMap[reply.Data[i].UnitName] = reply.Data[i].UnitID
 		for k, v := range reply.Data[i].Txns {
 			txnMap[v] = k
 		}

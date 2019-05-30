@@ -45,17 +45,25 @@ func (c *Client) CreateUnits(r *onet.Roster, genesis []byte, units []*Functional
 	return reply, err
 }
 
-func (c *Client) GenerateExecutionPlan(r *onet.Roster, genesis []byte, wf []*WfNode) (*ExecPlanReply, error) {
+func (c *Client) GenerateExecutionPlan(r *onet.Roster, genesis []byte, wf []*WfNode) (*ExecutionPlanReply, error) {
 	if len(r.List) == 0 {
 		return nil, errors.New("Got an empty roster list")
 	}
 	dst := r.List[0]
-	req := &ExecPlanRequest{
+	req := &ExecutionPlanRequest{
 		Genesis:  genesis,
 		Workflow: wf,
 	}
-	reply := &ExecPlanReply{}
+	reply := &ExecutionPlanReply{}
 	err := c.SendProtobuf(dst, req, reply)
+	if err != nil {
+		return nil, err
+	}
+	//err = reply.Signature.Verify(ps, req.Hash(), r.ServicePublics(ServiceName))
+	//if err != nil {
+	//log.Errorf("Signature verification failed: %v", err)
+	//return nil, err
+	//}
 	return reply, err
 }
 

@@ -42,7 +42,23 @@ func runClient(roster *onet.Roster, genesis []byte, uData map[string]string, tDa
 		return err
 	}
 
-	compilerCl.GenerateExecutionPlan(roster, genesis, wf)
+	execPlanReply, err := compilerCl.GenerateExecutionPlan(roster, genesis, wf)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Sig:", execPlanReply.Signature)
+	fmt.Println("Genesis:", execPlanReply.ExecPlan.Genesis)
+	fmt.Println("uid:", execPlanReply.ExecPlan.Workflow[0].UID)
+	fmt.Println(execPlanReply.ExecPlan.Workflow[1].UID)
+	fmt.Println(execPlanReply.ExecPlan.Workflow[2].UID)
+
+	err = utils.VerifySignature(execPlanReply.ExecPlan, execPlanReply.Signature, roster.ServicePublics(compiler.ServiceName))
+	if err == nil {
+		fmt.Println("Signature verification: SUCCESS")
+	} else {
+		fmt.Println("Signature verification: FAILED")
+	}
 
 	//for _, w := range wf {
 	//fmt.Println(w.Index)
