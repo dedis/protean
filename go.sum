@@ -30,6 +30,8 @@ github.com/stretchr/testify v1.3.0 h1:TivCn/peBQ7UY8ooIcPgZFpTNSz0Q2U6UrFlUfqbe0
 github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UVUgZn+9EI=
 go.dedis.ch/cothority/v3 v3.0.7-0.20190517140117-9c5aea3dea6b h1:487Jf/rzlrCQgF3vmIXvE9qADHzpcRIGLFuokNZ7uuI=
 go.dedis.ch/cothority/v3 v3.0.7-0.20190517140117-9c5aea3dea6b/go.mod h1:wWPAWhMh/ASBQPjZve//hltqaoR8MFe2mGOKHty3QMA=
+go.dedis.ch/cothority/v3 v3.1.0 h1:32aCJSBNvZ3iUTj0RxfOv4ydY9Ne+BHP/AUvDQbbV+4=
+go.dedis.ch/cothority/v3 v3.1.0/go.mod h1:dDTgEhAuUahqaX1M9u6+V3a7yhI6Gr6cyipNt0odaqY=
 go.dedis.ch/fixbuf v1.0.3 h1:hGcV9Cd/znUxlusJ64eAlExS+5cJDIyTyEG+otu5wQs=
 go.dedis.ch/fixbuf v1.0.3/go.mod h1:yzJMt34Wa5xD37V5RTdmp38cz3QhMagdGoem9anUalw=
 go.dedis.ch/kyber/v3 v3.0.0-pre2/go.mod h1:OzvaEnPvKlyrWyp3kGXlFdp7ap1VC6RkZDTaPikqhsQ=
@@ -38,6 +40,8 @@ go.dedis.ch/kyber/v3 v3.0.3 h1:XdqCfDQSuSJli/KhO5jnUFfcr8GWfMimwnwScOH5Lg8=
 go.dedis.ch/kyber/v3 v3.0.3/go.mod h1:OzvaEnPvKlyrWyp3kGXlFdp7ap1VC6RkZDTaPikqhsQ=
 go.dedis.ch/onet/v3 v3.0.11 h1:GE27Z04Zw4odIyLkekoTg77m8e7aQ9KVwwdXZkj48BY=
 go.dedis.ch/onet/v3 v3.0.11/go.mod h1:8zNbWaMMpTiBfa8gftpoe726sivOF1ymxqkiPuvpdFA=
+go.dedis.ch/onet/v3 v3.0.14 h1:KvYzHbhb74WufinPXoeICjD4/pJ4Jduw9r0enj/YzQI=
+go.dedis.ch/onet/v3 v3.0.14/go.mod h1:8zNbWaMMpTiBfa8gftpoe726sivOF1ymxqkiPuvpdFA=
 go.dedis.ch/protobuf v1.0.5/go.mod h1:eIV4wicvi6JK0q/QnfIEGeSFNG0ZeB24kzut5+HaRLo=
 go.dedis.ch/protobuf v1.0.6 h1:E61p2XjYbYrTf3WeXE8M8Ui5WA3hX/NgbHHi5D0FLxI=
 go.dedis.ch/protobuf v1.0.6/go.mod h1:YHYXW6dQ9p2iJ3f+2fxKnOpjGx0MvL4cwpg1RVNXaV8=
