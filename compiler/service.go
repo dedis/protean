@@ -5,19 +5,16 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
-	//"go.dedis.ch/cothority/v3"
+	"github.com/ceyhunalp/protean_code"
 	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/cothority/v3/skipchain"
-	//"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/pairing"
 	"go.dedis.ch/kyber/v3/suites"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/onet/v3/network"
 	"go.dedis.ch/protobuf"
-	//bbolt "go.etcd.io/bbolt"
 	"math"
-	//"sync"
 )
 
 var pairingSuite = suites.MustFind("bn256.Adapter").(*pairing.SuiteBn256)
@@ -40,7 +37,6 @@ type Service struct {
 	*onet.ServiceProcessor
 	scServ *skipchain.Service
 	roster *onet.Roster
-	//genesis []byte
 	//storage *storage
 	//ctx        context.Context
 }
@@ -51,10 +47,10 @@ func init() {
 	log.ErrFatal(err)
 	network.RegisterMessages(&CreateUnitsRequest{},
 		&CreateUnitsReply{}, &ExecutionPlanRequest{}, &ExecutionPlanReply{},
-		&CreateSkipchainRequest{}, &CreateSkipchainReply{}, &LogSkipchainRequest{}, &LogSkipchainReply{})
+		&protean.CreateSkipchainRequest{}, &protean.CreateSkipchainReply{}, &LogSkipchainRequest{}, &LogSkipchainReply{})
 }
 
-func (s *Service) CreateSkipchain(req *CreateSkipchainRequest) (*CreateSkipchainReply, error) {
+func (s *Service) CreateSkipchain(req *protean.CreateSkipchainRequest) (*protean.CreateSkipchainReply, error) {
 	genesis := skipchain.NewSkipBlock()
 	genesis.MaximumHeight = req.MHeight
 	genesis.BaseHeight = req.BHeight
@@ -67,15 +63,10 @@ func (s *Service) CreateSkipchain(req *CreateSkipchainRequest) (*CreateSkipchain
 		return nil, err
 	}
 	log.Info("CreateSkipchain success:", reply.Latest.Hash)
-	//s.storage.Lock()
-	//s.storage.Roster = req.Roster
-	//s.storage.Unlock()
-	//s.save()
 	s.roster = req.Roster
 	//s.genesis = reply.Latest.Hash
-	//return &CreateSkipchainReply{Sb: reply.Latest}, nil
 	log.Info("In CreateSkipchain genesis is", reply.Latest.Hash)
-	return &CreateSkipchainReply{Genesis: reply.Latest.Hash}, nil
+	return &protean.CreateSkipchainReply{Genesis: reply.Latest.Hash}, nil
 }
 
 func (s *Service) CreateUnits(req *CreateUnitsRequest) (*CreateUnitsReply, error) {
@@ -115,7 +106,6 @@ func (s *Service) CreateUnits(req *CreateUnitsRequest) (*CreateUnitsReply, error
 	block.Data = enc
 	block.GenesisID = block.SkipChainID()
 	block.Index++
-	//storeSkipBlockReply, err := s.scServ.StoreSkipBlock(&skipchain.StoreSkipBlock{
 	_, err = s.scServ.StoreSkipBlock(&skipchain.StoreSkipBlock{
 		NewBlock:          block,
 		TargetSkipChainID: latest.SkipChainID(),
@@ -124,14 +114,10 @@ func (s *Service) CreateUnits(req *CreateUnitsRequest) (*CreateUnitsReply, error
 		return nil, err
 	}
 	return &CreateUnitsReply{Data: data}, nil
-	//return &CreateUnitsReply{Data: data, SbID: storeSkipBlockReply.Latest.Hash}, nil
 }
 
 func (s *Service) GenerateExecutionPlan(req *ExecutionPlanRequest) (*ExecutionPlanReply, error) {
 	log.Info("In GenerateExecutionPlan genesis is", req.Genesis)
-	//s.storage.Lock()
-	//roster := s.storage.Roster
-	//s.storage.Unlock()
 
 	//TODO: THE LEADER SHOULD PREPARE THE EXECUTION PLAN (WITH THE CRYPTO
 	//KEYS) AND SEND IT TO THE OTHER NODES. OTHERS VERIFY THAT IT'S
@@ -159,11 +145,6 @@ func (s *Service) GenerateExecutionPlan(req *ExecutionPlanRequest) (*ExecutionPl
 		log.Error("CreateProtocol failed:", err)
 		return nil, err
 	}
-	//payload, err := protobuf.Encode(req)
-	//if err != nil {
-	//log.Error("Protobuf encode failed:", err)
-	//return nil, err
-	//}
 	payload, err := protobuf.Encode(execPlan)
 	if err != nil {
 		log.Error("Protobuf encode failed:", err)
@@ -172,23 +153,11 @@ func (s *Service) GenerateExecutionPlan(req *ExecutionPlanRequest) (*ExecutionPl
 	h := sha256.New()
 	h.Write(payload)
 
-	//cfg := csConfig{
-	//Roster:  s.roster,
-	//Genesis: s.genesis,
-	//}
-	//cfgBuf, err := protobuf.Encode(&cfg)
-	//if err != nil {
-	//log.Error("Protobuf encode failed:", err)
-	//return nil, err
-	//}
-
 	cosiProto := pi.(*protocol.BlsCosi)
-	//cosiProto.Msg = req.Hash()
 	cosiProto.Msg = h.Sum(nil)
 	cosiProto.Data = payload
 	cosiProto.CreateProtocol = s.CreateProtocol
 	cosiProto.Threshold = n - n/3
-	//cosiProto.SetConfig(&onet.GenericConfig{Data: cfgBuf})
 	err = cosiProto.SetNbrSubTree(int(math.Pow(float64(n), 1.0/3.0)))
 	if err != nil {
 		log.Error("SetNbrSubTree failed:", err)
@@ -219,7 +188,6 @@ func (s *Service) verifyExecutionPlan(msg []byte, data []byte) bool {
 	h := sha256.New()
 	h.Write(data)
 	digest := h.Sum(nil)
-	//if !bytes.Equal(msg, req.Hash()) {
 	if !bytes.Equal(msg, digest) {
 		log.Error(s.ServerIdentity(), "digest doesn't verify")
 		return false
@@ -302,7 +270,6 @@ func newService(c *onet.Context) (onet.Service, error) {
 		ServiceProcessor: onet.NewServiceProcessor(c),
 		scServ:           c.Service(skipchain.ServiceName).(*skipchain.Service),
 		//storage:          &storage{},
-		//genesis:          make([]byte, 32),
 		//ctx:              context.Background(),
 	}
 	if err := s.RegisterHandlers(s.CreateUnits, s.GenerateExecutionPlan, s.CreateSkipchain, s.LogSkipchain); err != nil {

@@ -5,12 +5,7 @@ import (
 	"fmt"
 	"github.com/ceyhunalp/protean_code/compiler"
 	"github.com/ceyhunalp/protean_code/utils"
-	//"go.dedis.ch/cothority/v3/blscosi"
-	//"go.dedis.ch/cothority/v3/byzcoin"
-	//"go.dedis.ch/cothority/v3/skipchain"
-	//"go.dedis.ch/kyber/v3/pairing"
 	"go.dedis.ch/onet/v3"
-	//"go.dedis.ch/onet/v3/log"
 	"os"
 )
 
@@ -37,7 +32,8 @@ func runClient(roster *onet.Roster, genesis []byte, uData map[string]string, tDa
 
 	fmt.Println("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
 
-	wf, err := utils.CreateWorkflow(wfFilePtr, uData, tData)
+	//wf, err := compiler.CreateWorkflow(wfFilePtr, uData, tData)
+	wf, err := createWorkflow(wfFilePtr, uData, tData)
 	if err != nil {
 		return err
 	}
@@ -124,7 +120,7 @@ func main() {
 	//}
 
 	if *setupPtr != true {
-		genesis, uData, tData, err := utils.Setup(roster, unitFilePtr, txnFilePtr)
+		genesis, uData, tData, err := setup(roster, unitFilePtr, txnFilePtr)
 		if err != nil {
 			os.Exit(1)
 		}

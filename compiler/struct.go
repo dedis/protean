@@ -1,8 +1,9 @@
 package compiler
 
 import (
+	"github.com/ceyhunalp/protean_code"
 	"go.dedis.ch/cothority/v3/blscosi/protocol"
-	"go.dedis.ch/cothority/v3/skipchain"
+	//"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/onet/v3"
 )
@@ -23,18 +24,11 @@ type Identity struct {
 }
 
 type ExecutionPlan struct {
-	//TODO: Get this out of here. It is a temporary hack that makes me
-	//wanna throw up
+	//TODO: Get this out of here. It is a temporary hack - or is it?
 	Genesis  []byte
-	Workflow []*WfNode
+	Workflow []*protean.WfNode
 	Publics  map[string]*Identity
 	//Publics  map[string][]kyber.Point
-}
-
-type WfNode struct {
-	UID  string
-	TID  string
-	Deps []int
 }
 
 type UnitData struct {
@@ -43,16 +37,16 @@ type UnitData struct {
 	Txns     map[string]string
 }
 
-type CreateSkipchainRequest struct {
-	Roster  *onet.Roster
-	MHeight int
-	BHeight int
-}
+//type CreateSkipchainRequest struct {
+//Roster  *onet.Roster
+//MHeight int
+//BHeight int
+//}
 
-type CreateSkipchainReply struct {
-	Genesis []byte
-	Sb      *skipchain.SkipBlock
-}
+//type CreateSkipchainReply struct {
+//Genesis []byte
+//Sb      *skipchain.SkipBlock
+//}
 
 type CreateUnitsRequest struct {
 	Genesis []byte
@@ -66,7 +60,7 @@ type CreateUnitsReply struct {
 
 type ExecutionPlanRequest struct {
 	Genesis  []byte
-	Workflow []*WfNode
+	Workflow []*protean.WfNode
 }
 
 type ExecutionPlanReply struct {

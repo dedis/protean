@@ -2,6 +2,7 @@ package compiler
 
 import (
 	"errors"
+	"github.com/ceyhunalp/protean_code"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/onet/v3"
 )
@@ -14,22 +15,22 @@ func NewClient() *Client {
 	return &Client{Client: onet.NewClient(cothority.Suite, ServiceName)}
 }
 
-func (c *Client) CreateSkipchain(r *onet.Roster, mHeight int, bHeight int) (*CreateSkipchainReply, error) {
+func (c *Client) CreateSkipchain(r *onet.Roster, mHeight int, bHeight int) (*protean.CreateSkipchainReply, error) {
 	if len(r.List) == 0 {
 		return nil, errors.New("Got an empty roster list")
 	}
 	dst := r.List[0]
-	req := &CreateSkipchainRequest{
+	//req := &CreateSkipchainRequest{
+	req := &protean.CreateSkipchainRequest{
 		Roster:  r,
 		MHeight: mHeight,
 		BHeight: bHeight,
 	}
-	reply := &CreateSkipchainReply{}
+	reply := &protean.CreateSkipchainReply{}
 	err := c.SendProtobuf(dst, req, reply)
 	return reply, err
 }
 
-//func (c *Client) CreateUnits(r *onet.Roster, req *CreateUnitsRequest) (*CreateUnitsReply, error) {
 func (c *Client) CreateUnits(r *onet.Roster, genesis []byte, units []*FunctionalUnit) (*CreateUnitsReply, error) {
 	//TODO: Check values in struct?
 	if len(r.List) == 0 {
@@ -45,7 +46,7 @@ func (c *Client) CreateUnits(r *onet.Roster, genesis []byte, units []*Functional
 	return reply, err
 }
 
-func (c *Client) GenerateExecutionPlan(r *onet.Roster, genesis []byte, wf []*WfNode) (*ExecutionPlanReply, error) {
+func (c *Client) GenerateExecutionPlan(r *onet.Roster, genesis []byte, wf []*protean.WfNode) (*ExecutionPlanReply, error) {
 	if len(r.List) == 0 {
 		return nil, errors.New("Got an empty roster list")
 	}

@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"crypto/sha256"
 	"fmt"
-	"github.com/ceyhunalp/protean_code/compiler"
+	//"github.com/ceyhunalp/protean_code/compiler"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	//"go.dedis.ch/cothority/v3/skipchain"
@@ -16,13 +16,12 @@ import (
 	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/protobuf"
 	"os"
-	"strconv"
-	"strings"
+	//"strconv"
+	//"strings"
 )
 
 var ps = pairing.NewSuiteBn256()
 
-//func VerifySignature(s interface{}, sig protocol.BlsSignature, publics []kyber.Point) error {
 func VerifySignature(s interface{}, sig protocol.BlsSignature, publics []kyber.Point) error {
 	data, err := protobuf.Encode(s)
 	if err != nil {
@@ -32,128 +31,6 @@ func VerifySignature(s interface{}, sig protocol.BlsSignature, publics []kyber.P
 	h := sha256.New()
 	h.Write(data)
 	return sig.Verify(ps, h.Sum(nil), publics)
-}
-
-func CreateWorkflow(wfFilePtr *string, uData map[string]string, tData map[string]string) ([]*compiler.WfNode, error) {
-	var wf []*compiler.WfNode
-	file, err := os.Open(*wfFilePtr)
-	defer file.Close()
-	if err != nil {
-		log.Fatal(err)
-		return nil, err
-	}
-	idx := 0
-	fs := bufio.NewScanner(file)
-	for fs.Scan() {
-		var deps []int
-		line := fs.Text()
-		tokens := strings.Split(line, ":")
-		if tokens[3] != "" {
-			depStr := strings.Split(tokens[3], ",")
-			for _, d := range depStr {
-				dep, err := strconv.Atoi(d)
-				if err != nil {
-					log.Errorf("CreateWorkflow error:%v", err)
-					return nil, err
-				}
-				deps = append(deps, dep)
-			}
-		}
-		wf = append(wf, &compiler.WfNode{
-			//Index: idx,
-			UID:  uData[tokens[1]],
-			TID:  tData[tokens[2]],
-			Deps: deps})
-		idx++
-	}
-	return wf, nil
-}
-
-//func PrepareUnits(roster *onet.Roster, uFilePtr *string, tFilePtr *string) (*compiler.CreateUnitsRequest, error) {
-func PrepareUnits(roster *onet.Roster, uFilePtr *string, tFilePtr *string) ([]*compiler.FunctionalUnit, error) {
-	var units []*compiler.FunctionalUnit
-	file, err := os.Open(*uFilePtr)
-	if err != nil {
-		log.Fatal(err)
-		return nil, err
-	}
-	fs := bufio.NewScanner(file)
-	for fs.Scan() {
-		line := fs.Text()
-		tokens := strings.Split(line, ",")
-		uType, err := strconv.Atoi(tokens[0])
-		if err != nil {
-			log.Errorf("Cannot convert unit type: %v", err)
-			return nil, err
-		}
-		numNodes, err := strconv.Atoi(tokens[2])
-		if err != nil {
-			log.Errorf("Cannot convert num nodes: %v", err)
-			return nil, err
-		}
-		numFaulty, err := strconv.Atoi(tokens[3])
-		if err != nil {
-			log.Errorf("Cannot convert num faulty: %v", err)
-			return nil, err
-		}
-		fu := &compiler.FunctionalUnit{
-			UnitType:  uType,
-			UnitName:  tokens[1],
-			Roster:    roster,
-			Publics:   roster.Publics(),
-			NumNodes:  numNodes,
-			NumFaulty: numFaulty,
-		}
-		units = append(units, fu)
-	}
-	file.Close()
-	file, err = os.Open(*tFilePtr)
-	if err != nil {
-		log.Fatal(err)
-		return nil, err
-	}
-	fs = bufio.NewScanner(file)
-	for fs.Scan() {
-		line := fs.Text()
-		tokens := strings.Split(line, ",")
-		uIdx, err := strconv.Atoi(tokens[0])
-		if err != nil {
-			log.Errorf("Cannot convert unit type: %v", err)
-			return nil, err
-		}
-		//txn := &compiler.Transaction{
-		//TxnName: tokens[1],
-		//}
-		//units[uIdx].Txns = append(units[uIdx].Txns, txn)
-		units[uIdx].Txns = append(units[uIdx].Txns, tokens[1])
-	}
-	return units, nil
-	//return &compiler.CreateUnitsRequest{Units: units}, nil
-}
-
-//func Setup(roster *onet.Roster, uFilePtr *string, tFilePtr *string) (map[string]string, map[string]string, error) {
-func Setup(roster *onet.Roster, uFilePtr *string, tFilePtr *string) ([]byte, map[string]string, map[string]string, error) {
-	//req, err := PrepareUnits(roster, uFilePtr, tFilePtr)
-	units, err := PrepareUnits(roster, uFilePtr, tFilePtr)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	cl := compiler.NewClient()
-	defer cl.Close()
-	csReply, err := cl.CreateSkipchain(roster, 2, 2)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	//req.Genesis = csReply.Genesis
-	//reply, err := cl.CreateUnits(roster, req)
-	reply, err := cl.CreateUnits(roster, csReply.Genesis, units)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	uMap, tMap := generateDirectoryData(reply)
-	//uMap, tMap := generateDirectoryData(req, reply)
-	return csReply.Genesis, uMap, tMap, nil
 }
 
 func GetServerKey(fname *string) (kyber.Point, error) {
@@ -196,20 +73,4 @@ func ReadRoster(path *string) (*onet.Roster, error) {
 		return nil, err
 	}
 	return group.Roster, nil
-}
-
-func generateDirectoryData(reply *compiler.CreateUnitsReply) (map[string]string, map[string]string) {
-	// Unit name -> uid
-	// Txn name  -> tid
-	unitMap := make(map[string]string)
-	txnMap := make(map[string]string)
-	for i := 0; i < len(reply.Data); i++ {
-		fmt.Println("In utils:", reply.Data[i].UnitName, reply.Data[i].UnitID)
-		unitMap[reply.Data[i].UnitName] = reply.Data[i].UnitID
-		for k, v := range reply.Data[i].Txns {
-			txnMap[v] = k
-		}
-
-	}
-	return unitMap, txnMap
 }
