@@ -4,7 +4,6 @@ import (
 	"github.com/ceyhunalp/protean_code/compiler"
 	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/cothority/v3/byzcoin"
-	//"go.dedis.ch/kyber/v3"
 )
 
 //type unitStorage struct {
