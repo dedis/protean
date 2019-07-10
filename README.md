@@ -1,4 +1,4 @@
-# protean_code
+# PROTEAN
 
 Implementation of PROTEAN, a novel architecture for general-purpose
 decentralized computing.
