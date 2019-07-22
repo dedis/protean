@@ -148,7 +148,7 @@ func testStateUnit(roster *onet.Roster) error {
 	kv = append(kv, &dummy.KV{Key: "pasa", Value: []byte("vahit")})
 	signerCtr := uint64(1)
 	cl1Ctr := uint64(1)
-	csReply, err := dumCl.CreateStateRequest(roster, kv, *orgDarc, signerCtr, org, 4)
+	csReply, err := dumCl.CreateState(roster, kv, *orgDarc, signerCtr, org, 4)
 	if err != nil {
 		return fmt.Errorf("createstaterequest failed: %v", err)
 	}
@@ -181,7 +181,7 @@ func testStateUnit(roster *onet.Roster) error {
 	updKv = append(updKv, &dummy.KV{Key: "erkan", Value: []byte("ogur")})
 	updKv = append(updKv, &dummy.KV{Key: "terence", Value: []byte("blanchard")})
 
-	_, err = dumCl.UpdateStateRequest(roster, updKv, csReply.InstID, cl1Ctr, cl3, 4)
+	_, err = dumCl.UpdateState(roster, updKv, csReply.InstID, cl1Ctr, cl3, 4)
 	//_, err = dumCl.UpdateStateRequest(roster, updKv, csReply.InstID, signerCtr, org)
 	if err != nil {
 		return fmt.Errorf("updatestaterequest failed: %v", err)

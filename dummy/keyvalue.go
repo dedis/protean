@@ -1,7 +1,7 @@
 package dummy
 
 import (
-	"errors"
+	"fmt"
 
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/darc"
@@ -21,7 +21,7 @@ func contractValueFromBytes(in []byte) (byzcoin.Contract, error) {
 	cv := &contractValue{}
 	err := protobuf.Decode(in, &cv.Storage)
 	if err != nil {
-		log.Errorf("Protobuf decode failed: %v", err)
+		log.Errorf("[contractValueFromBytes] Protobuf decode failed: %v", err)
 		return nil, err
 	}
 	if cv.Storage.Data == nil {
@@ -36,19 +36,18 @@ func (c *contractValue) Spawn(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Instru
 	var darcID darc.ID
 	_, _, _, darcID, err = rst.GetValues(inst.InstanceID.Slice())
 	if err != nil {
+		log.Errorf("[Spawn] GetValues failed: %v", err)
 		return
 	}
 	cs := &c.Storage
 	for _, kv := range inst.Spawn.Args {
-		//cs.Data = append(cs.Data, KV{kv.Name, kv.Value})
 		cs.Data[kv.Name] = kv.Value
 	}
-
 	csBuf, err := protobuf.Encode(&c.Storage)
 	if err != nil {
+		log.Errorf("[Spawn] Protobuf encode failed: %v", err)
 		return
 	}
-
 	sc = []byzcoin.StateChange{
 		byzcoin.NewStateChange(byzcoin.Create, inst.DeriveID(""), ContractKeyValueID, csBuf, darcID),
 	}
@@ -59,33 +58,27 @@ func (c *contractValue) Invoke(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Instr
 	log.Info("========== CEY: INVOKE ========")
 	cout = coins
 	var darcID darc.ID
-	log.Info("========== CEY: INVOKE.GETVALUES ========")
 	_, _, _, darcID, err = rst.GetValues(inst.InstanceID.Slice())
 	if err != nil {
-		log.Errorf("Get values failed: %v", err)
+		log.Errorf("[Invoke] Get values failed: %v", err)
 		return
 	}
-
 	if inst.Invoke.Command != "update" {
 		log.Errorf("Value contract can only update")
-		return nil, nil, errors.New("Value contract can only update")
+		return nil, nil, fmt.Errorf("[Invoke] Value contract can only update")
 	}
-
 	kvd := &c.Storage
-	log.Info("========== CEY: INVOKE.UPDATE ========")
 	kvd.Update(inst.Invoke.Args)
 	var buf []byte
 	buf, err = protobuf.Encode(kvd)
 	if err != nil {
-		log.Errorf("protobuf encode failed: %v", err)
+		log.Errorf("[Invoke] Protobuf encode failed: %v", err)
 		return
 	}
-	log.Info("========== CEY: INVOKE.STATECHANGE ========")
 	sc = []byzcoin.StateChange{
 		byzcoin.NewStateChange(byzcoin.Update, inst.InstanceID, ContractKeyValueID, buf, darcID),
 	}
 	return
-
 }
 
 func (c *contractValue) Delete(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Instruction, coins []byzcoin.Coin) (sc []byzcoin.StateChange, cout []byzcoin.Coin, err error) {
@@ -93,7 +86,7 @@ func (c *contractValue) Delete(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Instr
 	var darcID darc.ID
 	_, _, _, darcID, err = rst.GetValues(inst.InstanceID.Slice())
 	if err != nil {
-		log.Errorf("Get values failed in Delete: %v", err)
+		log.Errorf("[Delete] Get values failed: %v", err)
 		return
 	}
 

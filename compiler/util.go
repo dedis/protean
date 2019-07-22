@@ -3,15 +3,16 @@ package compiler
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
+	"fmt"
+	"strconv"
+	"strings"
+
 	"github.com/ceyhunalp/protean_code"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/onet/v3/network"
 	"go.dedis.ch/protobuf"
-	"strconv"
-	"strings"
 )
 
 func prepareExecutionPlan(data *sbData, req *ExecutionPlanRequest) (*protean.ExecutionPlan, error) {
@@ -25,7 +26,8 @@ func prepareExecutionPlan(data *sbData, req *ExecutionPlanRequest) (*protean.Exe
 				publics[wfn.UID] = &protean.Identity{Keys: uv.Ps}
 			}
 		} else {
-			return nil, errors.New("functional unit does not exist")
+			log.Errorf("[prepareExecutionPlan] Functional unit does not exist")
+			return nil, fmt.Errorf("[prepareExecutionPlan] Functional unit does not exist")
 		}
 	}
 	//TODO: Revert to EP w/o genesis
@@ -63,7 +65,7 @@ func verifyDag(wf []*protean.WfNode) bool {
 
 	for _, edge := range edges {
 		if edge.removed == false {
-			log.Errorf("verifyDag error: graph has a cycle")
+			log.Errorf("[verifyDag] Error: Graph has a cycle")
 			return false
 		}
 	}
@@ -96,13 +98,13 @@ func findNoIncoming(nodes map[int]bool, edges []*edge) []int {
 func getBlockData(db *skipchain.SkipBlockDB, genesis []byte) (*sbData, error) {
 	latest, err := db.GetLatest(db.GetByID(genesis))
 	if err != nil {
-		log.Errorf("cannot get the latest block: %v", err)
+		log.Errorf("[getBlockData] Could not get the latest block: %v", err)
 		return nil, err
 	}
 	data := &sbData{}
 	err = protobuf.DecodeWithConstructors(latest.Data, data, network.DefaultConstructors(cothority.Suite))
 	if err != nil {
-		log.Errorf("protobuf error: %v", err)
+		log.Errorf("[getBlockData] Protobuf error decoding with constructors: %v", err)
 		return nil, err
 	}
 	return data, nil
@@ -123,6 +125,7 @@ func joinStrings(strs ...string) (string, error) {
 	for _, str := range strs {
 		_, err := sb.WriteString(str)
 		if err != nil {
+			log.Errorf("[joinStrings] %v", err)
 			return "", err
 		}
 	}
@@ -136,7 +139,7 @@ func generateUnitID(fu *FunctionalUnit) (string, error) {
 	log.Info("UUID STR IS:", uuidStr)
 	uidStr, err := joinStrings(typeStr, fu.UnitName, uuidStr)
 	if err != nil {
-		log.Errorf("generateUnitKey error: %v", err)
+		log.Errorf("[generateUnitID] Error while generating the unit key: %v", err)
 		return uid, err
 	}
 	tmp := sha256.Sum256([]byte(uidStr))
@@ -164,7 +167,7 @@ func generateTxnIDs(tList []string) map[string]string {
 //log.LLvl3("Checking key(byte):", key)
 //val := tx.Bucket(bucketName).Get(key)
 //if val == nil {
-//return errors.New("Unit key does not exist")
+//return fmt.Errorf("Unit key does not exist")
 //}
 //}
 //return nil

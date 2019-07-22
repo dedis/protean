@@ -3,9 +3,10 @@ package compiler
 import (
 	"bytes"
 	"crypto/sha256"
-	"errors"
-	"fmt"
+	"math"
+
 	"github.com/ceyhunalp/protean_code"
+	"github.com/ceyhunalp/protean_code/utils"
 	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/kyber/v3/pairing"
@@ -14,11 +15,9 @@ import (
 	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/onet/v3/network"
 	"go.dedis.ch/protobuf"
-	"math"
 )
 
 var pairingSuite = suites.MustFind("bn256.Adapter").(*pairing.SuiteBn256)
-
 var compilerID onet.ServiceID
 var storageKey = []byte("storage")
 
@@ -26,47 +25,22 @@ const ServiceName = "CompilerService"
 const execPlanSubFtCosi = "execplan_sub_ftcosi"
 const execPlanFtCosi = "execplan_ftcosi"
 
-//type storage struct {
-//sync.Mutex
-//Roster *onet.Roster
-//}
-
 type Service struct {
-	// We need to embed the ServiceProcessor, so that incoming messages
-	// are correctly handled.
-	*onet.ServiceProcessor
-	scServ *skipchain.Service
-	roster *onet.Roster
-	//storage *storage
 	//ctx        context.Context
+	*onet.ServiceProcessor
+	roster  *onet.Roster
+	genesis skipchain.SkipBlockID
+
+	scService *skipchain.Service
 }
 
 func init() {
 	var err error
 	compilerID, err = onet.RegisterNewServiceWithSuite(ServiceName, pairingSuite, newService)
 	log.ErrFatal(err)
-	network.RegisterMessages(&CreateUnitsRequest{},
-		&CreateUnitsReply{}, &ExecutionPlanRequest{}, &ExecutionPlanReply{},
-		&protean.CreateSkipchainRequest{}, &protean.CreateSkipchainReply{}, &LogSkipchainRequest{}, &LogSkipchainReply{})
-}
-
-func (s *Service) CreateSkipchain(req *protean.CreateSkipchainRequest) (*protean.CreateSkipchainReply, error) {
-	genesis := skipchain.NewSkipBlock()
-	genesis.MaximumHeight = req.MHeight
-	genesis.BaseHeight = req.BHeight
-	genesis.Roster = req.Roster
-	genesis.VerifierIDs = skipchain.VerificationStandard
-	reply, err := s.scServ.StoreSkipBlock(&skipchain.StoreSkipBlock{
-		NewBlock: genesis,
-	})
-	if err != nil {
-		return nil, err
-	}
-	log.Info("CreateSkipchain success:", reply.Latest.Hash)
-	s.roster = req.Roster
-	//s.genesis = reply.Latest.Hash
-	log.Info("In CreateSkipchain genesis is", reply.Latest.Hash)
-	return &protean.CreateSkipchainReply{Genesis: reply.Latest.Hash}, nil
+	network.RegisterMessages(&InitUnitRequest{}, &InitUnitReply{},
+		&CreateUnitsRequest{}, &CreateUnitsReply{}, &ExecutionPlanRequest{},
+		&ExecutionPlanReply{}, &LogSkipchainRequest{}, &LogSkipchainReply{})
 }
 
 func (s *Service) CreateUnits(req *CreateUnitsRequest) (*CreateUnitsReply, error) {
@@ -75,10 +49,10 @@ func (s *Service) CreateUnits(req *CreateUnitsRequest) (*CreateUnitsReply, error
 
 	for _, unit := range req.Units {
 		uid, err := generateUnitID(unit)
-		txnIDs := generateTxnIDs(unit.Txns)
 		if err != nil {
 			return nil, err
 		}
+		txnIDs := generateTxnIDs(unit.Txns)
 		val := &uv{
 			R:  unit.Roster,
 			Ps: unit.Publics,
@@ -93,23 +67,27 @@ func (s *Service) CreateUnits(req *CreateUnitsRequest) (*CreateUnitsReply, error
 		Data: sd,
 	})
 	if err != nil {
-		log.Errorf("protobufEncode error: %v", err)
+		log.Errorf("[CreateUnits] Protobuf encode error: %v", err)
 		return nil, err
 	}
-	log.Info("In CreateUnits genesis is", req.Genesis)
-	db := s.scServ.GetDB()
-	latest, err := db.GetLatest(db.GetByID(req.Genesis))
-	if err != nil {
-		return nil, errors.New("Couldn't find the latest block: " + err.Error())
-	}
-	block := latest.Copy()
-	block.Data = enc
-	block.GenesisID = block.SkipChainID()
-	block.Index++
-	_, err = s.scServ.StoreSkipBlock(&skipchain.StoreSkipBlock{
-		NewBlock:          block,
-		TargetSkipChainID: latest.SkipChainID(),
-	})
+	//db := s.scService.GetDB()
+	//latest, err := db.GetLatest(db.GetByID(req.Genesis))
+	//if err != nil {
+	//return nil, fmt.Errorf("[CreateUnits] Could not find the latest block: %v", err)
+	//}
+	//block := latest.Copy()
+	//block.Data = enc
+	//block.GenesisID = block.SkipChainID()
+	//block.Index++
+	//_, err = s.scService.StoreSkipBlock(&skipchain.StoreSkipBlock{
+	//NewBlock:          block,
+	//TargetSkipChainID: latest.SkipChainID(),
+	//})
+	//if err != nil {
+	//log.Errorf("[CreateUnits] Could not store skipblock: %v", err)
+	//return nil, err
+	//}
+	err = utils.StoreBlock(s.scService, req.Genesis, enc)
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +101,7 @@ func (s *Service) GenerateExecutionPlan(req *ExecutionPlanRequest) (*ExecutionPl
 	//KEYS) AND SEND IT TO THE OTHER NODES. OTHERS VERIFY THAT IT'S
 	//CONSISTENT AND SENDS A SIGNATURE
 
-	db := s.scServ.GetDB()
+	db := s.scService.GetDB()
 	sbData, err := getBlockData(db, req.Genesis)
 	if err != nil {
 		return nil, err
@@ -142,12 +120,12 @@ func (s *Service) GenerateExecutionPlan(req *ExecutionPlanRequest) (*ExecutionPl
 	tree := s.roster.GenerateNaryTreeWithRoot(n, s.ServerIdentity())
 	pi, err := s.CreateProtocol(execPlanFtCosi, tree)
 	if err != nil {
-		log.Error("CreateProtocol failed:", err)
+		log.Errorf("[GenerateExecutionPlan] CreateProtocol failed: %v", err)
 		return nil, err
 	}
 	payload, err := protobuf.Encode(execPlan)
 	if err != nil {
-		log.Error("Protobuf encode failed:", err)
+		log.Errorf("[GenerateExecutionPlan] Protobuf encode failed: %v", err)
 		return nil, err
 	}
 	h := sha256.New()
@@ -160,13 +138,13 @@ func (s *Service) GenerateExecutionPlan(req *ExecutionPlanRequest) (*ExecutionPl
 	cosiProto.Threshold = n - n/3
 	err = cosiProto.SetNbrSubTree(int(math.Pow(float64(n), 1.0/3.0)))
 	if err != nil {
-		log.Error("SetNbrSubTree failed:", err)
+		log.Errorf("[GenerateExecutionPlan] SetNbrSubTree failed: %v", err)
 		return nil, err
 	}
 
 	log.Info("Before proto start:", s.ServerIdentity())
 	if err := cosiProto.Start(); err != nil {
-		log.Error("Starting the cosi protocol failed:", err)
+		log.Errorf("[GenerateExecutionPlan] Starting the cosi protocol failed: %v", err)
 		return nil, err
 	}
 	log.Info("After proto start:", s.ServerIdentity())
@@ -178,24 +156,25 @@ func (s *Service) GenerateExecutionPlan(req *ExecutionPlanRequest) (*ExecutionPl
 }
 
 func (s *Service) verifyExecutionPlan(msg []byte, data []byte) bool {
-	log.Info("In verifyExecutionPlan:", s.ServiceID())
-	log.Info("Starting verifyexecplan in", s.ServerIdentity())
+	//log.Info("In verifyExecutionPlan:", s.ServiceID())
+	//log.Info("Starting verifyexecplan in", s.ServerIdentity())
 	var req protean.ExecutionPlan
 	if err := protobuf.Decode(data, &req); err != nil {
-		log.Error(s.ServerIdentity(), err)
+		log.Errorf("[verifyExecutionPlan] %s Protobuf decode error: %v:", s.ServerIdentity(), err)
 		return false
 	}
 	h := sha256.New()
 	h.Write(data)
 	digest := h.Sum(nil)
 	if !bytes.Equal(msg, digest) {
-		log.Error(s.ServerIdentity(), "digest doesn't verify")
+		log.Errorf("[verifyExecutionPlan] %s: digest does not verify", s.ServerIdentity())
 		return false
 	}
 	// Check that the units and transactions in the workflow are valid
-	db := s.scServ.GetDB()
+	db := s.scService.GetDB()
 	sbData, err := getBlockData(db, req.Genesis)
 	if err != nil {
+		log.Errorf("[verifyExecutionPlan] Could not getBlockData: %v", err)
 		return false
 	}
 	for _, wfn := range req.Workflow {
@@ -204,24 +183,33 @@ func (s *Service) verifyExecutionPlan(msg []byte, data []byte) bool {
 			if _, ok := val.Txns[wfn.TID]; ok {
 				log.LLvlf1("All good for %s - %s", wfn.UID, wfn.TID)
 			} else {
-				log.Errorf("%s is not a valid transaction", wfn.TID)
+				log.Errorf("[verifyExecutionPlan] %s is not a valid transaction", wfn.TID)
 				return false
 			}
 		} else {
-			log.Errorf("%s is not a valid functional unit", wfn.UID)
+			log.Errorf("[verifyExecutionPlan] %s is not a valid functional unit", wfn.UID)
 			return false
 		}
 	}
-
 	valid := verifyDag(req.Workflow)
 
 	// TODO: Check more stuff
 	return valid
 }
 
+func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
+	genesisReply, err := utils.CreateGenesisBlock(s.scService, req.ScData)
+	if err != nil {
+		return nil, err
+	}
+	s.genesis = genesisReply.Latest.Hash
+	s.roster = req.ScData.Roster
+	return &InitUnitReply{Genesis: s.genesis}, nil
+}
+
 func (s *Service) LogSkipchain(req *LogSkipchainRequest) (*LogSkipchainReply, error) {
 	log.Info("In LogSkipchain genesis is", req.Genesis)
-	db := s.scServ.GetDB()
+	db := s.scService.GetDB()
 	sbData, err := getBlockData(db, req.Genesis)
 	if err != nil {
 		return nil, err
@@ -260,7 +248,7 @@ func (s *Service) LogSkipchain(req *LogSkipchainRequest) (*LogSkipchainReply, er
 //var ok bool
 //s.storage, ok = msg.(*storage)
 //if !ok {
-//return errors.New("Data of wrong type")
+//return fmt.Errorf("Data of wrong type")
 //}
 //return nil
 //}
@@ -268,33 +256,28 @@ func (s *Service) LogSkipchain(req *LogSkipchainRequest) (*LogSkipchainReply, er
 func newService(c *onet.Context) (onet.Service, error) {
 	s := &Service{
 		ServiceProcessor: onet.NewServiceProcessor(c),
-		scServ:           c.Service(skipchain.ServiceName).(*skipchain.Service),
+		scService:        c.Service(skipchain.ServiceName).(*skipchain.Service),
 		//storage:          &storage{},
 		//ctx:              context.Background(),
 	}
-	if err := s.RegisterHandlers(s.CreateUnits, s.GenerateExecutionPlan, s.CreateSkipchain, s.LogSkipchain); err != nil {
-		return nil, errors.New("couldn't register messages")
+	err := s.RegisterHandlers(s.InitUnit, s.CreateUnits, s.GenerateExecutionPlan, s.LogSkipchain)
+	if err != nil {
+		log.Errorf("[newService] Could not register handlers: %v", err)
+		return nil, err
 	}
-
-	id1, err := s.ProtocolRegister(execPlanSubFtCosi, func(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
+	_, err = s.ProtocolRegister(execPlanSubFtCosi, func(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
 		return protocol.NewSubBlsCosi(n, s.verifyExecutionPlan, pairingSuite)
 	})
 	if err != nil {
-		log.Error(err)
+		log.Errorf("[newService] Could not register protocol %s: %v", execPlanSubFtCosi, err)
 		return nil, err
 	}
-	id2, err := s.ProtocolRegister(execPlanFtCosi, func(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
+	_, err = s.ProtocolRegister(execPlanFtCosi, func(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
 		return protocol.NewBlsCosi(n, s.verifyExecutionPlan, execPlanSubFtCosi, pairingSuite)
 	})
 	if err != nil {
-		log.Error(err)
+		log.Errorf("[newService] Could not register protocol %s: %v", execPlanFtCosi, err)
 		return nil, err
 	}
-
-	fmt.Println("IDs are:", id1, id2)
-	//if err := s.tryLoad(); err != nil {
-	//log.Error(err)
-	//return nil, err
-	//}
 	return s, nil
 }

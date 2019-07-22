@@ -15,7 +15,6 @@ type KV struct {
 }
 
 type Storage struct {
-	//Data []KV
 	Data map[string][]byte
 }
 
@@ -32,12 +31,6 @@ type InitUnitRequest struct {
 	BlkInterval  time.Duration
 	DurationType time.Duration
 }
-
-//type InitUnitRequest struct {
-//Roster       *onet.Roster
-//BlkInterval  time.Duration
-//DurationType time.Duration
-//}
 
 type InitUnitReply struct {
 	Genesis []byte

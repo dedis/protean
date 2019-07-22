@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"crypto/sha256"
 	"fmt"
-	//"github.com/ceyhunalp/protean_code/compiler"
 	"os"
 
 	"go.dedis.ch/cothority/v3"
@@ -17,17 +16,9 @@ import (
 	"go.dedis.ch/onet/v3/app"
 	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/protobuf"
-	//"strconv"
-	//"strings"
 )
 
 var ps = pairing.NewSuiteBn256()
-
-type ScInitData struct {
-	Roster  *onet.Roster
-	MHeight int
-	BHeight int
-}
 
 func StoreBlock(s *skipchain.Service, genesis skipchain.SkipBlockID, data []byte) error {
 	db := s.GetDB()

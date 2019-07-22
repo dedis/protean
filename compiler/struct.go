@@ -2,7 +2,9 @@ package compiler
 
 import (
 	"github.com/ceyhunalp/protean_code"
+	"github.com/ceyhunalp/protean_code/utils"
 	"go.dedis.ch/cothority/v3/blscosi/protocol"
+	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/onet/v3"
 )
@@ -18,17 +20,19 @@ type FunctionalUnit struct {
 	//Txns       []*Transaction
 }
 
-//type ExecutionPlan struct {
-////TODO: Get this out of here. It is a temporary hack - or is it?
-//Genesis  []byte
-//Workflow []*protean.WfNode
-//Publics  map[string]*Identity
-//}
-
 type UnitData struct {
 	UnitID   string
 	UnitName string
 	Txns     map[string]string
+}
+
+type InitUnitRequest struct {
+	ScData *utils.ScInitData
+}
+
+type InitUnitReply struct {
+	Genesis []byte
+	//Sb      *skipchain.SkipBlock
 }
 
 type CreateUnitsRequest struct {
@@ -38,7 +42,7 @@ type CreateUnitsRequest struct {
 
 type CreateUnitsReply struct {
 	Data []*UnitData
-	//SbID skipchain.SkipBlockID
+	SbID skipchain.SkipBlockID
 }
 
 type ExecutionPlanRequest struct {
@@ -57,6 +61,17 @@ type LogSkipchainRequest struct {
 
 type LogSkipchainReply struct {
 }
+
+//type CreateSkipchainRequest struct {
+//Roster  *onet.Roster
+//MHeight int
+//BHeight int
+//}
+
+//type CreateSkipchainReply struct {
+//Genesis []byte
+//Sb      *skipchain.SkipBlock
+//}
 
 type sbData struct {
 	Data map[string]*uv

@@ -3,7 +3,7 @@ package dummy
 import (
 	//"crypto/sha256"
 	//"errors"
-	"fmt"
+
 	//"github.com/ceyhunalp/protean_code"
 	//"github.com/ceyhunalp/protean_code/verify"
 	//"go.dedis.ch/cothority/v3/blscosi"
@@ -41,8 +41,8 @@ type Service struct {
 	signer    darc.Signer
 	signerCtr uint64
 
-	scService  *skipchain.Service
 	byzService *byzcoin.Service
+	scService  *skipchain.Service
 }
 
 func init() {
@@ -76,7 +76,7 @@ func (s *Service) UpdateState(req *UpdateStateRequest) (*UpdateStateReply, error
 		InclusionWait: req.Wait,
 	})
 	if err != nil {
-		log.Errorf("update state: add transaction failed: %v", err)
+		log.Errorf("[UpdateState]: Add transaction failed: %v", err)
 		return nil, err
 	}
 	//reply.InstID = req.Ctx.Instructions[0].DeriveID("")
@@ -95,7 +95,7 @@ func (s *Service) CreateState(req *CreateStateRequest) (*CreateStateReply, error
 		InclusionWait: req.Wait,
 	})
 	if err != nil {
-		log.Errorf("create state: add transaction failed: %v", err)
+		log.Errorf("[CreateState] Add transaction failed: %v", err)
 		return nil, err
 	}
 	reply.InstID = req.Ctx.Instructions[0].DeriveID("")
@@ -105,7 +105,7 @@ func (s *Service) CreateState(req *CreateStateRequest) (*CreateStateReply, error
 func (s *Service) SpawnDarc(req *SpawnDarcRequest) (*SpawnDarcReply, error) {
 	darcBuf, err := req.Darc.ToProto()
 	if err != nil {
-		log.Errorf("Could not convert darc to protobuf: %v", err)
+		log.Errorf("[SpawnDarc] Could not convert darc to protobuf: %v", err)
 		return nil, err
 	}
 	ctx := byzcoin.ClientTransaction{
@@ -123,7 +123,7 @@ func (s *Service) SpawnDarc(req *SpawnDarcRequest) (*SpawnDarcReply, error) {
 	}
 	err = ctx.FillSignersAndSignWith(s.signer)
 	if err != nil {
-		log.Errorf("Transaction sign failed: %v", err)
+		log.Errorf("[SpawnDarc] Signing the transaction failed: %v", err)
 		return nil, err
 	}
 	_, err = s.byzService.AddTransaction(&byzcoin.AddTxRequest{
@@ -133,7 +133,7 @@ func (s *Service) SpawnDarc(req *SpawnDarcRequest) (*SpawnDarcReply, error) {
 		InclusionWait: req.Wait,
 	})
 	if err != nil {
-		log.Errorf("Spawn darc: add transaction failed: %v", err)
+		log.Errorf("[SpawnDarc] Add transaction failed: %v", err)
 		return nil, err
 	}
 	s.signerCtr++
@@ -188,7 +188,7 @@ func (s *Service) GetProof(req *GetProofRequest) (*GetProofReply, error) {
 		Key:     req.InstID,
 	})
 	if err != nil {
-		log.Errorf("get proof failed: %v", err)
+		log.Errorf("[GetProof] GetProof request failed: %v", err)
 		return nil, err
 	}
 	return reply, nil
@@ -200,13 +200,14 @@ func newService(c *onet.Context) (onet.Service, error) {
 		byzService:       c.Service(byzcoin.ServiceName).(*byzcoin.Service),
 		scService:        c.Service(skipchain.ServiceName).(*skipchain.Service),
 	}
-	//if err := s.RegisterHandlers(s.CreateState, s.UpdateState, s.InitUnit); err != nil {
-	err := s.RegisterHandlers(s.InitUnit, s.SpawnDarc, s.CreateState, s.GetProof, s.UpdateState)
+	err := s.RegisterHandlers(s.InitUnit, s.SpawnDarc, s.CreateState, s.UpdateState, s.GetProof)
 	if err != nil {
-		return nil, fmt.Errorf("could not register handlers: %v", err)
+		log.Errorf("[newService] Could not register handlers: %v", err)
+		return nil, err
 	}
 	err = byzcoin.RegisterContract(c, ContractKeyValueID, contractValueFromBytes)
 	if err != nil {
+		log.Errorf("[newService] Could not register contract %s: %v", ContractKeyValueID, err)
 		return nil, err
 	}
 	return s, nil

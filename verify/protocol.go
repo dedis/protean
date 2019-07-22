@@ -1,17 +1,7 @@
 package verify
 
-/*
-The `NewProtocol` method is used to define the protocol and to register
-the handlers that will be called if a certain type of message is received.
-The handlers will be treated according to their signature.
-
-The protocol-file defines the actions that the protocol needs to do in each
-step. The root-node will call the `Start`-method of the protocol. Each
-node will only use the `Handle`-methods, and not call `Start` again.
-*/
-
 import (
-	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -25,17 +15,11 @@ import (
 
 func init() {
 	network.RegisterMessages(&Verify{}, &VerifyReply{})
-	onet.GlobalProtocolRegister(Name, NewVerifyExecutionPlan)
+	_, err := onet.GlobalProtocolRegister(Name, NewVerifyExecutionPlan)
+	if err != nil {
+		log.Errorf("[Init in Verify] Could not register protocol: %v", err)
+	}
 }
-
-// TemplateProtocol holds the state of a given protocol.
-//
-// For this example, it defines a channel that will receive the number
-// of children. Only the root-node will write to the channel.
-//type TemplateProtocol struct {
-//*onet.TreeNodeInstance
-//ChildCount chan int
-//}
 
 type VP struct {
 	*onet.TreeNodeInstance
@@ -64,7 +48,8 @@ func NewVerifyExecutionPlan(n *onet.TreeNodeInstance) (onet.ProtocolInstance, er
 	}
 	for _, handler := range []interface{}{vp.verifyExecPlan, vp.verifyExecPlanReply} {
 		if err := vp.RegisterHandler(handler); err != nil {
-			return nil, errors.New("couldn't register handler: " + err.Error())
+			log.Errorf("[NewVerifyExecutionPlan] Could not register handler %s: %v", handler, err)
+			return nil, err
 		}
 	}
 	return vp, nil
@@ -74,15 +59,15 @@ func (vp *VP) Start() error {
 	log.Lvl3("Starting protocol")
 	if vp.ExecPlan == nil {
 		vp.finish(false)
-		return errors.New("Execution plan missing")
+		return fmt.Errorf("Execution plan missing")
 	}
 	if vp.Block == nil {
 		vp.finish(false)
-		return errors.New("Block missing")
+		return fmt.Errorf("Block missing")
 	}
 	if vp.SigMap == nil {
 		vp.finish(false)
-		return errors.New("Signature map is missing")
+		return fmt.Errorf("Signature map is missing")
 	}
 
 	v := &Verify{
@@ -95,7 +80,7 @@ func (vp *VP) Start() error {
 
 	if !verifyPlan(v) {
 		vp.finish(false)
-		return errors.New("Verification failed")
+		return fmt.Errorf("Verification failed")
 	}
 
 	//TODO: Do what the children will do here - i.e. sigver
@@ -107,8 +92,8 @@ func (vp *VP) Start() error {
 
 	errs := vp.Broadcast(v)
 	if len(errs) > vp.FaultThreshold {
-		log.Errorf("Some nodes failed with error(s):%v", errs)
-		return errors.New("Too many nodes failed in broadcast")
+		log.Errorf("[Start] Some nodes failed with error(s): %v", errs)
+		return fmt.Errorf("Too many nodes failed in broadcast")
 	}
 	return nil
 }
@@ -117,7 +102,7 @@ func (vp *VP) verifyExecPlan(sv ProtoVerify) error {
 	log.Lvl2(vp.Name() + ": starting verification")
 	defer vp.Done()
 	if !verifyPlan(&sv.Verify) {
-		log.Errorf("Verify plan failed at: %s", vp.ServerIdentity())
+		log.Errorf("[verifyExecPlan] Verify plan failed at: %s", vp.ServerIdentity())
 		return vp.SendToParent(&VerifyReply{
 			Success: false,
 		})

@@ -1,8 +1,10 @@
 package compiler
 
 import (
-	"errors"
+	"fmt"
+
 	"github.com/ceyhunalp/protean_code"
+	"github.com/ceyhunalp/protean_code/utils"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/onet/v3"
 )
@@ -15,26 +17,39 @@ func NewClient() *Client {
 	return &Client{Client: onet.NewClient(cothority.Suite, ServiceName)}
 }
 
-func (c *Client) CreateSkipchain(r *onet.Roster, mHeight int, bHeight int) (*protean.CreateSkipchainReply, error) {
+//func (c *Client) CreateSkipchain(r *onet.Roster, mHeight int, bHeight int) (*CreateSkipchainReply, error) {
+//if len(r.List) == 0 {
+//return nil, fmt.Errorf("[CreateSkipchain] Got an empty roster list")
+//}
+//dst := r.List[0]
+//req := &CreateSkipchainRequest{
+//Roster:  r,
+//MHeight: mHeight,
+//BHeight: bHeight,
+//}
+//reply := &CreateSkipchainReply{}
+//err := c.SendProtobuf(dst, req, reply)
+//return reply, err
+//}
+
+func (c *Client) InitUnit(r *onet.Roster, scData *utils.ScInitData) (*InitUnitReply, error) {
 	if len(r.List) == 0 {
-		return nil, errors.New("Got an empty roster list")
+		return nil, fmt.Errorf("[InitUnit] Got an empty roster list")
 	}
 	dst := r.List[0]
-	//req := &CreateSkipchainRequest{
-	req := &protean.CreateSkipchainRequest{
-		Roster:  r,
-		MHeight: mHeight,
-		BHeight: bHeight,
+	req := &InitUnitRequest{
+		ScData: scData,
 	}
-	reply := &protean.CreateSkipchainReply{}
+	reply := &InitUnitReply{}
 	err := c.SendProtobuf(dst, req, reply)
 	return reply, err
+
 }
 
 func (c *Client) CreateUnits(r *onet.Roster, genesis []byte, units []*FunctionalUnit) (*CreateUnitsReply, error) {
 	//TODO: Check values in struct?
 	if len(r.List) == 0 {
-		return nil, errors.New("Got an empty roster list")
+		return nil, fmt.Errorf("[CreateUnits] Got an empty roster list")
 	}
 	dst := r.List[0]
 	req := &CreateUnitsRequest{
@@ -48,7 +63,7 @@ func (c *Client) CreateUnits(r *onet.Roster, genesis []byte, units []*Functional
 
 func (c *Client) GenerateExecutionPlan(r *onet.Roster, genesis []byte, wf []*protean.WfNode) (*ExecutionPlanReply, error) {
 	if len(r.List) == 0 {
-		return nil, errors.New("Got an empty roster list")
+		return nil, fmt.Errorf("[GenerateExecutionPlan] Got an empty roster list")
 	}
 	dst := r.List[0]
 	req := &ExecutionPlanRequest{
@@ -70,7 +85,7 @@ func (c *Client) GenerateExecutionPlan(r *onet.Roster, genesis []byte, wf []*pro
 
 func (c *Client) LogSkipchain(r *onet.Roster, genesis []byte) error {
 	if len(r.List) == 0 {
-		return errors.New("Got an empty roster list")
+		return fmt.Errorf("[LogSkipchain] Got an empty roster list")
 	}
 	dst := r.List[0]
 	req := &LogSkipchainRequest{

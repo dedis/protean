@@ -1,7 +1,6 @@
 package dummy
 
 import (
-	"errors"
 	"fmt"
 	"time"
 
@@ -23,9 +22,9 @@ func NewClient() *Client {
 	return &Client{Client: onet.NewClient(cothority.Suite, ServiceName)}
 }
 
-func (c *Client) UpdateStateRequest(r *onet.Roster, kv []*KV, instID byzcoin.InstanceID, signerCtr uint64, signer darc.Signer, wait int) (*UpdateStateReply, error) {
+func (c *Client) UpdateState(r *onet.Roster, kv []*KV, instID byzcoin.InstanceID, signerCtr uint64, signer darc.Signer, wait int) (*UpdateStateReply, error) {
 	if len(r.List) == 0 {
-		return nil, errors.New("Got an empty roster list")
+		return nil, fmt.Errorf("[UpdateState] Got an empty roster list")
 	}
 	dst := r.List[0]
 	var args byzcoin.Arguments
@@ -45,7 +44,7 @@ func (c *Client) UpdateStateRequest(r *onet.Roster, kv []*KV, instID byzcoin.Ins
 	}
 	err := ctx.FillSignersAndSignWith(signer)
 	if err != nil {
-		log.Errorf("Error signing the transaction: %v", err)
+		log.Errorf("[UpdateState] Signing the transaction failed: %v", err)
 		return nil, err
 	}
 	req := &UpdateStateRequest{
@@ -58,9 +57,9 @@ func (c *Client) UpdateStateRequest(r *onet.Roster, kv []*KV, instID byzcoin.Ins
 }
 
 // This is called by the organize/owner/admin of the application
-func (c *Client) CreateStateRequest(r *onet.Roster, kv []*KV, adminDarc darc.Darc, signerCtr uint64, signer darc.Signer, wait int) (*CreateStateReply, error) {
+func (c *Client) CreateState(r *onet.Roster, kv []*KV, adminDarc darc.Darc, signerCtr uint64, signer darc.Signer, wait int) (*CreateStateReply, error) {
 	if len(r.List) == 0 {
-		return nil, errors.New("Got an empty roster list")
+		return nil, fmt.Errorf("Got an empty roster list")
 	}
 	dst := r.List[0]
 	var args byzcoin.Arguments
@@ -79,7 +78,7 @@ func (c *Client) CreateStateRequest(r *onet.Roster, kv []*KV, adminDarc darc.Dar
 	}
 	err := ctx.FillSignersAndSignWith(signer)
 	if err != nil {
-		log.Errorf("Error signing the transaction: %v", err)
+		log.Errorf("[UpdateState] Signing the transaction failed: %v", err)
 		return nil, err
 	}
 	req := &CreateStateRequest{
@@ -93,7 +92,7 @@ func (c *Client) CreateStateRequest(r *onet.Roster, kv []*KV, adminDarc darc.Dar
 
 func (c *Client) SpawnDarc(r *onet.Roster, spawnDarc darc.Darc, wait int) (*SpawnDarcReply, error) {
 	if len(r.List) == 0 {
-		return nil, errors.New("Got an empty roster list")
+		return nil, fmt.Errorf("Got an empty roster list")
 	}
 	dst := r.List[0]
 	req := &SpawnDarcRequest{
@@ -102,9 +101,6 @@ func (c *Client) SpawnDarc(r *onet.Roster, spawnDarc darc.Darc, wait int) (*Spaw
 	}
 	reply := &SpawnDarcReply{}
 	err := c.SendProtobuf(dst, req, reply)
-	if err != nil {
-		log.Errorf("SendProtobuf error: %v", err)
-	}
 	return nil, err
 }
 
@@ -127,15 +123,12 @@ func (c *Client) InitUnit(r *onet.Roster, scData *utils.ScInitData, unitData *pr
 	}
 	reply := &InitUnitReply{}
 	err := c.SendProtobuf(dst, req, reply)
-	if err != nil {
-		log.Errorf("[InitUnit].SendProtobuf error: %v", err)
-	}
 	return nil, err
 }
 
 func (c *Client) GetProof(r *onet.Roster, instID []byte) (*GetProofReply, error) {
 	if len(r.List) == 0 {
-		return nil, errors.New("Got an empty roster list")
+		return nil, fmt.Errorf("Got an empty roster list")
 	}
 	dst := r.List[0]
 	req := &GetProofRequest{
@@ -143,8 +136,5 @@ func (c *Client) GetProof(r *onet.Roster, instID []byte) (*GetProofReply, error)
 	}
 	reply := &GetProofReply{}
 	err := c.SendProtobuf(dst, req, reply)
-	if err != nil {
-		log.Errorf("SendProtobuf error: %v", err)
-	}
 	return reply, err
 }
