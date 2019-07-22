@@ -1,9 +1,8 @@
 package protean
 
 import (
-	"go.dedis.ch/cothority/v3/skipchain"
+	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/kyber/v3"
-	"go.dedis.ch/onet/v3"
 )
 
 type UnitStorage struct {
@@ -18,20 +17,20 @@ type WfNode struct {
 	Deps []int
 }
 
-type CreateSkipchainRequest struct {
-	Roster  *onet.Roster
-	MHeight int
-	BHeight int
+type Identity struct {
+	Keys []kyber.Point
 }
 
-type CreateSkipchainReply struct {
-	Genesis []byte
-	Sb      *skipchain.SkipBlock
+type ExecutionPlan struct {
+	//TODO: Get this out of here. It is a temporary hack - or is it?
+	Genesis  []byte
+	Workflow []*WfNode
+	Publics  map[string]*Identity
 }
 
-type InitUnitRequest struct {
-	//Genesis      []byte
-	UnitID       string
-	Txns         map[string]string
-	CompilerKeys []kyber.Point
+type ExecutionData struct {
+	Index    int
+	ExecPlan *ExecutionPlan
+	PlanSig  protocol.BlsSignature
+	SigMap   map[int]protocol.BlsSignature
 }

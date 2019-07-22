@@ -1,31 +1,28 @@
 package compiler
 
 import (
-	//"bufio"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"github.com/ceyhunalp/protean_code"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/skipchain"
-	//"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/onet/v3/network"
 	"go.dedis.ch/protobuf"
-	//"os"
 	"strconv"
 	"strings"
 )
 
-func prepareExecutionPlan(data *sbData, req *ExecutionPlanRequest) (*ExecutionPlan, error) {
+func prepareExecutionPlan(data *sbData, req *ExecutionPlanRequest) (*protean.ExecutionPlan, error) {
 	//publics := make(map[string][]kyber.Point)
-	publics := make(map[string]*Identity)
+	publics := make(map[string]*protean.Identity)
 	for _, wfn := range req.Workflow {
 		log.Info("workflow node:", wfn.UID, wfn.TID)
 		if uv, ok := data.Data[wfn.UID]; ok {
 			if _, ok := publics[wfn.UID]; !ok {
 				//publics[wfn.UID] = uv.Ps
-				publics[wfn.UID] = &Identity{Keys: uv.Ps}
+				publics[wfn.UID] = &protean.Identity{Keys: uv.Ps}
 			}
 		} else {
 			return nil, errors.New("functional unit does not exist")
@@ -33,7 +30,7 @@ func prepareExecutionPlan(data *sbData, req *ExecutionPlanRequest) (*ExecutionPl
 	}
 	//TODO: Revert to EP w/o genesis
 	//return &ExecutionPlan{Workflow: req.Workflow, Publics: publics}, nil
-	return &ExecutionPlan{Genesis: req.Genesis, Workflow: req.Workflow, Publics: publics}, nil
+	return &protean.ExecutionPlan{Genesis: req.Genesis, Workflow: req.Workflow, Publics: publics}, nil
 }
 
 func verifyDag(wf []*protean.WfNode) bool {

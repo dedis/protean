@@ -18,34 +18,18 @@ type FunctionalUnit struct {
 	//Txns       []*Transaction
 }
 
-type Identity struct {
-	Keys []kyber.Point
-}
-
-type ExecutionPlan struct {
-	//TODO: Get this out of here. It is a temporary hack - or is it?
-	Genesis  []byte
-	Workflow []*protean.WfNode
-	Publics  map[string]*Identity
-	//Publics  map[string][]kyber.Point
-}
+//type ExecutionPlan struct {
+////TODO: Get this out of here. It is a temporary hack - or is it?
+//Genesis  []byte
+//Workflow []*protean.WfNode
+//Publics  map[string]*Identity
+//}
 
 type UnitData struct {
 	UnitID   string
 	UnitName string
 	Txns     map[string]string
 }
-
-//type CreateSkipchainRequest struct {
-//Roster  *onet.Roster
-//MHeight int
-//BHeight int
-//}
-
-//type CreateSkipchainReply struct {
-//Genesis []byte
-//Sb      *skipchain.SkipBlock
-//}
 
 type CreateUnitsRequest struct {
 	Genesis []byte
@@ -63,7 +47,7 @@ type ExecutionPlanRequest struct {
 }
 
 type ExecutionPlanReply struct {
-	ExecPlan  *ExecutionPlan
+	ExecPlan  *protean.ExecutionPlan
 	Signature protocol.BlsSignature
 }
 

@@ -16,10 +16,11 @@ import (
 	"os"
 	"path"
 
-	_ "github.com/ceyhunalp/protean_code/byzcoin"
-	_ "github.com/ceyhunalp/protean_code/compiler"
-	_ "go.dedis.ch/cothority/v3/blscosi"
-	_ "go.dedis.ch/cothority/v3/calypso"
+	//_ "github.com/ceyhunalp/protean_code/compiler"
+	_ "github.com/ceyhunalp/protean_code/dummy"
+	//_ "github.com/ceyhunalp/protean_code/state"
+	//_ "go.dedis.ch/cothority/v3/blscosi"
+	//_ "go.dedis.ch/cothority/v3/calypso"
 
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/onet/v3/app"

@@ -9,7 +9,6 @@ so that it can find out who sent the message.
 import (
 	"crypto/sha256"
 	"github.com/ceyhunalp/protean_code"
-	"github.com/ceyhunalp/protean_code/compiler"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/cothority/v3/skipchain"
@@ -30,7 +29,7 @@ var suite = pairing.NewSuiteBn256()
 
 type Verify struct {
 	Index   int
-	Plan    *compiler.ExecutionPlan
+	Plan    *protean.ExecutionPlan
 	Block   *skipchain.SkipBlock
 	PlanSig protocol.BlsSignature
 	SigMap  map[int]protocol.BlsSignature

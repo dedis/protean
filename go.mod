@@ -13,3 +13,5 @@ require (
 	golang.org/x/sys v0.0.0-20190209173611-3b5209105503 // indirect
 	gopkg.in/urfave/cli.v1 v1.20.0
 )
+
+//replace go.dedis.ch/cothority/v3 => ../../cothority

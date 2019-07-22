@@ -5,9 +5,11 @@ import (
 	"crypto/sha256"
 	"fmt"
 	//"github.com/ceyhunalp/protean_code/compiler"
+	"os"
+
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/blscosi/protocol"
-	//"go.dedis.ch/cothority/v3/skipchain"
+	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/pairing"
 	"go.dedis.ch/kyber/v3/util/encoding"
@@ -15,12 +17,53 @@ import (
 	"go.dedis.ch/onet/v3/app"
 	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/protobuf"
-	"os"
 	//"strconv"
 	//"strings"
 )
 
 var ps = pairing.NewSuiteBn256()
+
+type ScInitData struct {
+	Roster  *onet.Roster
+	MHeight int
+	BHeight int
+}
+
+func StoreBlock(s *skipchain.Service, genesis skipchain.SkipBlockID, data []byte) error {
+	db := s.GetDB()
+	latest, err := db.GetLatest(db.GetByID(genesis))
+	if err != nil {
+		log.Errorf("[StoreBlock] Could not find the latest block: %v", err)
+		return err
+	}
+	block := latest.Copy()
+	block.Data = data
+	block.GenesisID = block.SkipChainID()
+	block.Index++
+	_, err = s.StoreSkipBlock(&skipchain.StoreSkipBlock{
+		NewBlock:          block,
+		TargetSkipChainID: latest.SkipChainID(),
+	})
+	if err != nil {
+		log.Errorf("[StoreBlock] Could not store skipclock: %v", err)
+	}
+	return err
+}
+
+func CreateGenesisBlock(s *skipchain.Service, scData *ScInitData) (*skipchain.StoreSkipBlockReply, error) {
+	genesis := skipchain.NewSkipBlock()
+	genesis.MaximumHeight = scData.MHeight
+	genesis.BaseHeight = scData.BHeight
+	genesis.Roster = scData.Roster
+	genesis.VerifierIDs = skipchain.VerificationStandard
+	reply, err := s.StoreSkipBlock(&skipchain.StoreSkipBlock{
+		NewBlock: genesis,
+	})
+	if err != nil {
+		log.Errorf("[CreateGenesisBlock] Could not store skipblock: %v", err)
+	}
+	return reply, err
+}
 
 func VerifySignature(s interface{}, sig protocol.BlsSignature, publics []kyber.Point) error {
 	data, err := protobuf.Encode(s)

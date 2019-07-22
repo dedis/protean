@@ -3,10 +3,17 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/ceyhunalp/protean_code/compiler"
-	"github.com/ceyhunalp/protean_code/utils"
-	"go.dedis.ch/onet/v3"
 	"os"
+	"time"
+
+	"github.com/ceyhunalp/protean_code"
+	"github.com/ceyhunalp/protean_code/compiler"
+	"github.com/ceyhunalp/protean_code/dummy"
+	"github.com/ceyhunalp/protean_code/utils"
+	"go.dedis.ch/cothority/v3/darc"
+	"go.dedis.ch/cothority/v3/darc/expression"
+	"go.dedis.ch/onet/v3"
+	"go.dedis.ch/protobuf"
 )
 
 func runClient(roster *onet.Roster, genesis []byte, uData map[string]string, tData map[string]string, wfFilePtr *string) error {
@@ -97,6 +104,111 @@ func runClient(roster *onet.Roster, genesis []byte, uData map[string]string, tDa
 	return nil
 }
 
+func testStateUnit(roster *onet.Roster) error {
+	dumCl := dummy.NewClient()
+	scData := &utils.ScInitData{
+		Roster:  roster,
+		MHeight: 2,
+		BHeight: 2,
+	}
+	uData := &protean.UnitStorage{
+		UnitID:   "dummy",
+		Txns:     map[string]string{"a": "b", "c": "d"},
+		CompKeys: roster.ServicePublics(dummy.ServiceName),
+	}
+	//_, err := dumCl.InitUnit(roster, 15, time.Second)
+	_, err := dumCl.InitUnit(roster, scData, uData, 15, time.Second)
+	if err != nil {
+		fmt.Println("Could not initialize state unit")
+		return err
+	}
+
+	org := darc.NewSignerEd25519(nil, nil)
+	orgDarc := darc.NewDarc(darc.InitRules([]darc.Identity{org.Identity()}, []darc.Identity{org.Identity()}), []byte("Organizer"))
+	cl1 := darc.NewSignerEd25519(nil, nil)
+	cl2 := darc.NewSignerEd25519(nil, nil)
+	cl3 := darc.NewSignerEd25519(nil, nil)
+	fmt.Println("I'm", org.Identity().String())
+	fmt.Println("I'm", cl1.Identity().String())
+	fmt.Println("I'm", cl2.Identity().String())
+	fmt.Println("I'm", cl3.Identity().String())
+	orgDarc.Rules.AddRule(darc.Action("spawn:"+dummy.ContractKeyValueID), expression.InitOrExpr(org.Identity().String()))
+	orgDarc.Rules.AddRule(darc.Action("invoke:"+dummy.ContractKeyValueID+".update"), expression.InitOrExpr(org.Identity().String(), cl1.Identity().String(), cl2.Identity().String()))
+	//orgDarc.Rules.AddRule(darc.Action("invoke:"+dummy.ContractKeyValueID+".update"), expression.InitOrExpr(org.Identity().String()))
+	//orgDarc.Rules.AddRule(darc.Action("invoke:"+dummy.ContractKeyValueID+".update"), expression.InitOrExpr(cl1.Identity().String()))
+	//orgDarc.Rules.AddRule(darc.Action("invoke:"+dummy.ContractKeyValueID+".update"), expression.InitOrExpr(cl2.Identity().String()))
+	_, err = dumCl.SpawnDarc(roster, *orgDarc, 5)
+	if err != nil {
+		fmt.Println("Could not spawn darc")
+		return err
+	}
+
+	var kv []*dummy.KV
+	kv = append(kv, &dummy.KV{Key: "deli", Value: []byte("vahit")})
+	kv = append(kv, &dummy.KV{Key: "pasa", Value: []byte("vahit")})
+	signerCtr := uint64(1)
+	cl1Ctr := uint64(1)
+	csReply, err := dumCl.CreateStateRequest(roster, kv, *orgDarc, signerCtr, org, 4)
+	if err != nil {
+		return fmt.Errorf("createstaterequest failed: %v", err)
+	}
+	signerCtr++
+
+	gpReply, err := dumCl.GetProof(roster, csReply.InstID[:])
+	if err != nil {
+		return fmt.Errorf("getproof failed: %v", err)
+	}
+	if !gpReply.Proof.InclusionProof.Match(csReply.InstID[:]) {
+		return fmt.Errorf("Inclusion proof does not match")
+	} else {
+		fmt.Println("SUCCESS: Inclusion proof matched")
+	}
+
+	_, val, _, _, err := gpReply.Proof.KeyValue()
+	storage := dummy.Storage{}
+	err = protobuf.Decode(val, &storage)
+	if err != nil {
+		return fmt.Errorf("Protobuf decode failed: %v", err)
+	}
+	fmt.Println("Printing after create state:")
+	for k, v := range storage.Data {
+		fmt.Println(k, string(v))
+	}
+
+	fmt.Println("===============")
+
+	var updKv []*dummy.KV
+	updKv = append(updKv, &dummy.KV{Key: "erkan", Value: []byte("ogur")})
+	updKv = append(updKv, &dummy.KV{Key: "terence", Value: []byte("blanchard")})
+
+	_, err = dumCl.UpdateStateRequest(roster, updKv, csReply.InstID, cl1Ctr, cl3, 4)
+	//_, err = dumCl.UpdateStateRequest(roster, updKv, csReply.InstID, signerCtr, org)
+	if err != nil {
+		return fmt.Errorf("updatestaterequest failed: %v", err)
+	}
+	cl1Ctr++
+	fmt.Println("Returned from updatestaterequest")
+
+	gpReply, err = dumCl.GetProof(roster, csReply.InstID[:])
+	if err != nil {
+		return fmt.Errorf("getproof failed: %v", err)
+	}
+	if !gpReply.Proof.InclusionProof.Match(csReply.InstID[:]) {
+		return fmt.Errorf("Inclusion proof does not match")
+	}
+
+	_, val, _, _, err = gpReply.Proof.KeyValue()
+	storage = dummy.Storage{}
+	err = protobuf.Decode(val, &storage)
+	if err != nil {
+		return fmt.Errorf("Protobuf decode failed: %v", err)
+	}
+	for k, v := range storage.Data {
+		fmt.Println(k, string(v))
+	}
+	return nil
+}
+
 func main() {
 	rosterFilePtr := flag.String("r", "", "roster.toml file")
 	unitFilePtr := flag.String("u", "", "units.txt file")
@@ -129,6 +241,10 @@ func main() {
 		//TODO: Maybe write a function to fetch latest block information
 		//from the skipchain, so that the client can have unit&txn
 		//information
+		err := testStateUnit(roster)
+		if err != nil {
+			fmt.Println(err)
+		}
 	}
 
 	//runClient(roster, unitRequest)

@@ -1,4 +1,4 @@
-package state
+package dummy
 
 import (
 	"errors"
@@ -7,14 +7,12 @@ import (
 
 	"github.com/ceyhunalp/protean_code"
 	"github.com/ceyhunalp/protean_code/utils"
+
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/darc"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
-	//"go.dedis.ch/onet/v3/log"
-	//"go.dedis.ch/onet/v3/network"
-	//"go.dedis.ch/protobuf"
 )
 
 type Client struct {
@@ -25,7 +23,7 @@ func NewClient() *Client {
 	return &Client{Client: onet.NewClient(cothority.Suite, ServiceName)}
 }
 
-func (c *Client) UpdateState(r *onet.Roster, kv []*KV, instID byzcoin.InstanceID, signerCtr uint64, signer darc.Signer, wait int) (*UpdateStateReply, error) {
+func (c *Client) UpdateStateRequest(r *onet.Roster, kv []*KV, instID byzcoin.InstanceID, signerCtr uint64, signer darc.Signer, wait int) (*UpdateStateReply, error) {
 	if len(r.List) == 0 {
 		return nil, errors.New("Got an empty roster list")
 	}
@@ -60,7 +58,7 @@ func (c *Client) UpdateState(r *onet.Roster, kv []*KV, instID byzcoin.InstanceID
 }
 
 // This is called by the organize/owner/admin of the application
-func (c *Client) CreateState(r *onet.Roster, kv []*KV, adminDarc darc.Darc, signerCtr uint64, signer darc.Signer, wait int) (*CreateStateReply, error) {
+func (c *Client) CreateStateRequest(r *onet.Roster, kv []*KV, adminDarc darc.Darc, signerCtr uint64, signer darc.Signer, wait int) (*CreateStateReply, error) {
 	if len(r.List) == 0 {
 		return nil, errors.New("Got an empty roster list")
 	}
@@ -110,17 +108,16 @@ func (c *Client) SpawnDarc(r *onet.Roster, spawnDarc darc.Darc, wait int) (*Spaw
 	return nil, err
 }
 
-//func (c *Client) InitUnitRequest(r *onet.Roster, uid string, txns map[string]string, publics []kyber.Point) error {
+//func (c *Client) InitUnit(r *onet.Roster, interval time.Duration, typeDur time.Duration) (*InitUnitReply, error) {
 func (c *Client) InitUnit(r *onet.Roster, scData *utils.ScInitData, unitData *protean.UnitStorage, interval time.Duration, typeDur time.Duration) (*InitUnitReply, error) {
 	if len(r.List) == 0 {
 		return nil, fmt.Errorf("Got an empty roster list")
 	}
 	dst := r.List[0]
 	//req := &InitUnitRequest{
-	//UnitData: &protean.UnitStorage{
-	//CompKeys: publics,
-	//UnitID:   uid,
-	//Txns:     txns},
+	//Roster:       r,
+	//BlkInterval:  interval,
+	//DurationType: typeDur,
 	//}
 	req := &InitUnitRequest{
 		ScData:       scData,
@@ -133,7 +130,7 @@ func (c *Client) InitUnit(r *onet.Roster, scData *utils.ScInitData, unitData *pr
 	if err != nil {
 		log.Errorf("[InitUnit].SendProtobuf error: %v", err)
 	}
-	return reply, err
+	return nil, err
 }
 
 func (c *Client) GetProof(r *onet.Roster, instID []byte) (*GetProofReply, error) {
@@ -151,18 +148,3 @@ func (c *Client) GetProof(r *onet.Roster, instID []byte) (*GetProofReply, error)
 	}
 	return reply, err
 }
-
-//func (c *Client) CreateSkipchain(r *onet.Roster, mHeight int, bHeight int) (*protean.CreateSkipchainReply, error) {
-//if len(r.List) == 0 {
-//return nil, errors.New("Got an empty roster list")
-//}
-//dst := r.List[0]
-//req := &protean.CreateSkipchainRequest{
-//Roster:  r,
-//MHeight: mHeight,
-//BHeight: bHeight,
-//}
-//reply := &protean.CreateSkipchainReply{}
-//err := c.SendProtobuf(dst, req, reply)
-//return reply, err
-//}

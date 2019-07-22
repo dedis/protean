@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ceyhunalp/protean_code/compiler"
+	"github.com/ceyhunalp/protean_code"
 	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/onet/v3"
@@ -41,7 +41,7 @@ type VP struct {
 	*onet.TreeNodeInstance
 	Index          int
 	Block          *skipchain.SkipBlock
-	ExecPlan       *compiler.ExecutionPlan
+	ExecPlan       *protean.ExecutionPlan
 	PlanSig        protocol.BlsSignature
 	SigMap         map[int]protocol.BlsSignature
 	FaultThreshold int

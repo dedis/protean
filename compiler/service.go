@@ -180,7 +180,7 @@ func (s *Service) GenerateExecutionPlan(req *ExecutionPlanRequest) (*ExecutionPl
 func (s *Service) verifyExecutionPlan(msg []byte, data []byte) bool {
 	log.Info("In verifyExecutionPlan:", s.ServiceID())
 	log.Info("Starting verifyexecplan in", s.ServerIdentity())
-	var req ExecutionPlan
+	var req protean.ExecutionPlan
 	if err := protobuf.Decode(data, &req); err != nil {
 		log.Error(s.ServerIdentity(), err)
 		return false
