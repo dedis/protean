@@ -56,26 +56,11 @@ func init() {
 		&UpdateStateRequest{}, &UpdateStateReply{})
 }
 
-//TODO: Update state probably needs to return something more than an error.
-//Maybe something about the state update? (e.g. proof?)
-//func (s *Service) UpdateState(req *UpdateStateRequest) (*UpdateStateReply, error) {
-////Now you can do the actual FU-related stuff
-
-//return nil, nil
-//}
-
 func (s *Service) UpdateState(req *UpdateStateRequest) (*UpdateStateReply, error) {
 	//TODO: Do the same stuff as above in UpdateState
 	//Handle the byzcoin part
-	var err error
 	reply := &UpdateStateReply{}
-	//reply.AddTxResp, err = s.byzService.AddTransaction(&byzcoin.AddTxRequest{
-	//Version:       byzcoin.CurrentVersion,
-	//SkipchainID:   s.byzID,
-	//Transaction:   req.Ctx,
-	//InclusionWait: req.Wait,
-	//})
-	_, err = s.addTransaction(req.Ctx, req.Wait)
+	_, err := s.addTransaction(req.Ctx, req.Wait)
 	if err != nil {
 		log.Errorf("Add transaction failed: %v", err)
 		return nil, err
@@ -87,20 +72,13 @@ func (s *Service) UpdateState(req *UpdateStateRequest) (*UpdateStateReply, error
 func (s *Service) CreateState(req *CreateStateRequest) (*CreateStateReply, error) {
 	//TODO: Do the same stuff as above in UpdateState
 	//Handle the byzcoin part
-	var err error
 	reply := &CreateStateReply{}
-	//reply.AddTxResp, err = s.byzService.AddTransaction(&byzcoin.AddTxRequest{
-	//Version:       byzcoin.CurrentVersion,
-	//SkipchainID:   s.byzID,
-	//Transaction:   req.Ctx,
-	//InclusionWait: req.Wait,
-	//})
-	_, err = s.addTransaction(req.Ctx, req.Wait)
+	reply.InstID = req.Ctx.Instructions[0].DeriveID("")
+	_, err := s.addTransaction(req.Ctx, req.Wait)
 	if err != nil {
 		log.Errorf("Add transaction failed: %v", err)
 		return nil, err
 	}
-	//reply.InstID = req.Ctx.Instructions[0].DeriveID("")
 	return reply, nil
 }
 
@@ -128,12 +106,6 @@ func (s *Service) SpawnDarc(req *SpawnDarcRequest) (*SpawnDarcReply, error) {
 		log.Errorf("Signing the transaction failed: %v", err)
 		return nil, err
 	}
-	//_, err = s.byzService.AddTransaction(&byzcoin.AddTxRequest{
-	//Version:       byzcoin.CurrentVersion,
-	//SkipchainID:   s.byzID,
-	//Transaction:   ctx,
-	//InclusionWait: req.Wait,
-	//})
 	_, err = s.addTransaction(ctx, req.Wait)
 	if err != nil {
 		log.Errorf("Add transaction failed: %v", err)
@@ -179,7 +151,6 @@ func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 	}
 	s.byzID = resp.Skipblock.SkipChainID()
 	s.signerCtr = uint64(1)
-	//s.gMsg = gMsg
 	return &InitUnitReply{Genesis: genesisReply.Latest.Hash}, nil
 }
 

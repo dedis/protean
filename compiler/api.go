@@ -17,21 +17,6 @@ func NewClient() *Client {
 	return &Client{Client: onet.NewClient(cothority.Suite, ServiceName)}
 }
 
-//func (c *Client) CreateSkipchain(r *onet.Roster, mHeight int, bHeight int) (*CreateSkipchainReply, error) {
-//if len(r.List) == 0 {
-//return nil, fmt.Errorf("Got an empty roster list")
-//}
-//dst := r.List[0]
-//req := &CreateSkipchainRequest{
-//Roster:  r,
-//MHeight: mHeight,
-//BHeight: bHeight,
-//}
-//reply := &CreateSkipchainReply{}
-//err := c.SendProtobuf(dst, req, reply)
-//return reply, err
-//}
-
 func (c *Client) InitUnit(r *onet.Roster, scData *utils.ScInitData) (*InitUnitReply, error) {
 	if len(r.List) == 0 {
 		return nil, fmt.Errorf("Got an empty roster list")
@@ -43,7 +28,6 @@ func (c *Client) InitUnit(r *onet.Roster, scData *utils.ScInitData) (*InitUnitRe
 	reply := &InitUnitReply{}
 	err := c.SendProtobuf(dst, req, reply)
 	return reply, err
-
 }
 
 func (c *Client) CreateUnits(r *onet.Roster, genesis []byte, units []*FunctionalUnit) (*CreateUnitsReply, error) {
@@ -75,11 +59,6 @@ func (c *Client) GenerateExecutionPlan(r *onet.Roster, genesis []byte, wf []*pro
 	if err != nil {
 		return nil, err
 	}
-	//err = reply.Signature.Verify(ps, req.Hash(), r.ServicePublics(ServiceName))
-	//if err != nil {
-	//log.Errorf("Signature verification failed: %v", err)
-	//return nil, err
-	//}
 	return reply, err
 }
 

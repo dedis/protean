@@ -71,23 +71,6 @@ func (s *Service) CreateUnits(req *CreateUnitsRequest) (*CreateUnitsReply, error
 		log.Errorf("Protobuf encode error: %v", err)
 		return nil, err
 	}
-	//db := s.scService.GetDB()
-	//latest, err := db.GetLatest(db.GetByID(req.Genesis))
-	//if err != nil {
-	//return nil, fmt.Errorf("Could not find the latest block: %v", err)
-	//}
-	//block := latest.Copy()
-	//block.Data = enc
-	//block.GenesisID = block.SkipChainID()
-	//block.Index++
-	//_, err = s.scService.StoreSkipBlock(&skipchain.StoreSkipBlock{
-	//NewBlock:          block,
-	//TargetSkipChainID: latest.SkipChainID(),
-	//})
-	//if err != nil {
-	//log.Errorf("Could not store skipblock: %v", err)
-	//return nil, err
-	//}
 	err = utils.StoreBlock(s.scService, req.Genesis, enc)
 	if err != nil {
 		log.Errorf("Cannot add block to skipchain: %v", err)
@@ -160,8 +143,6 @@ func (s *Service) GenerateExecutionPlan(req *ExecutionPlanRequest) (*ExecutionPl
 }
 
 func (s *Service) verifyExecutionPlan(msg []byte, data []byte) bool {
-	//log.Info("In verifyExecutionPlan:", s.ServiceID())
-	//log.Info("Starting verifyexecplan in", s.ServerIdentity())
 	var req protean.ExecutionPlan
 	if err := protobuf.Decode(data, &req); err != nil {
 		log.Errorf("%s Protobuf decode error: %v:", s.ServerIdentity(), err)

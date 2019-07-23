@@ -3,13 +3,15 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"github.com/ceyhunalp/protean_code"
-	"github.com/ceyhunalp/protean_code/compiler"
-	"go.dedis.ch/onet/v3"
-	"go.dedis.ch/onet/v3/log"
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/ceyhunalp/protean_code"
+	"github.com/ceyhunalp/protean_code/compiler"
+	"github.com/ceyhunalp/protean_code/utils"
+	"go.dedis.ch/onet/v3"
+	"go.dedis.ch/onet/v3/log"
 )
 
 func createWorkflow(wfFilePtr *string, uData map[string]string, tData map[string]string) ([]*protean.WfNode, error) {
@@ -70,17 +72,18 @@ func setup(roster *onet.Roster, uFilePtr *string, tFilePtr *string) ([]byte, map
 	}
 	cl := compiler.NewClient()
 	defer cl.Close()
-	csReply, err := cl.CreateSkipchain(roster, 2, 2)
+	//csReply, err := cl.CreateSkipchain(roster, 2, 2)
+	iuReply, err := cl.InitUnit(roster, &utils.ScInitData{Roster: roster, MHeight: 2, BHeight: 2})
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	reply, err := cl.CreateUnits(roster, csReply.Genesis, units)
+	reply, err := cl.CreateUnits(roster, iuReply.Genesis, units)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
 	uMap, tMap := generateDirectoryData(reply)
-	return csReply.Genesis, uMap, tMap, nil
+	return iuReply.Genesis, uMap, tMap, nil
 }
 
 func prepareUnits(roster *onet.Roster, uFilePtr *string, tFilePtr *string) ([]*compiler.FunctionalUnit, error) {

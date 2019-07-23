@@ -60,6 +60,7 @@ func init() {
 func (s *Service) UpdateState(req *UpdateStateRequest) (*UpdateStateReply, error) {
 	// Before we send Byzcoin transactions to update state, we need to make
 	// sure that the execution plan has the necesssary signatures
+	reply := &UpdateStateReply{}
 	db := s.scService.GetDB()
 	blk, err := db.GetLatest(db.GetByID(s.genesis))
 	if err != nil {
@@ -73,17 +74,6 @@ func (s *Service) UpdateState(req *UpdateStateRequest) (*UpdateStateReply, error
 	}
 
 	//Now you can do the actual FU-related stuff
-	reply := &UpdateStateReply{}
-	//reply.AddTxResp, err = s.byzService.AddTransaction(&byzcoin.AddTxRequest{
-	//Version:       byzcoin.CurrentVersion,
-	//SkipchainID:   s.byzID,
-	//Transaction:   req.Ctx,
-	//InclusionWait: req.Wait,
-	//})
-	//if err != nil {
-	//log.Errorf("Add transaction failed: %v", err)
-	//return nil, err
-	//}
 	_, err = s.addTransaction(req.Ctx, req.Wait)
 	if err != nil {
 		log.Errorf("Add transaction failed: %v", err)
@@ -96,16 +86,6 @@ func (s *Service) UpdateState(req *UpdateStateRequest) (*UpdateStateReply, error
 		log.Errorf("Protobuf encode failed: %v", err)
 		return nil, err
 	}
-	//h := sha256.New()
-	//h.Write(payload)
-	//cosiResp, err := s.cosiService.SignatureRequest(&blscosi.SignatureRequest{
-	//Message: h.Sum(nil),
-	//Roster:  s.roster,
-	//})
-	//if err != nil {
-	//log.Errorf("blscosi failed: %v", err)
-	//return nil, err
-	//}
 	cosiResp, err := utils.BlsCosiSign(s.cosiService, s.roster, payload)
 	if err != nil {
 		log.Errorf("Cannot produce blscosi signature: %v", err)
@@ -116,6 +96,8 @@ func (s *Service) UpdateState(req *UpdateStateRequest) (*UpdateStateReply, error
 }
 
 func (s *Service) CreateState(req *CreateStateRequest) (*CreateStateReply, error) {
+	reply := &CreateStateReply{}
+	// First verify the execution plan
 	db := s.scService.GetDB()
 	blk, err := db.GetLatest(db.GetByID(s.genesis))
 	if err != nil {
@@ -127,19 +109,7 @@ func (s *Service) CreateState(req *CreateStateRequest) (*CreateStateReply, error
 		log.Errorf("Cannot verify execution plan")
 		return nil, fmt.Errorf("Cannot verify execution plan")
 	}
-
-	reply := &CreateStateReply{}
-	//reply.AddTxResp, err = s.byzService.AddTransaction(&byzcoin.AddTxRequest{
-	//Version:       byzcoin.CurrentVersion,
-	//SkipchainID:   s.byzID,
-	//Transaction:   req.Ctx,
-	//InclusionWait: req.Wait,
-	//})
-	//if err != nil {
-	//log.Errorf("Add transaction failed: %v", err)
-	//return nil, err
-	//}
-	//reply.InstID = req.Ctx.Instructions[0].DeriveID("")
+	// Create state here
 	_, err = s.addTransaction(req.Ctx, req.Wait)
 	if err != nil {
 		log.Errorf("Add transaction failed: %v", err)
@@ -157,6 +127,7 @@ func (s *Service) CreateState(req *CreateStateRequest) (*CreateStateReply, error
 		log.Errorf("Cannot produce blscosi signature: %v", err)
 		return nil, err
 	}
+	reply.InstID = req.Ctx.Instructions[0].DeriveID("")
 	reply.Sig = cosiResp.(*blscosi.SignatureResponse).Signature
 	return reply, err
 }
@@ -185,12 +156,6 @@ func (s *Service) SpawnDarc(req *SpawnDarcRequest) (*SpawnDarcReply, error) {
 		log.Errorf("Signing the transaction failed: %v", err)
 		return nil, err
 	}
-	//_, err = s.byzService.AddTransaction(&byzcoin.AddTxRequest{
-	//Version:       byzcoin.CurrentVersion,
-	//SkipchainID:   s.byzID,
-	//Transaction:   ctx,
-	//InclusionWait: req.Wait,
-	//})
 	_, err = s.addTransaction(ctx, req.Wait)
 	if err != nil {
 		log.Errorf("Add transaction failed: %v", err)

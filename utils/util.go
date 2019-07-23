@@ -36,7 +36,6 @@ func StoreBlock(s *skipchain.Service, genesis skipchain.SkipBlockID, data []byte
 	db := s.GetDB()
 	latest, err := db.GetLatest(db.GetByID(genesis))
 	if err != nil {
-		//log.Errorf("Cannot find the latest block: %v", err)
 		return err
 	}
 	block := latest.Copy()
@@ -47,9 +46,6 @@ func StoreBlock(s *skipchain.Service, genesis skipchain.SkipBlockID, data []byte
 		NewBlock:          block,
 		TargetSkipChainID: latest.SkipChainID(),
 	})
-	//if err != nil {
-	//log.Errorf("Cannot store skipclock: %v", err)
-	//}
 	return err
 }
 
@@ -62,9 +58,6 @@ func CreateGenesisBlock(s *skipchain.Service, scData *ScInitData) (*skipchain.St
 	reply, err := s.StoreSkipBlock(&skipchain.StoreSkipBlock{
 		NewBlock: genesis,
 	})
-	//if err != nil {
-	//log.Errorf("Cannot store skipblock: %v", err)
-	//}
 	return reply, err
 }
 

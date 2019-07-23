@@ -82,7 +82,6 @@ func (c *Client) CreateState(r *onet.Roster, kv []*KV, adminDarc darc.Darc, sign
 		log.Errorf("Signing the transaction failed: %v", err)
 		return nil, err
 	}
-	reply.InstID = ctx.Instructions[0].DeriveID("")
 	req := &CreateStateRequest{
 		Ctx:  ctx,
 		Wait: wait,
