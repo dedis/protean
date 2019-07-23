@@ -26,8 +26,8 @@ func prepareExecutionPlan(data *sbData, req *ExecutionPlanRequest) (*protean.Exe
 				publics[wfn.UID] = &protean.Identity{Keys: uv.Ps}
 			}
 		} else {
-			log.Errorf("[prepareExecutionPlan] Functional unit does not exist")
-			return nil, fmt.Errorf("[prepareExecutionPlan] Functional unit does not exist")
+			//log.Errorf("Functional unit does not exist")
+			return nil, fmt.Errorf("Functional unit does not exist")
 		}
 	}
 	//TODO: Revert to EP w/o genesis
@@ -65,7 +65,7 @@ func verifyDag(wf []*protean.WfNode) bool {
 
 	for _, edge := range edges {
 		if edge.removed == false {
-			log.Errorf("[verifyDag] Error: Graph has a cycle")
+			log.Errorf("Error: Graph has a cycle")
 			return false
 		}
 	}
@@ -98,16 +98,17 @@ func findNoIncoming(nodes map[int]bool, edges []*edge) []int {
 func getBlockData(db *skipchain.SkipBlockDB, genesis []byte) (*sbData, error) {
 	latest, err := db.GetLatest(db.GetByID(genesis))
 	if err != nil {
-		log.Errorf("[getBlockData] Could not get the latest block: %v", err)
+		//log.Errorf("Cannot get the latest block: %v", err)
 		return nil, err
 	}
 	data := &sbData{}
 	err = protobuf.DecodeWithConstructors(latest.Data, data, network.DefaultConstructors(cothority.Suite))
-	if err != nil {
-		log.Errorf("[getBlockData] Protobuf error decoding with constructors: %v", err)
-		return nil, err
-	}
-	return data, nil
+	//if err != nil {
+	//log.Errorf("Protobuf error decoding with constructors: %v", err)
+	//return nil, err
+	//}
+	//return data, nil
+	return data, err
 
 }
 
@@ -125,7 +126,6 @@ func joinStrings(strs ...string) (string, error) {
 	for _, str := range strs {
 		_, err := sb.WriteString(str)
 		if err != nil {
-			log.Errorf("[joinStrings] %v", err)
 			return "", err
 		}
 	}
@@ -139,7 +139,7 @@ func generateUnitID(fu *FunctionalUnit) (string, error) {
 	log.Info("UUID STR IS:", uuidStr)
 	uidStr, err := joinStrings(typeStr, fu.UnitName, uuidStr)
 	if err != nil {
-		log.Errorf("[generateUnitID] Error while generating the unit key: %v", err)
+		//log.Errorf("Error while generating the unit key: %v", err)
 		return uid, err
 	}
 	tmp := sha256.Sum256([]byte(uidStr))

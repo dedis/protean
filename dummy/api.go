@@ -24,7 +24,7 @@ func NewClient() *Client {
 
 func (c *Client) UpdateState(r *onet.Roster, kv []*KV, instID byzcoin.InstanceID, signerCtr uint64, signer darc.Signer, wait int) (*UpdateStateReply, error) {
 	if len(r.List) == 0 {
-		return nil, fmt.Errorf("[UpdateState] Got an empty roster list")
+		return nil, fmt.Errorf("Got an empty roster list")
 	}
 	dst := r.List[0]
 	var args byzcoin.Arguments
@@ -44,7 +44,7 @@ func (c *Client) UpdateState(r *onet.Roster, kv []*KV, instID byzcoin.InstanceID
 	}
 	err := ctx.FillSignersAndSignWith(signer)
 	if err != nil {
-		log.Errorf("[UpdateState] Signing the transaction failed: %v", err)
+		log.Errorf("Signing the transaction failed: %v", err)
 		return nil, err
 	}
 	req := &UpdateStateRequest{
@@ -58,6 +58,7 @@ func (c *Client) UpdateState(r *onet.Roster, kv []*KV, instID byzcoin.InstanceID
 
 // This is called by the organize/owner/admin of the application
 func (c *Client) CreateState(r *onet.Roster, kv []*KV, adminDarc darc.Darc, signerCtr uint64, signer darc.Signer, wait int) (*CreateStateReply, error) {
+	reply := &CreateStateReply{}
 	if len(r.List) == 0 {
 		return nil, fmt.Errorf("Got an empty roster list")
 	}
@@ -78,14 +79,14 @@ func (c *Client) CreateState(r *onet.Roster, kv []*KV, adminDarc darc.Darc, sign
 	}
 	err := ctx.FillSignersAndSignWith(signer)
 	if err != nil {
-		log.Errorf("[UpdateState] Signing the transaction failed: %v", err)
+		log.Errorf("Signing the transaction failed: %v", err)
 		return nil, err
 	}
+	reply.InstID = ctx.Instructions[0].DeriveID("")
 	req := &CreateStateRequest{
 		Ctx:  ctx,
 		Wait: wait,
 	}
-	reply := &CreateStateReply{}
 	err = c.SendProtobuf(dst, req, reply)
 	return reply, err
 }
@@ -104,17 +105,11 @@ func (c *Client) SpawnDarc(r *onet.Roster, spawnDarc darc.Darc, wait int) (*Spaw
 	return nil, err
 }
 
-//func (c *Client) InitUnit(r *onet.Roster, interval time.Duration, typeDur time.Duration) (*InitUnitReply, error) {
 func (c *Client) InitUnit(r *onet.Roster, scData *utils.ScInitData, unitData *protean.UnitStorage, interval time.Duration, typeDur time.Duration) (*InitUnitReply, error) {
 	if len(r.List) == 0 {
 		return nil, fmt.Errorf("Got an empty roster list")
 	}
 	dst := r.List[0]
-	//req := &InitUnitRequest{
-	//Roster:       r,
-	//BlkInterval:  interval,
-	//DurationType: typeDur,
-	//}
 	req := &InitUnitRequest{
 		ScData:       scData,
 		UnitData:     unitData,

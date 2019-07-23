@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"go.dedis.ch/cothority/v3"
+	"go.dedis.ch/cothority/v3/blscosi"
 	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/kyber/v3"
@@ -15,16 +16,27 @@ import (
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/app"
 	"go.dedis.ch/onet/v3/log"
+	"go.dedis.ch/onet/v3/network"
 	"go.dedis.ch/protobuf"
 )
 
 var ps = pairing.NewSuiteBn256()
 
+func BlsCosiSign(s *blscosi.Service, r *onet.Roster, data []byte) (network.Message, error) {
+	h := sha256.New()
+	h.Write(data)
+	resp, err := s.SignatureRequest(&blscosi.SignatureRequest{
+		Message: h.Sum(nil),
+		Roster:  r,
+	})
+	return resp, err
+}
+
 func StoreBlock(s *skipchain.Service, genesis skipchain.SkipBlockID, data []byte) error {
 	db := s.GetDB()
 	latest, err := db.GetLatest(db.GetByID(genesis))
 	if err != nil {
-		log.Errorf("[StoreBlock] Could not find the latest block: %v", err)
+		//log.Errorf("Cannot find the latest block: %v", err)
 		return err
 	}
 	block := latest.Copy()
@@ -35,9 +47,9 @@ func StoreBlock(s *skipchain.Service, genesis skipchain.SkipBlockID, data []byte
 		NewBlock:          block,
 		TargetSkipChainID: latest.SkipChainID(),
 	})
-	if err != nil {
-		log.Errorf("[StoreBlock] Could not store skipclock: %v", err)
-	}
+	//if err != nil {
+	//log.Errorf("Cannot store skipclock: %v", err)
+	//}
 	return err
 }
 
@@ -50,16 +62,15 @@ func CreateGenesisBlock(s *skipchain.Service, scData *ScInitData) (*skipchain.St
 	reply, err := s.StoreSkipBlock(&skipchain.StoreSkipBlock{
 		NewBlock: genesis,
 	})
-	if err != nil {
-		log.Errorf("[CreateGenesisBlock] Could not store skipblock: %v", err)
-	}
+	//if err != nil {
+	//log.Errorf("Cannot store skipblock: %v", err)
+	//}
 	return reply, err
 }
 
 func VerifySignature(s interface{}, sig protocol.BlsSignature, publics []kyber.Point) error {
 	data, err := protobuf.Encode(s)
 	if err != nil {
-		log.Errorf("protobuf encode failed: %v", err)
 		return err
 	}
 	h := sha256.New()

@@ -17,7 +17,7 @@ func init() {
 	network.RegisterMessages(&Verify{}, &VerifyReply{})
 	_, err := onet.GlobalProtocolRegister(Name, NewVerifyExecutionPlan)
 	if err != nil {
-		log.Errorf("[Init in Verify] Could not register protocol: %v", err)
+		log.Errorf("Cannot register protocol: %v", err)
 	}
 }
 
@@ -48,7 +48,7 @@ func NewVerifyExecutionPlan(n *onet.TreeNodeInstance) (onet.ProtocolInstance, er
 	}
 	for _, handler := range []interface{}{vp.verifyExecPlan, vp.verifyExecPlanReply} {
 		if err := vp.RegisterHandler(handler); err != nil {
-			log.Errorf("[NewVerifyExecutionPlan] Could not register handler %s: %v", handler, err)
+			log.Errorf("Cannot register handler %s: %v", handler, err)
 			return nil, err
 		}
 	}
@@ -92,7 +92,7 @@ func (vp *VP) Start() error {
 
 	errs := vp.Broadcast(v)
 	if len(errs) > vp.FaultThreshold {
-		log.Errorf("[Start] Some nodes failed with error(s): %v", errs)
+		log.Errorf("Some nodes failed with error(s): %v", errs)
 		return fmt.Errorf("Too many nodes failed in broadcast")
 	}
 	return nil
@@ -102,7 +102,7 @@ func (vp *VP) verifyExecPlan(sv ProtoVerify) error {
 	log.Lvl2(vp.Name() + ": starting verification")
 	defer vp.Done()
 	if !verifyPlan(&sv.Verify) {
-		log.Errorf("[verifyExecPlan] Verify plan failed at: %s", vp.ServerIdentity())
+		log.Errorf("Verify plan failed at: %s", vp.ServerIdentity())
 		return vp.SendToParent(&VerifyReply{
 			Success: false,
 		})
@@ -117,7 +117,7 @@ func (vp *VP) verifyExecPlanReply(vr ProtoVerifyReply) error {
 		log.Lvl2("Node", vr.ServerIdentity, "failed verificiation")
 		vp.Failures++
 		if vp.Failures > len(vp.Roster().List)-vp.FaultThreshold {
-			log.Lvl2(vr.ServerIdentity, "couldn't get enough success messages")
+			log.Lvl2(vr.ServerIdentity, "could not get enough success messages")
 			vp.finish(false)
 		}
 		return nil

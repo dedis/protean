@@ -17,7 +17,7 @@ func getStorageData(blk *skipchain.SkipBlock) (*protean.UnitStorage, error) {
 	data := &protean.UnitStorage{}
 	err := protobuf.DecodeWithConstructors(blk.Data, data, network.DefaultConstructors(cothority.Suite))
 	if err != nil {
-		log.Errorf("[getStorageData] Protobuf decode failed: %v", err)
+		log.Errorf("Protobuf decode failed: %v", err)
 		return nil, err
 	}
 	return data, nil
@@ -30,7 +30,7 @@ func verifyPlan(v *Verify) bool {
 	}
 	payload, err := protobuf.Encode(v.Plan)
 	if err != nil {
-		log.Errorf("[verifyPlan] Protobuf decode failed: %v", err)
+		log.Errorf("Protobuf decode failed: %v", err)
 		return false
 	}
 	h := sha256.New()
@@ -39,7 +39,7 @@ func verifyPlan(v *Verify) bool {
 	//Check the signature from the compiler unit on the execution plan
 	err = v.PlanSig.Verify(suite, payload, storageData.CompKeys)
 	if err != nil {
-		log.Errorf("[verifyPlan] Cannot verify blscosi signature on the execution plan: %v", err)
+		log.Errorf("Cannot verify blscosi signature on the execution plan: %v", err)
 		return false
 	}
 
@@ -47,14 +47,14 @@ func verifyPlan(v *Verify) bool {
 	//First find myself in the execution plan
 	myWfNode := v.Plan.Workflow[v.Index]
 	if strings.Compare(storageData.UnitID, myWfNode.UID) != 0 {
-		log.Errorf("[verifyPlan] Invalid UID. Expected %s but received %s", storageData.UnitID, myWfNode.UID)
+		log.Errorf("Invalid UID. Expected %s but received %s", storageData.UnitID, myWfNode.UID)
 		return false
 	}
 	//This check ensures that the TID in the workflow corresponds to one of
 	//the txns that is supported by our unit. Not sure if we also need to
 	//check whether the name of the txn matches the API call
 	if _, ok := storageData.Txns[myWfNode.TID]; !ok {
-		log.Errorf("[verifyPlan] Invalid TID: %s", myWfNode.TID)
+		log.Errorf("Invalid TID: %s", myWfNode.TID)
 		return false
 	}
 
@@ -64,7 +64,7 @@ func verifyPlan(v *Verify) bool {
 		sig := v.SigMap[depIdx]
 		err = sig.Verify(suite, payload, v.Plan.Publics[depUID].Keys)
 		if err != nil {
-			log.Errorf("[verifyPlan] Cannot verify the signature of UID: %s", depUID)
+			log.Errorf("Cannot verify the signature of UID: %s", depUID)
 			return false
 		}
 	}

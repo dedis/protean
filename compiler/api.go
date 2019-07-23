@@ -19,7 +19,7 @@ func NewClient() *Client {
 
 //func (c *Client) CreateSkipchain(r *onet.Roster, mHeight int, bHeight int) (*CreateSkipchainReply, error) {
 //if len(r.List) == 0 {
-//return nil, fmt.Errorf("[CreateSkipchain] Got an empty roster list")
+//return nil, fmt.Errorf("Got an empty roster list")
 //}
 //dst := r.List[0]
 //req := &CreateSkipchainRequest{
@@ -34,7 +34,7 @@ func NewClient() *Client {
 
 func (c *Client) InitUnit(r *onet.Roster, scData *utils.ScInitData) (*InitUnitReply, error) {
 	if len(r.List) == 0 {
-		return nil, fmt.Errorf("[InitUnit] Got an empty roster list")
+		return nil, fmt.Errorf("Got an empty roster list")
 	}
 	dst := r.List[0]
 	req := &InitUnitRequest{
@@ -49,7 +49,7 @@ func (c *Client) InitUnit(r *onet.Roster, scData *utils.ScInitData) (*InitUnitRe
 func (c *Client) CreateUnits(r *onet.Roster, genesis []byte, units []*FunctionalUnit) (*CreateUnitsReply, error) {
 	//TODO: Check values in struct?
 	if len(r.List) == 0 {
-		return nil, fmt.Errorf("[CreateUnits] Got an empty roster list")
+		return nil, fmt.Errorf("Got an empty roster list")
 	}
 	dst := r.List[0]
 	req := &CreateUnitsRequest{
@@ -63,7 +63,7 @@ func (c *Client) CreateUnits(r *onet.Roster, genesis []byte, units []*Functional
 
 func (c *Client) GenerateExecutionPlan(r *onet.Roster, genesis []byte, wf []*protean.WfNode) (*ExecutionPlanReply, error) {
 	if len(r.List) == 0 {
-		return nil, fmt.Errorf("[GenerateExecutionPlan] Got an empty roster list")
+		return nil, fmt.Errorf("Got an empty roster list")
 	}
 	dst := r.List[0]
 	req := &ExecutionPlanRequest{
@@ -85,7 +85,7 @@ func (c *Client) GenerateExecutionPlan(r *onet.Roster, genesis []byte, wf []*pro
 
 func (c *Client) LogSkipchain(r *onet.Roster, genesis []byte) error {
 	if len(r.List) == 0 {
-		return fmt.Errorf("[LogSkipchain] Got an empty roster list")
+		return fmt.Errorf("Got an empty roster list")
 	}
 	dst := r.List[0]
 	req := &LogSkipchainRequest{

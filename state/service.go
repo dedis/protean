@@ -1,9 +1,6 @@
 package state
 
 import (
-	//"crypto/sha256"
-
-	"crypto/sha256"
 	"fmt"
 
 	"github.com/ceyhunalp/protean_code"
@@ -24,8 +21,6 @@ import (
 // This service is only used because we need to register our contracts to
 // the ByzCoin service. So we create this stub and add contracts to it
 // from the `contracts` directory.
-
-//var pairingSuite = suites.MustFind("bn256.Adapter").(*pairing.SuiteBn256)
 
 var ServiceName = "StateService"
 var stateID onet.ServiceID
@@ -68,88 +63,108 @@ func (s *Service) UpdateState(req *UpdateStateRequest) (*UpdateStateReply, error
 	db := s.scService.GetDB()
 	blk, err := db.GetLatest(db.GetByID(s.genesis))
 	if err != nil {
-		log.Errorf("Couldn't get the latest block: %v", err)
+		log.Errorf("Cannot get the latest block: %v", err)
 		return nil, err
 	}
-	//tree := s.roster.GenerateNaryTreeWithRoot(len(s.roster.List), s.ServerIdentity())
-	//pi, err := s.CreateProtocol(verify.Name, tree)
-	//if err != nil {
-	//log.Errorf("Creating protocol failed: %v", err)
-	//return nil, err
-	//}
-	//verifyProto := pi.(*verify.VP)
-	//verifyProto.Block = blk
-	//verifyProto.Index = req.ExecData.Index
-	//verifyProto.ExecPlan = req.ExecData.ExecPlan
-	//verifyProto.PlanSig = req.ExecData.PlanSig
-	//verifyProto.SigMap = req.ExecData.SigMap
-	//err = verifyProto.Start()
-	//if !<-verifyProto.Verified {
-	//log.Errorf("Execution plan verification failed!")
-	//return nil, fmt.Errorf("Execution plan verification failed!")
-	//} else {
-	//log.Lvl2("Execution plan verification success!")
-	//}
 	verified := s.verifyExecutionPlan(blk, req.ExecData)
 	if !verified {
-		log.Errorf("[UpdateState] Cannot verify execution plan")
-		return nil, fmt.Errorf("Cannot verify execution plan")
+		log.Errorf("Cannot verify execution plan")
+		return nil, fmt.Errorf("Cannot verify the execution plan")
 	}
 
 	//Now you can do the actual FU-related stuff
 	reply := &UpdateStateReply{}
-	reply.AddTxResp, err = s.byzService.AddTransaction(&byzcoin.AddTxRequest{
-		Version:       byzcoin.CurrentVersion,
-		SkipchainID:   s.byzID,
-		Transaction:   req.Ctx,
-		InclusionWait: req.Wait,
-	})
+	//reply.AddTxResp, err = s.byzService.AddTransaction(&byzcoin.AddTxRequest{
+	//Version:       byzcoin.CurrentVersion,
+	//SkipchainID:   s.byzID,
+	//Transaction:   req.Ctx,
+	//InclusionWait: req.Wait,
+	//})
+	//if err != nil {
+	//log.Errorf("Add transaction failed: %v", err)
+	//return nil, err
+	//}
+	_, err = s.addTransaction(req.Ctx, req.Wait)
 	if err != nil {
-		log.Errorf("[UpdateState]: Add transaction failed: %v", err)
+		log.Errorf("Add transaction failed: %v", err)
 		return nil, err
 	}
 
 	//Final step: collectively sign the execution plan
 	payload, err := protobuf.Encode(req.ExecData.ExecPlan)
 	if err != nil {
-		log.Errorf("protobuf encode failed: %v", err)
+		log.Errorf("Protobuf encode failed: %v", err)
 		return nil, err
 	}
-	h := sha256.New()
-	h.Write(payload)
-
-	cosiResp, err := s.cosiService.SignatureRequest(&blscosi.SignatureRequest{
-		Message: h.Sum(nil),
-		Roster:  s.roster,
-	})
+	//h := sha256.New()
+	//h.Write(payload)
+	//cosiResp, err := s.cosiService.SignatureRequest(&blscosi.SignatureRequest{
+	//Message: h.Sum(nil),
+	//Roster:  s.roster,
+	//})
+	//if err != nil {
+	//log.Errorf("blscosi failed: %v", err)
+	//return nil, err
+	//}
+	cosiResp, err := utils.BlsCosiSign(s.cosiService, s.roster, payload)
 	if err != nil {
-		log.Errorf("blscosi failed: %v", err)
+		log.Errorf("Cannot produce blscosi signature: %v", err)
 		return nil, err
 	}
-	return &UpdateStateReply{Sig: cosiResp.(*blscosi.SignatureResponse).Signature}, nil
+	reply.Sig = cosiResp.(*blscosi.SignatureResponse).Signature
+	return reply, err
 }
 
 func (s *Service) CreateState(req *CreateStateRequest) (*CreateStateReply, error) {
-	var err error
-	reply := &CreateStateReply{}
-	reply.AddTxResp, err = s.byzService.AddTransaction(&byzcoin.AddTxRequest{
-		Version:       byzcoin.CurrentVersion,
-		SkipchainID:   s.byzID,
-		Transaction:   req.Ctx,
-		InclusionWait: req.Wait,
-	})
+	db := s.scService.GetDB()
+	blk, err := db.GetLatest(db.GetByID(s.genesis))
 	if err != nil {
-		log.Errorf("[CreateState] Add transaction failed: %v", err)
+		log.Errorf("Cannot get the latest block: %v", err)
 		return nil, err
 	}
-	reply.InstID = req.Ctx.Instructions[0].DeriveID("")
-	return reply, nil
+	verified := s.verifyExecutionPlan(blk, req.ExecData)
+	if !verified {
+		log.Errorf("Cannot verify execution plan")
+		return nil, fmt.Errorf("Cannot verify execution plan")
+	}
+
+	reply := &CreateStateReply{}
+	//reply.AddTxResp, err = s.byzService.AddTransaction(&byzcoin.AddTxRequest{
+	//Version:       byzcoin.CurrentVersion,
+	//SkipchainID:   s.byzID,
+	//Transaction:   req.Ctx,
+	//InclusionWait: req.Wait,
+	//})
+	//if err != nil {
+	//log.Errorf("Add transaction failed: %v", err)
+	//return nil, err
+	//}
+	//reply.InstID = req.Ctx.Instructions[0].DeriveID("")
+	_, err = s.addTransaction(req.Ctx, req.Wait)
+	if err != nil {
+		log.Errorf("Add transaction failed: %v", err)
+		return nil, err
+	}
+	///////////////////////
+	//Final step: collectively sign the execution plan
+	payload, err := protobuf.Encode(req.ExecData.ExecPlan)
+	if err != nil {
+		log.Errorf("Protobuf encode failed: %v", err)
+		return nil, err
+	}
+	cosiResp, err := utils.BlsCosiSign(s.cosiService, s.roster, payload)
+	if err != nil {
+		log.Errorf("Cannot produce blscosi signature: %v", err)
+		return nil, err
+	}
+	reply.Sig = cosiResp.(*blscosi.SignatureResponse).Signature
+	return reply, err
 }
 
 func (s *Service) SpawnDarc(req *SpawnDarcRequest) (*SpawnDarcReply, error) {
 	darcBuf, err := req.Darc.ToProto()
 	if err != nil {
-		log.Errorf("[SpawnDarc] Could not convert darc to protobuf: %v", err)
+		log.Errorf("Cannot convert darc to protobuf: %v", err)
 		return nil, err
 	}
 	ctx := byzcoin.ClientTransaction{
@@ -167,17 +182,18 @@ func (s *Service) SpawnDarc(req *SpawnDarcRequest) (*SpawnDarcReply, error) {
 	}
 	err = ctx.FillSignersAndSignWith(s.signer)
 	if err != nil {
-		log.Errorf("[SpawnDarc] Signing the transaction failed: %v", err)
+		log.Errorf("Signing the transaction failed: %v", err)
 		return nil, err
 	}
-	_, err = s.byzService.AddTransaction(&byzcoin.AddTxRequest{
-		Version:       byzcoin.CurrentVersion,
-		SkipchainID:   s.byzID,
-		Transaction:   ctx,
-		InclusionWait: req.Wait,
-	})
+	//_, err = s.byzService.AddTransaction(&byzcoin.AddTxRequest{
+	//Version:       byzcoin.CurrentVersion,
+	//SkipchainID:   s.byzID,
+	//Transaction:   ctx,
+	//InclusionWait: req.Wait,
+	//})
+	_, err = s.addTransaction(ctx, req.Wait)
 	if err != nil {
-		log.Errorf("[SpawnDarc] Add transaction failed: %v", err)
+		log.Errorf("Add transaction failed: %v", err)
 		return nil, err
 	}
 	s.signerCtr++
@@ -188,6 +204,7 @@ func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 	/// Creating the skipchain here
 	genesisReply, err := utils.CreateGenesisBlock(s.scService, req.ScData)
 	if err != nil {
+		log.Errorf("Cannot create the skipchain genesis block: %v", err)
 		return nil, err
 	}
 	s.genesis = genesisReply.Latest.Hash
@@ -196,7 +213,7 @@ func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 	// Now adding a block with the unit information
 	enc, err := protobuf.Encode(req.UnitData)
 	if err != nil {
-		log.Errorf("[InitUnit] Error in protobuf encoding: %v", err)
+		log.Errorf("Error in protobuf encoding: %v", err)
 		return nil, err
 	}
 	err = utils.StoreBlock(s.scService, s.genesis, enc)
@@ -207,13 +224,13 @@ func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 	s.signer = darc.NewSignerEd25519(nil, nil)
 	s.gMsg, err = byzcoin.DefaultGenesisMsg(byzcoin.CurrentVersion, s.roster, []string{"spawn:" + ContractKeyValueID, "invoke:" + ContractKeyValueID}, s.signer.Identity())
 	if err != nil {
-		log.Errorf("[InitUnit] Could not create the default genesis message for Byzcoin: %v", err)
+		log.Errorf("Cannot create the default genesis message for Byzcoin: %v", err)
 		return nil, err
 	}
 	s.gMsg.BlockInterval = req.BlkInterval * req.DurationType
 	resp, err := s.byzService.CreateGenesisBlock(s.gMsg)
 	if err != nil {
-		log.Errorf("[InitUnit] Could not create the Byzcoin genesis block: %v", err)
+		log.Errorf("Cannot create the Byzcoin genesis block: %v", err)
 		return nil, err
 	}
 	s.byzID = resp.Skipblock.SkipChainID()
@@ -229,17 +246,26 @@ func (s *Service) GetProof(req *GetProofRequest) (*GetProofReply, error) {
 		Key:     req.InstID,
 	})
 	if err != nil {
-		log.Errorf("[GetProof] GetProof request failed: %v", err)
+		log.Errorf("GetProof request failed: %v", err)
 		return nil, err
 	}
 	return reply, nil
+}
+
+func (s *Service) addTransaction(ctx byzcoin.ClientTransaction, wait int) (*byzcoin.AddTxResponse, error) {
+	return s.byzService.AddTransaction(&byzcoin.AddTxRequest{
+		Version:       byzcoin.CurrentVersion,
+		SkipchainID:   s.byzID,
+		Transaction:   ctx,
+		InclusionWait: wait,
+	})
 }
 
 func (s *Service) verifyExecutionPlan(blk *skipchain.SkipBlock, execData *protean.ExecutionData) bool {
 	tree := s.roster.GenerateNaryTreeWithRoot(len(s.roster.List), s.ServerIdentity())
 	pi, err := s.CreateProtocol(verify.Name, tree)
 	if err != nil {
-		log.Errorf("[verifyExecutionPlan] Cannot create protocol: %v", err)
+		log.Errorf("Cannot create protocol: %v", err)
 		return false
 	}
 	verifyProto := pi.(*verify.VP)
@@ -251,7 +277,7 @@ func (s *Service) verifyExecutionPlan(blk *skipchain.SkipBlock, execData *protea
 	//verifyProto.FaultThreshold = req.FaultThreshold
 	err = verifyProto.Start()
 	if err != nil {
-		log.Errorf("[verifyExecutionPlan] Cannot start protocol: %v", err)
+		log.Errorf("Cannot start protocol: %v", err)
 		return false
 	}
 	if !<-verifyProto.Verified {
@@ -270,12 +296,12 @@ func newService(c *onet.Context) (onet.Service, error) {
 	}
 	err := s.RegisterHandlers(s.InitUnit, s.CreateState, s.UpdateState, s.SpawnDarc, s.GetProof)
 	if err != nil {
-		log.Errorf("[newService] Could not register messages")
+		log.Errorf("Cannot register messages")
 		return nil, err
 	}
 	err = byzcoin.RegisterContract(c, ContractKeyValueID, contractValueFromBytes)
 	if err != nil {
-		log.Errorf("[newService] Could not register contract %s: %v", ContractKeyValueID, err)
+		log.Errorf("Cannot register contract %s: %v", ContractKeyValueID, err)
 		return nil, err
 	}
 	return s, nil

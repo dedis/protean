@@ -119,7 +119,7 @@ func testStateUnit(roster *onet.Roster) error {
 	//_, err := dumCl.InitUnit(roster, 15, time.Second)
 	_, err := dumCl.InitUnit(roster, scData, uData, 15, time.Second)
 	if err != nil {
-		fmt.Println("Could not initialize state unit")
+		fmt.Println("Cannot initialize state unit")
 		return err
 	}
 
@@ -139,7 +139,7 @@ func testStateUnit(roster *onet.Roster) error {
 	//orgDarc.Rules.AddRule(darc.Action("invoke:"+dummy.ContractKeyValueID+".update"), expression.InitOrExpr(cl2.Identity().String()))
 	_, err = dumCl.SpawnDarc(roster, *orgDarc, 5)
 	if err != nil {
-		fmt.Println("Could not spawn darc")
+		fmt.Println("Cannot spawn darc")
 		return err
 	}
 

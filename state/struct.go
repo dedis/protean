@@ -17,8 +17,6 @@ type KV struct {
 
 type Storage struct {
 	//Data []*KV
-	//Storage map[string]*KeyValue
-	//Storage map[string][]byte
 	Data map[string][]byte
 }
 
@@ -41,9 +39,9 @@ type CreateStateRequest struct {
 }
 
 type CreateStateReply struct {
-	AddTxResp *byzcoin.AddTxResponse
-	InstID    [32]byte
-	Sig       protocol.BlsSignature
+	//AddTxResp *byzcoin.AddTxResponse
+	InstID [32]byte
+	Sig    protocol.BlsSignature
 }
 
 type UpdateStateRequest struct {
@@ -53,8 +51,8 @@ type UpdateStateRequest struct {
 }
 
 type UpdateStateReply struct {
-	AddTxResp *byzcoin.AddTxResponse
-	Sig       protocol.BlsSignature
+	//AddTxResp *byzcoin.AddTxResponse
+	Sig protocol.BlsSignature
 }
 
 type SpawnDarcRequest struct {
@@ -73,14 +71,3 @@ type GetProofRequest struct {
 type GetProofReply struct {
 	*byzcoin.GetProofResponse
 }
-
-//type CreateSkipchainRequest struct {
-//Roster  *onet.Roster
-//MHeight int
-//BHeight int
-//}
-
-//type CreateSkipchainReply struct {
-//Genesis []byte
-//Sb      *skipchain.SkipBlock
-//}

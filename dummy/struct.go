@@ -38,14 +38,13 @@ type InitUnitReply struct {
 }
 
 type CreateStateRequest struct {
-	//ByzData *ByzData
 	Ctx  byzcoin.ClientTransaction
 	Wait int
 }
 
 type CreateStateReply struct {
-	AddTxResp *byzcoin.AddTxResponse
-	InstID    [32]byte
+	InstID [32]byte
+	//AddTxResp *byzcoin.AddTxResponse
 	//InstID    byzcoin.InstanceID
 	//Sig protocol.BlsSignature
 }
@@ -56,7 +55,7 @@ type UpdateStateRequest struct {
 }
 
 type UpdateStateReply struct {
-	AddTxResp *byzcoin.AddTxResponse
+	//AddTxResp *byzcoin.AddTxResponse
 	//InstID    [32]byte
 	//InstID    byzcoin.InstanceID
 	//Sig protocol.BlsSignature

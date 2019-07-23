@@ -26,7 +26,7 @@ func NewClient() *Client {
 
 func (c *Client) UpdateState(r *onet.Roster, kv []*KV, instID byzcoin.InstanceID, signerCtr uint64, signer darc.Signer, wait int) (*UpdateStateReply, error) {
 	if len(r.List) == 0 {
-		return nil, fmt.Errorf("[UpdateState] Got an empty roster list")
+		return nil, fmt.Errorf("Got an empty roster list")
 	}
 	dst := r.List[0]
 	var args byzcoin.Arguments
@@ -46,7 +46,7 @@ func (c *Client) UpdateState(r *onet.Roster, kv []*KV, instID byzcoin.InstanceID
 	}
 	err := ctx.FillSignersAndSignWith(signer)
 	if err != nil {
-		log.Errorf("[UpdateState] Signing the transaction failed: %v", err)
+		log.Errorf("Signing the transaction failed: %v", err)
 		return nil, err
 	}
 	req := &UpdateStateRequest{
@@ -60,8 +60,9 @@ func (c *Client) UpdateState(r *onet.Roster, kv []*KV, instID byzcoin.InstanceID
 
 // This is called by the organize/owner/admin of the application
 func (c *Client) CreateState(r *onet.Roster, kv []*KV, adminDarc darc.Darc, signerCtr uint64, signer darc.Signer, wait int) (*CreateStateReply, error) {
+	reply := &CreateStateReply{}
 	if len(r.List) == 0 {
-		return nil, fmt.Errorf("[CreateState] Got an empty roster list")
+		return nil, fmt.Errorf("Got an empty roster list")
 	}
 	dst := r.List[0]
 	var args byzcoin.Arguments
@@ -80,21 +81,21 @@ func (c *Client) CreateState(r *onet.Roster, kv []*KV, adminDarc darc.Darc, sign
 	}
 	err := ctx.FillSignersAndSignWith(signer)
 	if err != nil {
-		log.Errorf("[CreateState] Signing the transaction failed: %v", err)
+		log.Errorf("Signing the transaction failed: %v", err)
 		return nil, err
 	}
+	reply.InstID = ctx.Instructions[0].DeriveID("")
 	req := &CreateStateRequest{
 		Ctx:  ctx,
 		Wait: wait,
 	}
-	reply := &CreateStateReply{}
 	err = c.SendProtobuf(dst, req, reply)
 	return reply, err
 }
 
 func (c *Client) SpawnDarc(r *onet.Roster, spawnDarc darc.Darc, wait int) (*SpawnDarcReply, error) {
 	if len(r.List) == 0 {
-		return nil, fmt.Errorf("[SpawnDarc] Got an empty roster list")
+		return nil, fmt.Errorf("Got an empty roster list")
 	}
 	dst := r.List[0]
 	req := &SpawnDarcRequest{
@@ -109,15 +110,9 @@ func (c *Client) SpawnDarc(r *onet.Roster, spawnDarc darc.Darc, wait int) (*Spaw
 //func (c *Client) InitUnitRequest(r *onet.Roster, uid string, txns map[string]string, publics []kyber.Point) error {
 func (c *Client) InitUnit(r *onet.Roster, scData *utils.ScInitData, unitData *protean.UnitStorage, interval time.Duration, typeDur time.Duration) (*InitUnitReply, error) {
 	if len(r.List) == 0 {
-		return nil, fmt.Errorf("[InitUnit] Got an empty roster list")
+		return nil, fmt.Errorf("Got an empty roster list")
 	}
 	dst := r.List[0]
-	//req := &InitUnitRequest{
-	//UnitData: &protean.UnitStorage{
-	//CompKeys: publics,
-	//UnitID:   uid,
-	//Txns:     txns},
-	//}
 	req := &InitUnitRequest{
 		ScData:       scData,
 		UnitData:     unitData,
@@ -131,7 +126,7 @@ func (c *Client) InitUnit(r *onet.Roster, scData *utils.ScInitData, unitData *pr
 
 func (c *Client) GetProof(r *onet.Roster, instID []byte) (*GetProofReply, error) {
 	if len(r.List) == 0 {
-		return nil, fmt.Errorf("[GetProof] Got an empty roster list")
+		return nil, fmt.Errorf("Got an empty roster list")
 	}
 	dst := r.List[0]
 	req := &GetProofRequest{
@@ -141,18 +136,3 @@ func (c *Client) GetProof(r *onet.Roster, instID []byte) (*GetProofReply, error)
 	err := c.SendProtobuf(dst, req, reply)
 	return reply, err
 }
-
-//func (c *Client) CreateSkipchain(r *onet.Roster, mHeight int, bHeight int) (*protean.CreateSkipchainReply, error) {
-//if len(r.List) == 0 {
-//return nil, fmt.Errorf("Got an empty roster list")
-//}
-//dst := r.List[0]
-//req := &protean.CreateSkipchainRequest{
-//Roster:  r,
-//MHeight: mHeight,
-//BHeight: bHeight,
-//}
-//reply := &protean.CreateSkipchainReply{}
-//err := c.SendProtobuf(dst, req, reply)
-//return reply, err
-//}
