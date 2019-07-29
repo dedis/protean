@@ -54,10 +54,10 @@ func generateDirectoryData(reply *compiler.CreateUnitsReply) (map[string]string,
 	// Txn name  -> tid
 	unitMap := make(map[string]string)
 	txnMap := make(map[string]string)
-	for i := 0; i < len(reply.Data); i++ {
-		fmt.Println("In utils:", reply.Data[i].UnitName, reply.Data[i].UnitID)
-		unitMap[reply.Data[i].UnitName] = reply.Data[i].UnitID
-		for k, v := range reply.Data[i].Txns {
+	for i := 0; i < len(reply.UnitDirectory); i++ {
+		fmt.Println("In utils:", reply.UnitDirectory[i].UnitName, reply.UnitDirectory[i].UnitID)
+		unitMap[reply.UnitDirectory[i].UnitName] = reply.UnitDirectory[i].UnitID
+		for k, v := range reply.UnitDirectory[i].Txns {
 			txnMap[v] = k
 		}
 

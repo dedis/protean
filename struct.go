@@ -5,9 +5,20 @@ import (
 	"go.dedis.ch/kyber/v3"
 )
 
-type UnitStorage struct {
+type UnitInfo struct {
 	UnitID   string
+	UnitName string
 	Txns     map[string]string
+}
+
+//type UnitStorage struct {
+//UnitID   string
+//Txns     map[string]string
+//CompKeys []kyber.Point
+//}
+
+type BaseStorage struct {
+	UInfo    *UnitInfo
 	CompKeys []kyber.Point
 }
 

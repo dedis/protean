@@ -3,10 +3,11 @@ package dummy
 import (
 	"time"
 
-	"github.com/ceyhunalp/protean_code"
+	protean "github.com/ceyhunalp/protean_code"
 	"github.com/ceyhunalp/protean_code/utils"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/darc"
+	"go.dedis.ch/onet/v3"
 )
 
 type KV struct {
@@ -15,19 +16,13 @@ type KV struct {
 }
 
 type Storage struct {
-	Data map[string][]byte
-}
-
-type ByzData struct {
-	Darc      darc.Darc
-	Signer    darc.Signer
-	Wait      int
-	SignerCtr uint64
+	//Data map[string][]byte
+	Data []KV
 }
 
 type InitUnitRequest struct {
 	ScData       *utils.ScInitData
-	UnitData     *protean.UnitStorage
+	BaseStore    *protean.BaseStorage
 	BlkInterval  time.Duration
 	DurationType time.Duration
 }
@@ -43,10 +38,7 @@ type CreateStateRequest struct {
 }
 
 type CreateStateReply struct {
-	InstID [32]byte
-	//AddTxResp *byzcoin.AddTxResponse
-	//InstID    byzcoin.InstanceID
-	//Sig protocol.BlsSignature
+	InstID byzcoin.InstanceID
 }
 
 type UpdateStateRequest struct {
@@ -62,7 +54,6 @@ type UpdateStateReply struct {
 }
 
 type SpawnDarcRequest struct {
-	//Ctx  byzcoin.ClientTransaction
 	Darc darc.Darc
 	Wait int
 }
@@ -71,9 +62,25 @@ type SpawnDarcReply struct {
 }
 
 type GetProofRequest struct {
-	InstID []byte
+	InstID byzcoin.InstanceID
+	//InstID []byte
 }
 
 type GetProofReply struct {
 	*byzcoin.GetProofResponse
 }
+
+type InitByzcoinRequest struct {
+	Roster       *onet.Roster
+	BlkInterval  time.Duration
+	DurationType time.Duration
+}
+
+type InitByzcoinReply struct{}
+
+//type ByzData struct {
+//Darc      darc.Darc
+//Signer    darc.Signer
+//Wait      int
+//SignerCtr uint64
+//}

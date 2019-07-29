@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ceyhunalp/protean_code"
+	protean "github.com/ceyhunalp/protean_code"
 	"github.com/ceyhunalp/protean_code/utils"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/byzcoin"
@@ -13,7 +13,6 @@ import (
 	"go.dedis.ch/onet/v3/log"
 	//"go.dedis.ch/onet/v3/log"
 	//"go.dedis.ch/onet/v3/network"
-	//"go.dedis.ch/protobuf"
 )
 
 type Client struct {
@@ -106,15 +105,14 @@ func (c *Client) SpawnDarc(r *onet.Roster, spawnDarc darc.Darc, wait int) (*Spaw
 	return nil, err
 }
 
-//func (c *Client) InitUnitRequest(r *onet.Roster, uid string, txns map[string]string, publics []kyber.Point) error {
-func (c *Client) InitUnit(r *onet.Roster, scData *utils.ScInitData, unitData *protean.UnitStorage, interval time.Duration, typeDur time.Duration) (*InitUnitReply, error) {
+func (c *Client) InitUnit(r *onet.Roster, scData *utils.ScInitData, bStore *protean.BaseStorage, interval time.Duration, typeDur time.Duration) (*InitUnitReply, error) {
 	if len(r.List) == 0 {
 		return nil, fmt.Errorf("Got an empty roster list")
 	}
 	dst := r.List[0]
 	req := &InitUnitRequest{
 		ScData:       scData,
-		UnitData:     unitData,
+		BaseStore:    bStore,
 		BlkInterval:  interval,
 		DurationType: typeDur,
 	}
@@ -123,7 +121,7 @@ func (c *Client) InitUnit(r *onet.Roster, scData *utils.ScInitData, unitData *pr
 	return reply, err
 }
 
-func (c *Client) GetProof(r *onet.Roster, instID []byte) (*GetProofReply, error) {
+func (c *Client) GetProof(r *onet.Roster, instID byzcoin.InstanceID) (*GetProofReply, error) {
 	if len(r.List) == 0 {
 		return nil, fmt.Errorf("Got an empty roster list")
 	}

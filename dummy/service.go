@@ -12,6 +12,7 @@ import (
 	"go.dedis.ch/cothority/v3/darc"
 	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/protobuf"
+
 	//"go.dedis.ch/kyber/v3/pairing"
 	//"go.dedis.ch/kyber/v3/suites"
 	"go.dedis.ch/onet/v3"
@@ -20,12 +21,7 @@ import (
 	//"go.dedis.ch/protobuf"
 )
 
-// This service is only used because we need to register our contracts to
-// the ByzCoin service. So we create this stub and add contracts to it
-// from the `contracts` directory.
-
 //var pairingSuite = suites.MustFind("bn256.Adapter").(*pairing.SuiteBn256)
-
 var ServiceName = "DummyService"
 var dummyID onet.ServiceID
 
@@ -34,38 +30,42 @@ type Service struct {
 	// We need to embed the ServiceProcessor, so that incoming messages
 	// are correctly handled.
 	*onet.ServiceProcessor
+	byzService *byzcoin.Service
+	scService  *skipchain.Service
+
 	roster    *onet.Roster
 	genesis   skipchain.SkipBlockID
 	byzID     skipchain.SkipBlockID
 	gMsg      *byzcoin.CreateGenesisBlock
 	signer    darc.Signer
 	signerCtr uint64
-
-	byzService *byzcoin.Service
-	scService  *skipchain.Service
 }
 
 func init() {
 	var err error
 	dummyID, err = onet.RegisterNewService(ServiceName, newService)
 	log.ErrFatal(err)
-	//TODO:Check the error message here
 	network.RegisterMessages(&InitUnitRequest{}, &InitUnitReply{},
 		&SpawnDarcRequest{}, &SpawnDarcReply{}, &CreateStateRequest{},
 		&CreateStateReply{}, &GetProofRequest{}, &GetProofReply{},
-		&UpdateStateRequest{}, &UpdateStateReply{})
+		&UpdateStateRequest{}, &UpdateStateReply{}, &InitByzcoinRequest{},
+		&InitByzcoinReply{})
 }
 
 func (s *Service) UpdateState(req *UpdateStateRequest) (*UpdateStateReply, error) {
 	//TODO: Do the same stuff as above in UpdateState
 	//Handle the byzcoin part
 	reply := &UpdateStateReply{}
-	_, err := s.addTransaction(req.Ctx, req.Wait)
+	_, err := s.byzService.AddTransaction(&byzcoin.AddTxRequest{
+		Version:       byzcoin.CurrentVersion,
+		SkipchainID:   s.byzID,
+		Transaction:   req.Ctx,
+		InclusionWait: req.Wait,
+	})
 	if err != nil {
 		log.Errorf("Add transaction failed: %v", err)
 		return nil, err
 	}
-	//reply.InstID = req.Ctx.Instructions[0].DeriveID("")
 	return reply, nil
 }
 
@@ -74,7 +74,12 @@ func (s *Service) CreateState(req *CreateStateRequest) (*CreateStateReply, error
 	//Handle the byzcoin part
 	reply := &CreateStateReply{}
 	reply.InstID = req.Ctx.Instructions[0].DeriveID("")
-	_, err := s.addTransaction(req.Ctx, req.Wait)
+	_, err := s.byzService.AddTransaction(&byzcoin.AddTxRequest{
+		Version:       byzcoin.CurrentVersion,
+		SkipchainID:   s.byzID,
+		Transaction:   req.Ctx,
+		InclusionWait: req.Wait,
+	})
 	if err != nil {
 		log.Errorf("Add transaction failed: %v", err)
 		return nil, err
@@ -106,7 +111,12 @@ func (s *Service) SpawnDarc(req *SpawnDarcRequest) (*SpawnDarcReply, error) {
 		log.Errorf("Signing the transaction failed: %v", err)
 		return nil, err
 	}
-	_, err = s.addTransaction(ctx, req.Wait)
+	_, err = s.byzService.AddTransaction(&byzcoin.AddTxRequest{
+		Version:       byzcoin.CurrentVersion,
+		SkipchainID:   s.byzID,
+		Transaction:   ctx,
+		InclusionWait: req.Wait,
+	})
 	if err != nil {
 		log.Errorf("Add transaction failed: %v", err)
 		return nil, err
@@ -117,6 +127,7 @@ func (s *Service) SpawnDarc(req *SpawnDarcRequest) (*SpawnDarcReply, error) {
 
 func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 	// Creating the skipchain here
+	log.Infof("Starting InitUnit")
 	genesisReply, err := utils.CreateGenesisBlock(s.scService, req.ScData)
 	if err != nil {
 		return nil, err
@@ -125,7 +136,7 @@ func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 	s.roster = req.ScData.Roster
 	///////////////////////
 	// Now adding a block with the unit information
-	enc, err := protobuf.Encode(req.UnitData)
+	enc, err := protobuf.Encode(req.BaseStore)
 	if err != nil {
 		log.Errorf("Error in protobuf encoding: %v", err)
 		return nil, err
@@ -136,8 +147,8 @@ func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 		return nil, err
 	}
 	/////// Now setup byzcoin //////
-	//s.roster = req.Roster
 	s.signer = darc.NewSignerEd25519(nil, nil)
+	s.signerCtr = uint64(1)
 	s.gMsg, err = byzcoin.DefaultGenesisMsg(byzcoin.CurrentVersion, s.roster, []string{"spawn:" + ContractKeyValueID, "invoke:" + ContractKeyValueID}, s.signer.Identity())
 	if err != nil {
 		log.Errorf("Cannot create the default genesis message for Byzcoin: %v", err)
@@ -150,8 +161,7 @@ func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 		return nil, err
 	}
 	s.byzID = resp.Skipblock.SkipChainID()
-	s.signerCtr = uint64(1)
-	return &InitUnitReply{Genesis: genesisReply.Latest.Hash}, nil
+	return &InitUnitReply{Genesis: s.genesis}, nil
 }
 
 func (s *Service) GetProof(req *GetProofRequest) (*GetProofReply, error) {
@@ -160,7 +170,7 @@ func (s *Service) GetProof(req *GetProofRequest) (*GetProofReply, error) {
 	reply.GetProofResponse, err = s.byzService.GetProof(&byzcoin.GetProof{
 		Version: byzcoin.CurrentVersion,
 		ID:      s.byzID,
-		Key:     req.InstID,
+		Key:     req.InstID.Slice(),
 	})
 	if err != nil {
 		log.Errorf("GetProof request failed: %v", err)
@@ -169,14 +179,25 @@ func (s *Service) GetProof(req *GetProofRequest) (*GetProofReply, error) {
 	return reply, nil
 }
 
-func (s *Service) addTransaction(ctx byzcoin.ClientTransaction, wait int) (*byzcoin.AddTxResponse, error) {
-	return s.byzService.AddTransaction(&byzcoin.AddTxRequest{
-		Version:       byzcoin.CurrentVersion,
-		SkipchainID:   s.byzID,
-		Transaction:   ctx,
-		InclusionWait: wait,
-	})
-}
+//func (s *Service) InitByzcoin(req *InitByzcoinRequest) (*InitByzcoinReply, error) {
+//var err error
+//s.roster = req.Roster
+//s.signer = darc.NewSignerEd25519(nil, nil)
+//s.signerCtr = uint64(1)
+//s.gMsg, err = byzcoin.DefaultGenesisMsg(byzcoin.CurrentVersion, s.roster, []string{"spawn:" + ContractKeyValueID, "invoke:" + ContractKeyValueID}, s.signer.Identity())
+//if err != nil {
+//log.Errorf("Cannot create the default genesis message for Byzcoin: %v", err)
+//return nil, err
+//}
+//s.gMsg.BlockInterval = req.BlkInterval * req.DurationType
+//resp, err := s.byzService.CreateGenesisBlock(s.gMsg)
+//if err != nil {
+//log.Errorf("Cannot create the genesis block for Byzcoin: %v", err)
+//return nil, err
+//}
+//s.byzID = resp.Skipblock.SkipChainID()
+//return &InitByzcoinReply{}, nil
+//}
 
 func newService(c *onet.Context) (onet.Service, error) {
 	s := &Service{
@@ -184,6 +205,7 @@ func newService(c *onet.Context) (onet.Service, error) {
 		byzService:       c.Service(byzcoin.ServiceName).(*byzcoin.Service),
 		scService:        c.Service(skipchain.ServiceName).(*skipchain.Service),
 	}
+	//err := s.RegisterHandlers(s.InitUnit, s.InitByzcoin, s.SpawnDarc, s.CreateState, s.UpdateState, s.GetProof)
 	err := s.RegisterHandlers(s.InitUnit, s.SpawnDarc, s.CreateState, s.UpdateState, s.GetProof)
 	if err != nil {
 		log.Errorf("Cannot register handlers: %v", err)

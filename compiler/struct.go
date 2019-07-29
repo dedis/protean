@@ -20,11 +20,11 @@ type FunctionalUnit struct {
 	//Txns       []*Transaction
 }
 
-type UnitData struct {
-	UnitID   string
-	UnitName string
-	Txns     map[string]string
-}
+//type UnitInformation struct {
+//UnitID   string
+//UnitName string
+//Txns     map[string]string
+//}
 
 type InitUnitRequest struct {
 	ScData *utils.ScInitData
@@ -41,8 +41,8 @@ type CreateUnitsRequest struct {
 }
 
 type CreateUnitsReply struct {
-	Data []*UnitData
-	SbID skipchain.SkipBlockID
+	UnitDirectory []*protean.UnitInfo
+	SbID          skipchain.SkipBlockID
 }
 
 type ExecutionPlanRequest struct {

@@ -13,8 +13,8 @@ import (
 	"go.dedis.ch/protobuf"
 )
 
-func getStorageData(blk *skipchain.SkipBlock) (*protean.UnitStorage, error) {
-	data := &protean.UnitStorage{}
+func getBaseStorage(blk *skipchain.SkipBlock) (*protean.BaseStorage, error) {
+	data := &protean.BaseStorage{}
 	err := protobuf.DecodeWithConstructors(blk.Data, data, network.DefaultConstructors(cothority.Suite))
 	if err != nil {
 		log.Errorf("Protobuf decode failed: %v", err)
@@ -24,7 +24,7 @@ func getStorageData(blk *skipchain.SkipBlock) (*protean.UnitStorage, error) {
 }
 
 func verifyPlan(v *Verify) bool {
-	storageData, err := getStorageData(v.Block)
+	storageData, err := getBaseStorage(v.Block)
 	if err != nil {
 		return false
 	}
@@ -46,14 +46,14 @@ func verifyPlan(v *Verify) bool {
 	//STEP 2: Check that I'm the right guy to do the next thing
 	//First find myself in the execution plan
 	myWfNode := v.Plan.Workflow[v.Index]
-	if strings.Compare(storageData.UnitID, myWfNode.UID) != 0 {
-		log.Errorf("Invalid UID. Expected %s but received %s", storageData.UnitID, myWfNode.UID)
+	if strings.Compare(storageData.UInfo.UnitID, myWfNode.UID) != 0 {
+		log.Errorf("Invalid UID. Expected %s but received %s", storageData.UInfo.UnitID, myWfNode.UID)
 		return false
 	}
 	//This check ensures that the TID in the workflow corresponds to one of
 	//the txns that is supported by our unit. Not sure if we also need to
 	//check whether the name of the txn matches the API call
-	if _, ok := storageData.Txns[myWfNode.TID]; !ok {
+	if _, ok := storageData.UInfo.Txns[myWfNode.TID]; !ok {
 		log.Errorf("Invalid TID: %s", myWfNode.TID)
 		return false
 	}

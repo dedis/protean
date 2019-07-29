@@ -3,13 +3,14 @@ package state
 import (
 	"fmt"
 
-	"github.com/ceyhunalp/protean_code"
+	protean "github.com/ceyhunalp/protean_code"
 	"github.com/ceyhunalp/protean_code/utils"
 	"github.com/ceyhunalp/protean_code/verify"
 	"go.dedis.ch/cothority/v3/blscosi"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/darc"
 	"go.dedis.ch/cothority/v3/skipchain"
+
 	//"go.dedis.ch/kyber/v3/pairing"
 	//"go.dedis.ch/kyber/v3/suites"
 	"go.dedis.ch/onet/v3"
@@ -17,10 +18,6 @@ import (
 	"go.dedis.ch/onet/v3/network"
 	"go.dedis.ch/protobuf"
 )
-
-// This service is only used because we need to register our contracts to
-// the ByzCoin service. So we create this stub and add contracts to it
-// from the `contracts` directory.
 
 var ServiceName = "StateService"
 var stateID onet.ServiceID
@@ -33,16 +30,16 @@ type Service struct {
 	// We need to embed the ServiceProcessor, so that incoming messages
 	// are correctly handled.
 	*onet.ServiceProcessor
+	scService   *skipchain.Service
+	byzService  *byzcoin.Service
+	cosiService *blscosi.Service
+
 	roster    *onet.Roster
 	genesis   skipchain.SkipBlockID
 	byzID     skipchain.SkipBlockID
 	gMsg      *byzcoin.CreateGenesisBlock
 	signer    darc.Signer
 	signerCtr uint64
-
-	byzService  *byzcoin.Service
-	cosiService *blscosi.Service
-	scService   *skipchain.Service
 }
 
 func init() {
@@ -74,7 +71,12 @@ func (s *Service) UpdateState(req *UpdateStateRequest) (*UpdateStateReply, error
 	}
 
 	//Now you can do the actual FU-related stuff
-	_, err = s.addTransaction(req.Ctx, req.Wait)
+	_, err = s.byzService.AddTransaction(&byzcoin.AddTxRequest{
+		Version:       byzcoin.CurrentVersion,
+		SkipchainID:   s.byzID,
+		Transaction:   req.Ctx,
+		InclusionWait: req.Wait,
+	})
 	if err != nil {
 		log.Errorf("Add transaction failed: %v", err)
 		return nil, err
@@ -97,6 +99,7 @@ func (s *Service) UpdateState(req *UpdateStateRequest) (*UpdateStateReply, error
 
 func (s *Service) CreateState(req *CreateStateRequest) (*CreateStateReply, error) {
 	reply := &CreateStateReply{}
+	reply.InstID = req.Ctx.Instructions[0].DeriveID("")
 	// First verify the execution plan
 	db := s.scService.GetDB()
 	blk, err := db.GetLatest(db.GetByID(s.genesis))
@@ -110,7 +113,12 @@ func (s *Service) CreateState(req *CreateStateRequest) (*CreateStateReply, error
 		return nil, fmt.Errorf("Cannot verify execution plan")
 	}
 	// Create state here
-	_, err = s.addTransaction(req.Ctx, req.Wait)
+	_, err = s.byzService.AddTransaction(&byzcoin.AddTxRequest{
+		Version:       byzcoin.CurrentVersion,
+		SkipchainID:   s.byzID,
+		Transaction:   req.Ctx,
+		InclusionWait: req.Wait,
+	})
 	if err != nil {
 		log.Errorf("Add transaction failed: %v", err)
 		return nil, err
@@ -127,7 +135,6 @@ func (s *Service) CreateState(req *CreateStateRequest) (*CreateStateReply, error
 		log.Errorf("Cannot produce blscosi signature: %v", err)
 		return nil, err
 	}
-	reply.InstID = req.Ctx.Instructions[0].DeriveID("")
 	reply.Sig = cosiResp.(*blscosi.SignatureResponse).Signature
 	return reply, err
 }
@@ -156,7 +163,12 @@ func (s *Service) SpawnDarc(req *SpawnDarcRequest) (*SpawnDarcReply, error) {
 		log.Errorf("Signing the transaction failed: %v", err)
 		return nil, err
 	}
-	_, err = s.addTransaction(ctx, req.Wait)
+	_, err = s.byzService.AddTransaction(&byzcoin.AddTxRequest{
+		Version:       byzcoin.CurrentVersion,
+		SkipchainID:   s.byzID,
+		Transaction:   ctx,
+		InclusionWait: req.Wait,
+	})
 	if err != nil {
 		log.Errorf("Add transaction failed: %v", err)
 		return nil, err
@@ -176,7 +188,7 @@ func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 	s.roster = req.ScData.Roster
 	///////////////////////
 	// Now adding a block with the unit information
-	enc, err := protobuf.Encode(req.UnitData)
+	enc, err := protobuf.Encode(req.BaseStore)
 	if err != nil {
 		log.Errorf("Error in protobuf encoding: %v", err)
 		return nil, err
@@ -187,6 +199,7 @@ func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 	}
 	/////// Now setup byzcoin //////
 	s.signer = darc.NewSignerEd25519(nil, nil)
+	s.signerCtr = uint64(1)
 	s.gMsg, err = byzcoin.DefaultGenesisMsg(byzcoin.CurrentVersion, s.roster, []string{"spawn:" + ContractKeyValueID, "invoke:" + ContractKeyValueID}, s.signer.Identity())
 	if err != nil {
 		log.Errorf("Cannot create the default genesis message for Byzcoin: %v", err)
@@ -208,22 +221,13 @@ func (s *Service) GetProof(req *GetProofRequest) (*GetProofReply, error) {
 	reply.GetProofResponse, err = s.byzService.GetProof(&byzcoin.GetProof{
 		Version: byzcoin.CurrentVersion,
 		ID:      s.byzID,
-		Key:     req.InstID,
+		Key:     req.InstID.Slice(),
 	})
 	if err != nil {
 		log.Errorf("GetProof request failed: %v", err)
 		return nil, err
 	}
 	return reply, nil
-}
-
-func (s *Service) addTransaction(ctx byzcoin.ClientTransaction, wait int) (*byzcoin.AddTxResponse, error) {
-	return s.byzService.AddTransaction(&byzcoin.AddTxRequest{
-		Version:       byzcoin.CurrentVersion,
-		SkipchainID:   s.byzID,
-		Transaction:   ctx,
-		InclusionWait: wait,
-	})
 }
 
 func (s *Service) verifyExecutionPlan(blk *skipchain.SkipBlock, execData *protean.ExecutionData) bool {

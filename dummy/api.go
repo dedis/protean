@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ceyhunalp/protean_code"
+	protean "github.com/ceyhunalp/protean_code"
 	"github.com/ceyhunalp/protean_code/utils"
 
 	"go.dedis.ch/cothority/v3"
@@ -104,14 +104,14 @@ func (c *Client) SpawnDarc(r *onet.Roster, spawnDarc darc.Darc, wait int) (*Spaw
 	return nil, err
 }
 
-func (c *Client) InitUnit(r *onet.Roster, scData *utils.ScInitData, unitData *protean.UnitStorage, interval time.Duration, typeDur time.Duration) (*InitUnitReply, error) {
+func (c *Client) InitUnit(r *onet.Roster, scData *utils.ScInitData, bStore *protean.BaseStorage, interval time.Duration, typeDur time.Duration) (*InitUnitReply, error) {
 	if len(r.List) == 0 {
 		return nil, fmt.Errorf("Got an empty roster list")
 	}
 	dst := r.List[0]
 	req := &InitUnitRequest{
 		ScData:       scData,
-		UnitData:     unitData,
+		BaseStore:    bStore,
 		BlkInterval:  interval,
 		DurationType: typeDur,
 	}
@@ -120,7 +120,7 @@ func (c *Client) InitUnit(r *onet.Roster, scData *utils.ScInitData, unitData *pr
 	return nil, err
 }
 
-func (c *Client) GetProof(r *onet.Roster, instID []byte) (*GetProofReply, error) {
+func (c *Client) GetProof(r *onet.Roster, instID byzcoin.InstanceID) (*GetProofReply, error) {
 	if len(r.List) == 0 {
 		return nil, fmt.Errorf("Got an empty roster list")
 	}
@@ -131,4 +131,19 @@ func (c *Client) GetProof(r *onet.Roster, instID []byte) (*GetProofReply, error)
 	reply := &GetProofReply{}
 	err := c.SendProtobuf(dst, req, reply)
 	return reply, err
+}
+
+func (c *Client) InitByzcoin(r *onet.Roster, interval time.Duration, typeDur time.Duration) (*InitByzcoinReply, error) {
+	if len(r.List) == 0 {
+		return nil, fmt.Errorf("Got an empty roster list")
+	}
+	dst := r.List[0]
+	req := &InitByzcoinRequest{
+		Roster:       r,
+		BlkInterval:  interval,
+		DurationType: typeDur,
+	}
+	reply := &InitByzcoinReply{}
+	err := c.SendProtobuf(dst, req, reply)
+	return nil, err
 }

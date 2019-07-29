@@ -6,9 +6,12 @@ import (
 	"os"
 	"time"
 
-	"github.com/ceyhunalp/protean_code"
+	protean "github.com/ceyhunalp/protean_code"
 	"github.com/ceyhunalp/protean_code/compiler"
 	"github.com/ceyhunalp/protean_code/dummy"
+	"github.com/ceyhunalp/protean_code/state"
+
+	//"github.com/ceyhunalp/protean_code/dummy"
 	"github.com/ceyhunalp/protean_code/utils"
 	"go.dedis.ch/cothority/v3/darc"
 	"go.dedis.ch/cothority/v3/darc/expression"
@@ -105,23 +108,32 @@ func runClient(roster *onet.Roster, genesis []byte, uData map[string]string, tDa
 }
 
 func testStateUnit(roster *onet.Roster) error {
-	dumCl := dummy.NewClient()
+	//dumCl := dummy.NewClient()
+	stCl := state.NewClient()
 	scData := &utils.ScInitData{
 		Roster:  roster,
 		MHeight: 2,
 		BHeight: 2,
 	}
-	uData := &protean.UnitStorage{
-		UnitID:   "dummy",
-		Txns:     map[string]string{"a": "b", "c": "d"},
-		CompKeys: roster.ServicePublics(dummy.ServiceName),
+	uData := &protean.BaseStorage{
+		UInfo: &protean.UnitInfo{
+			UnitID:   "state",
+			UnitName: "stateUnit",
+			Txns:     map[string]string{"a": "b", "c": "d"},
+		},
+		CompKeys: roster.ServicePublics(state.ServiceName),
 	}
-	//_, err := dumCl.InitUnit(roster, 15, time.Second)
-	_, err := dumCl.InitUnit(roster, scData, uData, 15, time.Second)
+
+	_, err := stCl.InitUnit(roster, scData, uData, 30, time.Second)
 	if err != nil {
 		fmt.Println("Cannot initialize state unit")
 		return err
 	}
+	//_, err = dumCl.InitByzcoin(roster, 20, time.Second)
+	//if err != nil {
+	//fmt.Println("Cannot initialize byzcoin")
+	//return err
+	//}
 
 	org := darc.NewSignerEd25519(nil, nil)
 	orgDarc := darc.NewDarc(darc.InitRules([]darc.Identity{org.Identity()}, []darc.Identity{org.Identity()}), []byte("Organizer"))
@@ -132,29 +144,27 @@ func testStateUnit(roster *onet.Roster) error {
 	fmt.Println("I'm", cl1.Identity().String())
 	fmt.Println("I'm", cl2.Identity().String())
 	fmt.Println("I'm", cl3.Identity().String())
-	orgDarc.Rules.AddRule(darc.Action("spawn:"+dummy.ContractKeyValueID), expression.InitOrExpr(org.Identity().String()))
-	orgDarc.Rules.AddRule(darc.Action("invoke:"+dummy.ContractKeyValueID+".update"), expression.InitOrExpr(org.Identity().String(), cl1.Identity().String(), cl2.Identity().String()))
+	orgDarc.Rules.AddRule(darc.Action("spawn:"+state.ContractKeyValueID), expression.InitOrExpr(org.Identity().String()))
+	orgDarc.Rules.AddRule(darc.Action("invoke:"+state.ContractKeyValueID+".update"), expression.InitOrExpr(org.Identity().String(), cl1.Identity().String(), cl2.Identity().String()))
 	//orgDarc.Rules.AddRule(darc.Action("invoke:"+dummy.ContractKeyValueID+".update"), expression.InitOrExpr(org.Identity().String()))
-	//orgDarc.Rules.AddRule(darc.Action("invoke:"+dummy.ContractKeyValueID+".update"), expression.InitOrExpr(cl1.Identity().String()))
-	//orgDarc.Rules.AddRule(darc.Action("invoke:"+dummy.ContractKeyValueID+".update"), expression.InitOrExpr(cl2.Identity().String()))
-	_, err = dumCl.SpawnDarc(roster, *orgDarc, 5)
+	_, err = stCl.SpawnDarc(roster, *orgDarc, 5)
 	if err != nil {
 		fmt.Println("Cannot spawn darc")
 		return err
 	}
 
-	var kv []*dummy.KV
-	kv = append(kv, &dummy.KV{Key: "deli", Value: []byte("vahit")})
-	kv = append(kv, &dummy.KV{Key: "pasa", Value: []byte("vahit")})
+	var kv []*state.KV
+	kv = append(kv, &state.KV{Key: "foo1", Value: []byte("bar1")})
+	kv = append(kv, &state.KV{Key: "foo2", Value: []byte("bar2")})
 	signerCtr := uint64(1)
-	cl1Ctr := uint64(1)
-	csReply, err := dumCl.CreateState(roster, kv, *orgDarc, signerCtr, org, 4)
+	//cl1Ctr := uint64(1)
+	csReply, err := stCl.CreateState(roster, kv, *orgDarc, signerCtr, org, 4)
 	if err != nil {
 		return fmt.Errorf("createstaterequest failed: %v", err)
 	}
 	signerCtr++
 
-	gpReply, err := dumCl.GetProof(roster, csReply.InstID[:])
+	gpReply, err := stCl.GetProof(roster, csReply.InstID)
 	if err != nil {
 		return fmt.Errorf("getproof failed: %v", err)
 	}
@@ -165,31 +175,31 @@ func testStateUnit(roster *onet.Roster) error {
 	}
 
 	_, val, _, _, err := gpReply.Proof.KeyValue()
-	storage := dummy.Storage{}
+	storage := state.Storage{}
 	err = protobuf.Decode(val, &storage)
 	if err != nil {
 		return fmt.Errorf("Protobuf decode failed: %v", err)
 	}
 	fmt.Println("Printing after create state:")
-	for k, v := range storage.Data {
-		fmt.Println(k, string(v))
+	for _, d := range storage.Data {
+		fmt.Println(d.Key, string(d.Value))
 	}
 
 	fmt.Println("===============")
 
-	var updKv []*dummy.KV
-	updKv = append(updKv, &dummy.KV{Key: "erkan", Value: []byte("ogur")})
-	updKv = append(updKv, &dummy.KV{Key: "terence", Value: []byte("blanchard")})
+	var updKv []*state.KV
+	updKv = append(updKv, &state.KV{Key: "foo3", Value: []byte("bar3")})
+	updKv = append(updKv, &state.KV{Key: "foo4", Value: []byte("bar4")})
 
-	_, err = dumCl.UpdateState(roster, updKv, csReply.InstID, cl1Ctr, cl3, 4)
-	//_, err = dumCl.UpdateStateRequest(roster, updKv, csReply.InstID, signerCtr, org)
+	_, err = stCl.UpdateState(roster, updKv, csReply.InstID, signerCtr, org, 4)
+	//_, err = stCl.UpdateState(roster, updKv, csReply.InstID, cl1Ctr, cl1, 4)
 	if err != nil {
 		return fmt.Errorf("updatestaterequest failed: %v", err)
 	}
-	cl1Ctr++
+	//cl1Ctr++
 	fmt.Println("Returned from updatestaterequest")
 
-	gpReply, err = dumCl.GetProof(roster, csReply.InstID[:])
+	gpReply, err = stCl.GetProof(roster, csReply.InstID)
 	if err != nil {
 		return fmt.Errorf("getproof failed: %v", err)
 	}
@@ -198,13 +208,124 @@ func testStateUnit(roster *onet.Roster) error {
 	}
 
 	_, val, _, _, err = gpReply.Proof.KeyValue()
-	storage = dummy.Storage{}
+	storage = state.Storage{}
 	err = protobuf.Decode(val, &storage)
 	if err != nil {
 		return fmt.Errorf("Protobuf decode failed: %v", err)
 	}
-	for k, v := range storage.Data {
-		fmt.Println(k, string(v))
+	for _, d := range storage.Data {
+		fmt.Println(d.Key, string(d.Value))
+	}
+	return nil
+}
+
+func testDummyUnit(roster *onet.Roster) error {
+	dumCl := dummy.NewClient()
+	scData := &utils.ScInitData{
+		Roster:  roster,
+		MHeight: 2,
+		BHeight: 2,
+	}
+	uData := &protean.BaseStorage{
+		UInfo: &protean.UnitInfo{
+			UnitID:   "dummy",
+			UnitName: "dummyUnit",
+			Txns:     map[string]string{"a": "b", "c": "d"},
+		},
+		CompKeys: roster.ServicePublics(state.ServiceName),
+	}
+
+	_, err := dumCl.InitUnit(roster, scData, uData, 15, time.Second)
+	if err != nil {
+		fmt.Println("Cannot initialize state unit")
+		return err
+	}
+	//_, err = dumCl.InitByzcoin(roster, 20, time.Second)
+	//if err != nil {
+	//fmt.Println("Cannot initialize byzcoin")
+	//return err
+	//}
+
+	org := darc.NewSignerEd25519(nil, nil)
+	orgDarc := darc.NewDarc(darc.InitRules([]darc.Identity{org.Identity()}, []darc.Identity{org.Identity()}), []byte("Organizer"))
+	cl1 := darc.NewSignerEd25519(nil, nil)
+	cl2 := darc.NewSignerEd25519(nil, nil)
+	cl3 := darc.NewSignerEd25519(nil, nil)
+	fmt.Println("I'm", org.Identity().String())
+	fmt.Println("I'm", cl1.Identity().String())
+	fmt.Println("I'm", cl2.Identity().String())
+	fmt.Println("I'm", cl3.Identity().String())
+	orgDarc.Rules.AddRule(darc.Action("spawn:"+state.ContractKeyValueID), expression.InitOrExpr(org.Identity().String()))
+	orgDarc.Rules.AddRule(darc.Action("invoke:"+state.ContractKeyValueID+".update"), expression.InitOrExpr(org.Identity().String(), cl1.Identity().String(), cl2.Identity().String()))
+	//orgDarc.Rules.AddRule(darc.Action("invoke:"+dummy.ContractKeyValueID+".update"), expression.InitOrExpr(org.Identity().String()))
+	_, err = dumCl.SpawnDarc(roster, *orgDarc, 5)
+	if err != nil {
+		fmt.Println("Cannot spawn darc")
+		return err
+	}
+
+	var kv []*dummy.KV
+	kv = append(kv, &dummy.KV{Key: "foo1", Value: []byte("bar1")})
+	kv = append(kv, &dummy.KV{Key: "foo2", Value: []byte("bar2")})
+	signerCtr := uint64(1)
+	cl1Ctr := uint64(1)
+	csReply, err := dumCl.CreateState(roster, kv, *orgDarc, signerCtr, org, 4)
+	if err != nil {
+		return fmt.Errorf("createstaterequest failed: %v", err)
+	}
+	signerCtr++
+
+	gpReply, err := dumCl.GetProof(roster, csReply.InstID)
+	if err != nil {
+		return fmt.Errorf("getproof failed: %v", err)
+	}
+	if !gpReply.Proof.InclusionProof.Match(csReply.InstID[:]) {
+		return fmt.Errorf("Inclusion proof does not match")
+	} else {
+		fmt.Println("SUCCESS: Inclusion proof matched")
+	}
+
+	_, val, _, _, err := gpReply.Proof.KeyValue()
+	storage := state.Storage{}
+	err = protobuf.Decode(val, &storage)
+	if err != nil {
+		return fmt.Errorf("Protobuf decode failed: %v", err)
+	}
+	fmt.Println("Printing after create state:")
+	for _, d := range storage.Data {
+		fmt.Println(d.Key, string(d.Value))
+	}
+
+	fmt.Println("===============")
+
+	var updKv []*dummy.KV
+	updKv = append(updKv, &dummy.KV{Key: "foo3", Value: []byte("bar3")})
+	updKv = append(updKv, &dummy.KV{Key: "foo4", Value: []byte("bar4")})
+
+	//_, err = dumCl.UpdateState(roster, updKv, csReply.InstID, signerCtr, org, 4)
+	_, err = dumCl.UpdateState(roster, updKv, csReply.InstID, cl1Ctr, cl1, 4)
+	if err != nil {
+		return fmt.Errorf("updatestaterequest failed: %v", err)
+	}
+	//cl1Ctr++
+	fmt.Println("Returned from updatestaterequest")
+
+	gpReply, err = dumCl.GetProof(roster, csReply.InstID)
+	if err != nil {
+		return fmt.Errorf("getproof failed: %v", err)
+	}
+	if !gpReply.Proof.InclusionProof.Match(csReply.InstID[:]) {
+		return fmt.Errorf("Inclusion proof does not match")
+	}
+
+	_, val, _, _, err = gpReply.Proof.KeyValue()
+	storage = state.Storage{}
+	err = protobuf.Decode(val, &storage)
+	if err != nil {
+		return fmt.Errorf("Protobuf decode failed: %v", err)
+	}
+	for _, d := range storage.Data {
+		fmt.Println(d.Key, string(d.Value))
 	}
 	return nil
 }
@@ -241,7 +362,8 @@ func main() {
 		//TODO: Maybe write a function to fetch latest block information
 		//from the skipchain, so that the client can have unit&txn
 		//information
-		err := testStateUnit(roster)
+		err := testDummyUnit(roster)
+		//err := testStateUnit(roster)
 		if err != nil {
 			fmt.Println(err)
 		}

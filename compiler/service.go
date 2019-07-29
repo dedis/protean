@@ -44,9 +44,8 @@ func init() {
 }
 
 func (s *Service) CreateUnits(req *CreateUnitsRequest) (*CreateUnitsReply, error) {
-	var data []*UnitData
-	sd := make(map[string]*uv)
-
+	var dirInfo []*protean.UnitInfo
+	sbd := make(map[string]*uv)
 	for _, unit := range req.Units {
 		uid, err := generateUnitID(unit)
 		if err != nil {
@@ -61,11 +60,11 @@ func (s *Service) CreateUnits(req *CreateUnitsRequest) (*CreateUnitsReply, error
 			Nf: unit.NumFaulty,
 		}
 		val.Txns = txnIDs
-		sd[uid] = val
-		data = append(data, &UnitData{UnitID: uid, UnitName: unit.UnitName, Txns: txnIDs})
+		sbd[uid] = val
+		dirInfo = append(dirInfo, &protean.UnitInfo{UnitID: uid, UnitName: unit.UnitName, Txns: txnIDs})
 	}
 	enc, err := protobuf.Encode(&sbData{
-		Data: sd,
+		Data: sbd,
 	})
 	if err != nil {
 		log.Errorf("Protobuf encode error: %v", err)
@@ -76,7 +75,7 @@ func (s *Service) CreateUnits(req *CreateUnitsRequest) (*CreateUnitsReply, error
 		log.Errorf("Cannot add block to skipchain: %v", err)
 		return nil, err
 	}
-	return &CreateUnitsReply{Data: data}, nil
+	return &CreateUnitsReply{UnitDirectory: dirInfo}, nil
 }
 
 func (s *Service) GenerateExecutionPlan(req *ExecutionPlanRequest) (*ExecutionPlanReply, error) {

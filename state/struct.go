@@ -3,7 +3,7 @@ package state
 import (
 	"time"
 
-	"github.com/ceyhunalp/protean_code"
+	protean "github.com/ceyhunalp/protean_code"
 	"github.com/ceyhunalp/protean_code/utils"
 	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/cothority/v3/byzcoin"
@@ -16,13 +16,13 @@ type KV struct {
 }
 
 type Storage struct {
-	//Data []*KV
-	Data map[string][]byte
+	//Data map[string][]byte
+	Data []KV
 }
 
 type InitUnitRequest struct {
 	ScData       *utils.ScInitData
-	UnitData     *protean.UnitStorage
+	BaseStore    *protean.BaseStorage
 	BlkInterval  time.Duration
 	DurationType time.Duration
 }
@@ -39,8 +39,7 @@ type CreateStateRequest struct {
 }
 
 type CreateStateReply struct {
-	//AddTxResp *byzcoin.AddTxResponse
-	InstID [32]byte
+	InstID byzcoin.InstanceID
 	Sig    protocol.BlsSignature
 }
 
@@ -56,7 +55,6 @@ type UpdateStateReply struct {
 }
 
 type SpawnDarcRequest struct {
-	//Ctx  byzcoin.ClientTransaction
 	Darc darc.Darc
 	Wait int
 }
@@ -65,7 +63,7 @@ type SpawnDarcReply struct {
 }
 
 type GetProofRequest struct {
-	InstID []byte
+	InstID byzcoin.InstanceID
 }
 
 type GetProofReply struct {

@@ -33,6 +33,7 @@ func BlsCosiSign(s *blscosi.Service, r *onet.Roster, data []byte) (network.Messa
 }
 
 func StoreBlock(s *skipchain.Service, genesis skipchain.SkipBlockID, data []byte) error {
+	log.Infof("In StoreBlock service id is: %s", s.ServiceID())
 	db := s.GetDB()
 	latest, err := db.GetLatest(db.GetByID(genesis))
 	if err != nil {
@@ -50,6 +51,7 @@ func StoreBlock(s *skipchain.Service, genesis skipchain.SkipBlockID, data []byte
 }
 
 func CreateGenesisBlock(s *skipchain.Service, scData *ScInitData) (*skipchain.StoreSkipBlockReply, error) {
+	log.Infof("[CreateGenesisBlock] Service: %s", s.ServiceID())
 	genesis := skipchain.NewSkipBlock()
 	genesis.MaximumHeight = scData.MHeight
 	genesis.BaseHeight = scData.BHeight

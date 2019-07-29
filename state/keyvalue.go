@@ -23,9 +23,9 @@ func contractValueFromBytes(in []byte) (byzcoin.Contract, error) {
 		log.Errorf("Protobuf decode failed: %v", err)
 		return nil, err
 	}
-	if cv.Storage.Data == nil {
-		cv.Storage.Data = make(map[string][]byte)
-	}
+	//if cv.Storage.Data == nil {
+	//cv.Storage.Data = make(map[string][]byte)
+	//}
 	return cv, nil
 }
 
@@ -39,7 +39,8 @@ func (c *contractValue) Spawn(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Instru
 	}
 	cs := &c.Storage
 	for _, kv := range inst.Spawn.Args {
-		cs.Data[kv.Name] = kv.Value
+		//cs.Data[kv.Name] = kv.Value
+		cs.Data = append(cs.Data, KV{kv.Name, kv.Value})
 	}
 	csBuf, err := protobuf.Encode(&c.Storage)
 	if err != nil {
@@ -92,58 +93,39 @@ func (c *contractValue) Delete(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Instr
 }
 
 func (cs *Storage) Update(args byzcoin.Arguments) {
-	for _, arg := range args {
-		var updated bool
-		for key, value := range cs.Data {
-			if key == arg.Name {
+	for _, kv := range args {
+		updated := false
+		for i, stored := range cs.Data {
+			if stored.Key == kv.Name {
 				updated = true
-				if value == nil || len(value) == 0 {
-					delete(cs.Data, key)
+				if kv.Value == nil || len(kv.Value) == 0 {
+					cs.Data = append(cs.Data[0:i], cs.Data[i+1:]...)
 					break
 				}
-				cs.Data[arg.Name] = arg.Value
+				cs.Data[i].Value = kv.Value
 			}
 		}
 		if !updated {
-			cs.Data[arg.Name] = arg.Value
+			cs.Data = append(cs.Data, KV{kv.Name, kv.Value})
 		}
 	}
 }
 
-//func (cs *KVStorage) Update(args byzcoin.Arguments) {
-//for _, kv := range args {
+//func (cs *Storage) Update(args byzcoin.Arguments) {
+//for _, arg := range args {
 //var updated bool
-//for key, value := range cs.Storage {
-//if key == kv.Name {
+//for key, value := range cs.Data {
+//if key == arg.Name {
 //updated = true
-//if kv.Value == nil || len(kv.Value) == 0 {
-//delete(cs.Storage, key)
+//if value == nil || len(value) == 0 {
+//delete(cs.Data, key)
 //break
 //}
-//cs.Storage[key] = value
+//cs.Data[arg.Name] = arg.Value
 //}
 //}
 //if !updated {
-//cs.Storage[kv.Name] = kv.Value
-//}
-//}
-//}
-
-//func (cs *KVStorage) Update(args byzcoin.Arguments) {
-//for _, kv := range args {
-//var updated bool
-//for i, stored := range cs.Storage {
-//if stored.Key == kv.Name {
-//updated = true
-//if kv.Value == nil || len(kv.Value) == 0 {
-//cs.Storage = append(cs.Storage[0:i], cs.Storage[i+1:]...)
-//break
-//}
-//cs.Storage[i].Value = kv.Value
-//}
-//}
-//if !updated {
-//cs.Storage = append(cs.Storage, &KeyValue{kv.Name, kv.Value})
+//cs.Data[arg.Name] = arg.Value
 //}
 //}
 //}

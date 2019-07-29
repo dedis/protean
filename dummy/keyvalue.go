@@ -17,21 +17,19 @@ type contractValue struct {
 }
 
 func contractValueFromBytes(in []byte) (byzcoin.Contract, error) {
-	log.Info("========== CEY: CONTRACT VALUE FROM BYTES ========")
 	cv := &contractValue{}
 	err := protobuf.Decode(in, &cv.Storage)
 	if err != nil {
 		log.Errorf("Protobuf decode failed: %v", err)
 		return nil, err
 	}
-	if cv.Storage.Data == nil {
-		cv.Storage.Data = make(map[string][]byte)
-	}
+	//if cv.Storage.Data == nil {
+	//cv.Storage.Data = make(map[string][]byte)
+	//}
 	return cv, nil
 }
 
 func (c *contractValue) Spawn(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Instruction, coins []byzcoin.Coin) (sc []byzcoin.StateChange, cout []byzcoin.Coin, err error) {
-	log.Info("========== CEY: SPAWN ========")
 	cout = coins
 	var darcID darc.ID
 	_, _, _, darcID, err = rst.GetValues(inst.InstanceID.Slice())
@@ -41,7 +39,8 @@ func (c *contractValue) Spawn(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Instru
 	}
 	cs := &c.Storage
 	for _, kv := range inst.Spawn.Args {
-		cs.Data[kv.Name] = kv.Value
+		//cs.Data[kv.Name] = kv.Value
+		cs.Data = append(cs.Data, KV{kv.Name, kv.Value})
 	}
 	csBuf, err := protobuf.Encode(&c.Storage)
 	if err != nil {
@@ -55,7 +54,6 @@ func (c *contractValue) Spawn(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Instru
 }
 
 func (c *contractValue) Invoke(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Instruction, coins []byzcoin.Coin) (sc []byzcoin.StateChange, cout []byzcoin.Coin, err error) {
-	log.Info("========== CEY: INVOKE ========")
 	cout = coins
 	var darcID darc.ID
 	_, _, _, darcID, err = rst.GetValues(inst.InstanceID.Slice())
@@ -95,39 +93,39 @@ func (c *contractValue) Delete(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Instr
 }
 
 func (cs *Storage) Update(args byzcoin.Arguments) {
-	for _, arg := range args {
-		var updated bool
-		for key, value := range cs.Data {
-			if key == arg.Name {
+	for _, kv := range args {
+		updated := false
+		for i, stored := range cs.Data {
+			if stored.Key == kv.Name {
 				updated = true
-				if value == nil || len(value) == 0 {
-					delete(cs.Data, key)
+				if kv.Value == nil || len(kv.Value) == 0 {
+					cs.Data = append(cs.Data[0:i], cs.Data[i+1:]...)
 					break
 				}
-				cs.Data[arg.Name] = arg.Value
+				cs.Data[i].Value = kv.Value
 			}
 		}
 		if !updated {
-			cs.Data[arg.Name] = arg.Value
+			cs.Data = append(cs.Data, KV{kv.Name, kv.Value})
 		}
 	}
 }
 
 //func (cs *Storage) Update(args byzcoin.Arguments) {
-//for _, kv := range args {
-//var updated bool
-//for i, stored := range cs.Data {
-//if stored.Key == kv.Name {
+//for _, arg := range args {
+//updated := false
+//for key, value := range cs.Data {
+//if key == arg.Name {
 //updated = true
-//if kv.Value == nil || len(kv.Value) == 0 {
-//cs.Data = append(cs.Data[0:i], cs.Data[i+1:]...)
+//if value == nil || len(value) == 0 {
+//delete(cs.Data, key)
 //break
 //}
-//cs.Data[i].Value = kv.Value
+//cs.Data[arg.Name] = arg.Value
 //}
 //}
 //if !updated {
-//cs.Data = append(cs.Data, KV{kv.Name, kv.Value})
+//cs.Data[arg.Name] = arg.Value
 //}
 //}
 //}
