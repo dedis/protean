@@ -22,7 +22,7 @@ func NewClient() *Client {
 	return &Client{Client: onet.NewClient(cothority.Suite, ServiceName)}
 }
 
-func (c *Client) UpdateState(r *onet.Roster, kv []*KV, instID byzcoin.InstanceID, signerCtr uint64, signer darc.Signer, wait int) (*UpdateStateReply, error) {
+func (c *Client) UpdateState(r *onet.Roster, contractID string, kv []*KV, instID byzcoin.InstanceID, signerCtr uint64, signer darc.Signer, wait int) (*UpdateStateReply, error) {
 	if len(r.List) == 0 {
 		return nil, fmt.Errorf("Got an empty roster list")
 	}
@@ -35,7 +35,7 @@ func (c *Client) UpdateState(r *onet.Roster, kv []*KV, instID byzcoin.InstanceID
 		Instructions: []byzcoin.Instruction{{
 			InstanceID: instID,
 			Invoke: &byzcoin.Invoke{
-				ContractID: ContractKeyValueID,
+				ContractID: contractID,
 				Command:    "update",
 				Args:       args,
 			},
@@ -57,7 +57,7 @@ func (c *Client) UpdateState(r *onet.Roster, kv []*KV, instID byzcoin.InstanceID
 }
 
 // This is called by the organize/owner/admin of the application
-func (c *Client) CreateState(r *onet.Roster, kv []*KV, adminDarc darc.Darc, signerCtr uint64, signer darc.Signer, wait int) (*CreateStateReply, error) {
+func (c *Client) CreateState(r *onet.Roster, contractID string, kv []*KV, adminDarc darc.Darc, signerCtr uint64, signer darc.Signer, wait int) (*CreateStateReply, error) {
 	reply := &CreateStateReply{}
 	if len(r.List) == 0 {
 		return nil, fmt.Errorf("Got an empty roster list")
@@ -71,7 +71,7 @@ func (c *Client) CreateState(r *onet.Roster, kv []*KV, adminDarc darc.Darc, sign
 		Instructions: []byzcoin.Instruction{{
 			InstanceID: byzcoin.NewInstanceID(adminDarc.GetBaseID()),
 			Spawn: &byzcoin.Spawn{
-				ContractID: ContractKeyValueID,
+				ContractID: contractID,
 				Args:       args,
 			},
 			SignerCounter: []uint64{signerCtr},

@@ -4,7 +4,7 @@ import (
 	"crypto/sha256"
 	"strings"
 
-	"github.com/ceyhunalp/protean_code"
+	protean "github.com/ceyhunalp/protean_code"
 
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/skipchain"
@@ -37,7 +37,8 @@ func verifyPlan(v *Verify) bool {
 	h.Write(payload)
 	//STEP 1:
 	//Check the signature from the compiler unit on the execution plan
-	err = v.PlanSig.Verify(suite, payload, storageData.CompKeys)
+	//err = v.PlanSig.Verify(suite, payload, storageData.CompKeys)
+	err = v.PlanSig.Verify(suite, h.Sum(nil), storageData.CompKeys)
 	if err != nil {
 		log.Errorf("Cannot verify blscosi signature on the execution plan: %v", err)
 		return false

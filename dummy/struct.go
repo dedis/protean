@@ -20,6 +20,15 @@ type Storage struct {
 	Data []KV
 }
 
+type LotteryStorage struct {
+	Storage []KV
+}
+
+type LotteryValue struct {
+	Data []byte
+	Sig  []byte
+}
+
 type InitUnitRequest struct {
 	ScData       *utils.ScInitData
 	BaseStore    *protean.BaseStorage

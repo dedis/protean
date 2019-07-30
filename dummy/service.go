@@ -179,25 +179,25 @@ func (s *Service) GetProof(req *GetProofRequest) (*GetProofReply, error) {
 	return reply, nil
 }
 
-//func (s *Service) InitByzcoin(req *InitByzcoinRequest) (*InitByzcoinReply, error) {
-//var err error
-//s.roster = req.Roster
-//s.signer = darc.NewSignerEd25519(nil, nil)
-//s.signerCtr = uint64(1)
-//s.gMsg, err = byzcoin.DefaultGenesisMsg(byzcoin.CurrentVersion, s.roster, []string{"spawn:" + ContractKeyValueID, "invoke:" + ContractKeyValueID}, s.signer.Identity())
-//if err != nil {
-//log.Errorf("Cannot create the default genesis message for Byzcoin: %v", err)
-//return nil, err
-//}
-//s.gMsg.BlockInterval = req.BlkInterval * req.DurationType
-//resp, err := s.byzService.CreateGenesisBlock(s.gMsg)
-//if err != nil {
-//log.Errorf("Cannot create the genesis block for Byzcoin: %v", err)
-//return nil, err
-//}
-//s.byzID = resp.Skipblock.SkipChainID()
-//return &InitByzcoinReply{}, nil
-//}
+func (s *Service) InitByzcoin(req *InitByzcoinRequest) (*InitByzcoinReply, error) {
+	var err error
+	s.roster = req.Roster
+	s.signer = darc.NewSignerEd25519(nil, nil)
+	s.signerCtr = uint64(1)
+	s.gMsg, err = byzcoin.DefaultGenesisMsg(byzcoin.CurrentVersion, s.roster, []string{"spawn:" + ContractKeyValueID, "invoke:" + ContractKeyValueID}, s.signer.Identity())
+	if err != nil {
+		log.Errorf("Cannot create the default genesis message for Byzcoin: %v", err)
+		return nil, err
+	}
+	s.gMsg.BlockInterval = req.BlkInterval * req.DurationType
+	resp, err := s.byzService.CreateGenesisBlock(s.gMsg)
+	if err != nil {
+		log.Errorf("Cannot create the genesis block for Byzcoin: %v", err)
+		return nil, err
+	}
+	s.byzID = resp.Skipblock.SkipChainID()
+	return &InitByzcoinReply{}, nil
+}
 
 func newService(c *onet.Context) (onet.Service, error) {
 	s := &Service{
@@ -205,8 +205,8 @@ func newService(c *onet.Context) (onet.Service, error) {
 		byzService:       c.Service(byzcoin.ServiceName).(*byzcoin.Service),
 		scService:        c.Service(skipchain.ServiceName).(*skipchain.Service),
 	}
-	//err := s.RegisterHandlers(s.InitUnit, s.InitByzcoin, s.SpawnDarc, s.CreateState, s.UpdateState, s.GetProof)
-	err := s.RegisterHandlers(s.InitUnit, s.SpawnDarc, s.CreateState, s.UpdateState, s.GetProof)
+	err := s.RegisterHandlers(s.InitUnit, s.InitByzcoin, s.SpawnDarc, s.CreateState, s.UpdateState, s.GetProof)
+	//err := s.RegisterHandlers(s.InitUnit, s.SpawnDarc, s.CreateState, s.UpdateState, s.GetProof)
 	if err != nil {
 		log.Errorf("Cannot register handlers: %v", err)
 		return nil, err
@@ -214,6 +214,11 @@ func newService(c *onet.Context) (onet.Service, error) {
 	err = byzcoin.RegisterContract(c, ContractKeyValueID, contractValueFromBytes)
 	if err != nil {
 		log.Errorf("Cannot register contract %s: %v", ContractKeyValueID, err)
+		return nil, err
+	}
+	err = byzcoin.RegisterContract(c, ContractLotteryID, contractLotteryFromBytes)
+	if err != nil {
+		log.Errorf("Cannot register contract %s: %v", ContractLotteryID, err)
 		return nil, err
 	}
 	return s, nil
