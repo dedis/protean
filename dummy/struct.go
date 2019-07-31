@@ -10,21 +10,43 @@ import (
 	"go.dedis.ch/onet/v3"
 )
 
+//type Storage struct {
+//Data []KV
+//}
+
+//type LotteryStorage struct {
+//Storage []KV
+//}
+
 type KV struct {
 	Key   string
 	Value []byte
 }
 
-type Storage struct {
-	//Data map[string][]byte
-	Data []KV
-}
-
-type LotteryStorage struct {
-	Storage []KV
+type KVStorage struct {
+	KV []KV
 }
 
 type LotteryValue struct {
+	Data []byte
+	Sig  []byte
+}
+
+type CalyLotteryStorage struct {
+	//Key: public key of the participant
+	//Value: proof + hash of ticket + sig
+	WriteData KVStorage
+	ReadData  [][]byte
+	//FinalData CalyData
+}
+
+type WriteDataValue struct {
+	Proof  *byzcoin.Proof
+	Digest []byte
+	Sig    []byte
+}
+
+type CalyLotteryValue struct {
 	Data []byte
 	Sig  []byte
 }

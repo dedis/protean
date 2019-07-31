@@ -17,12 +17,14 @@ const ContractLotteryID = "lottery"
 
 type contractLottery struct {
 	byzcoin.BasicContract
-	LotteryStorage
+	//LotteryStorage
+	KVStorage
 }
 
 func contractLotteryFromBytes(in []byte) (byzcoin.Contract, error) {
 	cv := &contractLottery{}
-	err := protobuf.Decode(in, &cv.LotteryStorage)
+	//err := protobuf.Decode(in, &cv.LotteryStorage)
+	err := protobuf.Decode(in, &cv.KVStorage)
 	if err != nil {
 		log.Errorf("Protobuf decode failed: %v", err)
 		return nil, err
@@ -38,7 +40,8 @@ func (c *contractLottery) Spawn(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Inst
 		log.Errorf("GetValues failed: %v", err)
 		return
 	}
-	ls := &c.LotteryStorage
+	//ls := &c.LotteryStorage
+	kvs := &c.KVStorage
 	lvStruct := &LotteryValue{}
 	for _, kv := range inst.Spawn.Args {
 		err = protobuf.Decode(kv.Value, lvStruct)
@@ -46,14 +49,17 @@ func (c *contractLottery) Spawn(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Inst
 			log.Errorf("Protobuf decode failed: %v", err)
 			return
 		}
-		ok := authorizeAccess(kv.Name, lvStruct)
+		//ok := authorizeAccess(kv.Name, lvStruct)
+		ok := lvStruct.authorizeAccess(kv.Name)
 		if !ok {
 			log.Errorf("Not authorized to insert a value for the key %s", kv.Name)
 			return
 		}
-		ls.Storage = append(ls.Storage, KV{kv.Name, kv.Value})
+		//ls.Storage = append(ls.Storage, KV{kv.Name, kv.Value})
+		kvs.KV = append(kvs.KV, KV{kv.Name, kv.Value})
 	}
-	lsBuf, err := protobuf.Encode(&c.LotteryStorage)
+	//lsBuf, err := protobuf.Encode(&c.LotteryStorage)
+	kvsBuf, err := protobuf.Encode(&c.KVStorage)
 	if err != nil {
 		log.Errorf("Protobuf encode failed: %v", err)
 		return
@@ -67,7 +73,7 @@ func (c *contractLottery) Spawn(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Inst
 	//return
 	//}
 	sc = []byzcoin.StateChange{
-		byzcoin.NewStateChange(byzcoin.Create, inst.DeriveID(""), ContractLotteryID, lsBuf, darcID),
+		byzcoin.NewStateChange(byzcoin.Create, inst.DeriveID(""), ContractLotteryID, kvsBuf, darcID),
 	}
 	return
 }
@@ -84,8 +90,9 @@ func (c *contractLottery) Invoke(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Ins
 		log.Errorf("Value contract can only update")
 		return nil, nil, fmt.Errorf("Value contract can only update")
 	}
-	kvd := &c.LotteryStorage
-	kvd.Update(inst.Invoke.Args)
+	//kvd := &c.LotteryStorage
+	kvd := &c.KVStorage
+	kvd.UpdateStorage(inst.Invoke.Args)
 	var buf []byte
 	buf, err = protobuf.Encode(kvd)
 	if err != nil {
@@ -111,11 +118,12 @@ func (c *contractLottery) Delete(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Ins
 	return
 }
 
-func (ls *LotteryStorage) Update(args byzcoin.Arguments) {
+//func (ls *LotteryStorage) Update(args byzcoin.Arguments) {
+func (kvs *KVStorage) UpdateStorage(args byzcoin.Arguments) {
 	lvStruct := &LotteryValue{}
 	for _, kv := range args {
 		updated := false
-		for i, stored := range ls.Storage {
+		for i, stored := range kvs.KV {
 			if stored.Key == kv.Name {
 				updated = true
 				err := protobuf.Decode(kv.Value, lvStruct)
@@ -123,25 +131,27 @@ func (ls *LotteryStorage) Update(args byzcoin.Arguments) {
 					log.Errorf("Protobuf decode failed: %v", err)
 					break
 				}
-				ok := authorizeAccess(kv.Name, lvStruct)
+				//ok := authorizeAccess(kv.Name, lvStruct)
+				ok := lvStruct.authorizeAccess(kv.Name)
 				if !ok {
 					log.Errorf("Not authorized to insert a value for the key %s", kv.Name)
 					break
 				}
 				if kv.Value == nil || len(kv.Value) == 0 {
-					ls.Storage = append(ls.Storage[0:i], ls.Storage[i+1:]...)
+					kvs.KV = append(kvs.KV[0:i], kvs.KV[i+1:]...)
 					break
 				}
-				ls.Storage[i].Value = kv.Value
+				kvs.KV[i].Value = kv.Value
 			}
 		}
 		if !updated {
-			ls.Storage = append(ls.Storage, KV{kv.Name, kv.Value})
+			kvs.KV = append(kvs.KV, KV{kv.Name, kv.Value})
 		}
 	}
 }
 
-func authorizeAccess(key string, lv *LotteryValue) bool {
+//func authorizeAccess(key string, lv *LotteryValue) bool {
+func (lv *LotteryValue) authorizeAccess(key string) bool {
 	pk, err := encoding.StringHexToPoint(cothority.Suite, key)
 	if err != nil {
 		log.Errorf("Converting string to point failed: %v", err)

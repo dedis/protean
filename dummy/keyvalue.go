@@ -13,19 +13,18 @@ const ContractKeyValueID = "keyValue"
 
 type contractValue struct {
 	byzcoin.BasicContract
-	Storage
+	//Storage
+	KVStorage
 }
 
 func contractValueFromBytes(in []byte) (byzcoin.Contract, error) {
 	cv := &contractValue{}
-	err := protobuf.Decode(in, &cv.Storage)
+	//err := protobuf.Decode(in, &cv.Storage)
+	err := protobuf.Decode(in, &cv.KVStorage)
 	if err != nil {
 		log.Errorf("Protobuf decode failed: %v", err)
 		return nil, err
 	}
-	//if cv.Storage.Data == nil {
-	//cv.Storage.Data = make(map[string][]byte)
-	//}
 	return cv, nil
 }
 
@@ -37,12 +36,13 @@ func (c *contractValue) Spawn(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Instru
 		log.Errorf("GetValues failed: %v", err)
 		return
 	}
-	cs := &c.Storage
+	//cs := &c.Storage
+	cs := &c.KVStorage
 	for _, kv := range inst.Spawn.Args {
-		//cs.Data[kv.Name] = kv.Value
-		cs.Data = append(cs.Data, KV{kv.Name, kv.Value})
+		cs.KV = append(cs.KV, KV{kv.Name, kv.Value})
 	}
-	csBuf, err := protobuf.Encode(&c.Storage)
+	//csBuf, err := protobuf.Encode(&c.Storage)
+	csBuf, err := protobuf.Encode(&c.KVStorage)
 	if err != nil {
 		log.Errorf("Protobuf encode failed: %v", err)
 		return
@@ -65,7 +65,8 @@ func (c *contractValue) Invoke(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Instr
 		log.Errorf("Value contract can only update")
 		return nil, nil, fmt.Errorf("Value contract can only update")
 	}
-	kvd := &c.Storage
+	//kvd := &c.Storage
+	kvd := &c.KVStorage
 	kvd.Update(inst.Invoke.Args)
 	var buf []byte
 	buf, err = protobuf.Encode(kvd)
@@ -92,21 +93,22 @@ func (c *contractValue) Delete(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Instr
 	return
 }
 
-func (cs *Storage) Update(args byzcoin.Arguments) {
+//func (cs *Storage) Update(args byzcoin.Arguments) {
+func (kvs *KVStorage) Update(args byzcoin.Arguments) {
 	for _, kv := range args {
 		updated := false
-		for i, stored := range cs.Data {
+		for i, stored := range kvs.KV {
 			if stored.Key == kv.Name {
 				updated = true
 				if kv.Value == nil || len(kv.Value) == 0 {
-					cs.Data = append(cs.Data[0:i], cs.Data[i+1:]...)
+					kvs.KV = append(kvs.KV[0:i], kvs.KV[i+1:]...)
 					break
 				}
-				cs.Data[i].Value = kv.Value
+				kvs.KV[i].Value = kv.Value
 			}
 		}
 		if !updated {
-			cs.Data = append(cs.Data, KV{kv.Name, kv.Value})
+			kvs.KV = append(kvs.KV, KV{kv.Name, kv.Value})
 		}
 	}
 }
