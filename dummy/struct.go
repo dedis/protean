@@ -69,7 +69,7 @@ type CreateStateRequest struct {
 }
 
 type CreateStateReply struct {
-	InstID byzcoin.InstanceID
+	InstanceID byzcoin.InstanceID
 }
 
 type UpdateStateRequest struct {
@@ -93,7 +93,7 @@ type SpawnDarcReply struct {
 }
 
 type GetProofRequest struct {
-	InstID byzcoin.InstanceID
+	InstanceID byzcoin.InstanceID
 	//InstID []byte
 }
 

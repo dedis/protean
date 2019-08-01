@@ -39,8 +39,8 @@ type CreateStateRequest struct {
 }
 
 type CreateStateReply struct {
-	InstID byzcoin.InstanceID
-	Sig    protocol.BlsSignature
+	InstanceID byzcoin.InstanceID
+	Sig        protocol.BlsSignature
 }
 
 type UpdateStateRequest struct {
@@ -63,7 +63,7 @@ type SpawnDarcReply struct {
 }
 
 type GetProofRequest struct {
-	InstID byzcoin.InstanceID
+	InstanceID byzcoin.InstanceID
 }
 
 type GetProofReply struct {

@@ -99,7 +99,7 @@ func (s *Service) UpdateState(req *UpdateStateRequest) (*UpdateStateReply, error
 
 func (s *Service) CreateState(req *CreateStateRequest) (*CreateStateReply, error) {
 	reply := &CreateStateReply{}
-	reply.InstID = req.Ctx.Instructions[0].DeriveID("")
+	reply.InstanceID = req.Ctx.Instructions[0].DeriveID("")
 	// First verify the execution plan
 	db := s.scService.GetDB()
 	blk, err := db.GetLatest(db.GetByID(s.genesis))
@@ -160,7 +160,7 @@ func (s *Service) SpawnDarc(req *SpawnDarcRequest) (*SpawnDarcReply, error) {
 	}
 	err = ctx.FillSignersAndSignWith(s.signer)
 	if err != nil {
-		log.Errorf("Signing the transaction failed: %v", err)
+		log.Errorf("Sign transaction failed: %v", err)
 		return nil, err
 	}
 	_, err = s.byzService.AddTransaction(&byzcoin.AddTxRequest{
@@ -221,7 +221,7 @@ func (s *Service) GetProof(req *GetProofRequest) (*GetProofReply, error) {
 	reply.GetProofResponse, err = s.byzService.GetProof(&byzcoin.GetProof{
 		Version: byzcoin.CurrentVersion,
 		ID:      s.byzID,
-		Key:     req.InstID.Slice(),
+		Key:     req.InstanceID.Slice(),
 	})
 	if err != nil {
 		log.Errorf("GetProof request failed: %v", err)

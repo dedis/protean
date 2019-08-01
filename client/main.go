@@ -168,11 +168,11 @@ func testStateUnit(roster *onet.Roster) error {
 	}
 	signerCtr++
 
-	gpReply, err := stCl.GetProof(roster, csReply.InstID)
+	gpReply, err := stCl.GetProof(roster, csReply.InstanceID)
 	if err != nil {
 		return fmt.Errorf("getproof failed: %v", err)
 	}
-	if !gpReply.Proof.InclusionProof.Match(csReply.InstID[:]) {
+	if !gpReply.Proof.InclusionProof.Match(csReply.InstanceID[:]) {
 		return fmt.Errorf("Inclusion proof does not match")
 	} else {
 		fmt.Println("SUCCESS: Inclusion proof matched")
@@ -195,19 +195,19 @@ func testStateUnit(roster *onet.Roster) error {
 	updKv = append(updKv, &state.KV{Key: "foo3", Value: []byte("bar3")})
 	updKv = append(updKv, &state.KV{Key: "foo4", Value: []byte("bar4")})
 
-	_, err = stCl.UpdateState(roster, state.ContractKeyValueID, updKv, csReply.InstID, signerCtr, org, 4)
-	//_, err = stCl.UpdateState(roster, updKv, csReply.InstID, cl1Ctr, cl1, 4)
+	_, err = stCl.UpdateState(roster, state.ContractKeyValueID, updKv, csReply.InstanceID, signerCtr, org, 4)
+	//_, err = stCl.UpdateState(roster, updKv, csReply.InstanceID, cl1Ctr, cl1, 4)
 	if err != nil {
 		return fmt.Errorf("updatestaterequest failed: %v", err)
 	}
 	//cl1Ctr++
 	fmt.Println("Returned from updatestaterequest")
 
-	gpReply, err = stCl.GetProof(roster, csReply.InstID)
+	gpReply, err = stCl.GetProof(roster, csReply.InstanceID)
 	if err != nil {
 		return fmt.Errorf("getproof failed: %v", err)
 	}
-	if !gpReply.Proof.InclusionProof.Match(csReply.InstID[:]) {
+	if !gpReply.Proof.InclusionProof.Match(csReply.InstanceID[:]) {
 		return fmt.Errorf("Inclusion proof does not match")
 	}
 
@@ -279,11 +279,11 @@ func testDummyUnit(roster *onet.Roster) error {
 	}
 	signerCtr++
 
-	gpReply, err := dumCl.GetProof(roster, csReply.InstID)
+	gpReply, err := dumCl.GetProof(roster, csReply.InstanceID)
 	if err != nil {
 		return fmt.Errorf("getproof failed: %v", err)
 	}
-	if !gpReply.Proof.InclusionProof.Match(csReply.InstID[:]) {
+	if !gpReply.Proof.InclusionProof.Match(csReply.InstanceID[:]) {
 		return fmt.Errorf("Inclusion proof does not match")
 	} else {
 		fmt.Println("SUCCESS: Inclusion proof matched")
@@ -306,19 +306,19 @@ func testDummyUnit(roster *onet.Roster) error {
 	updKv = append(updKv, &dummy.KV{Key: "foo3", Value: []byte("bar3")})
 	updKv = append(updKv, &dummy.KV{Key: "foo4", Value: []byte("bar4")})
 
-	//_, err = dumCl.UpdateState(roster, updKv, csReply.InstID, signerCtr, org, 4)
-	_, err = dumCl.UpdateState(roster, dummy.ContractKeyValueID, updKv, csReply.InstID, cl1Ctr, cl1, 4)
+	//_, err = dumCl.UpdateState(roster, updKv, csReply.InstanceID, signerCtr, org, 4)
+	_, err = dumCl.UpdateState(roster, dummy.ContractKeyValueID, updKv, csReply.InstanceID, cl1Ctr, cl1, 4)
 	if err != nil {
 		return fmt.Errorf("updatestaterequest failed: %v", err)
 	}
 	//cl1Ctr++
 	fmt.Println("Returned from updatestaterequest")
 
-	gpReply, err = dumCl.GetProof(roster, csReply.InstID)
+	gpReply, err = dumCl.GetProof(roster, csReply.InstanceID)
 	if err != nil {
 		return fmt.Errorf("getproof failed: %v", err)
 	}
-	if !gpReply.Proof.InclusionProof.Match(csReply.InstID[:]) {
+	if !gpReply.Proof.InclusionProof.Match(csReply.InstanceID[:]) {
 		return fmt.Errorf("Inclusion proof does not match")
 	}
 
@@ -383,11 +383,11 @@ func test(roster *onet.Roster) error {
 	}
 	signerCtr++
 
-	gpReply, err := dumCl.GetProof(roster, csReply.InstID)
+	gpReply, err := dumCl.GetProof(roster, csReply.InstanceID)
 	if err != nil {
 		return fmt.Errorf("getproof failed: %v", err)
 	}
-	if !gpReply.Proof.InclusionProof.Match(csReply.InstID[:]) {
+	if !gpReply.Proof.InclusionProof.Match(csReply.InstanceID[:]) {
 		return fmt.Errorf("Inclusion proof does not match")
 	} else {
 		fmt.Println("SUCCESS: Inclusion proof matched")
@@ -430,16 +430,16 @@ func test(roster *onet.Roster) error {
 	var upd []*dummy.KV
 	upd = append(upd, &dummy.KV{Key: k1, Value: val2})
 	//upd = append(upd, &dummy.KV{Key: k2, Value: val2})
-	_, err = dumCl.UpdateState(roster, dummy.ContractLotteryID, upd, csReply.InstID, cl1Ctr, cl1, 4)
+	_, err = dumCl.UpdateState(roster, dummy.ContractLotteryID, upd, csReply.InstanceID, cl1Ctr, cl1, 4)
 	if err != nil {
 		return fmt.Errorf("update state failed: %v", err)
 	}
 	cl1Ctr++
-	gpReply, err = dumCl.GetProof(roster, csReply.InstID)
+	gpReply, err = dumCl.GetProof(roster, csReply.InstanceID)
 	if err != nil {
 		return fmt.Errorf("getproof failed: %v", err)
 	}
-	if !gpReply.Proof.InclusionProof.Match(csReply.InstID[:]) {
+	if !gpReply.Proof.InclusionProof.Match(csReply.InstanceID[:]) {
 		return fmt.Errorf("Inclusion proof does not match")
 	}
 

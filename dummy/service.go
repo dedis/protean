@@ -73,7 +73,7 @@ func (s *Service) CreateState(req *CreateStateRequest) (*CreateStateReply, error
 	//TODO: Do the same stuff as above in UpdateState
 	//Handle the byzcoin part
 	reply := &CreateStateReply{}
-	reply.InstID = req.Ctx.Instructions[0].DeriveID("")
+	reply.InstanceID = req.Ctx.Instructions[0].DeriveID("")
 	_, err := s.byzService.AddTransaction(&byzcoin.AddTxRequest{
 		Version:       byzcoin.CurrentVersion,
 		SkipchainID:   s.byzID,
@@ -108,7 +108,7 @@ func (s *Service) SpawnDarc(req *SpawnDarcRequest) (*SpawnDarcReply, error) {
 	}
 	err = ctx.FillSignersAndSignWith(s.signer)
 	if err != nil {
-		log.Errorf("Signing the transaction failed: %v", err)
+		log.Errorf("Sign transaction failed: %v", err)
 		return nil, err
 	}
 	_, err = s.byzService.AddTransaction(&byzcoin.AddTxRequest{
@@ -170,7 +170,7 @@ func (s *Service) GetProof(req *GetProofRequest) (*GetProofReply, error) {
 	reply.GetProofResponse, err = s.byzService.GetProof(&byzcoin.GetProof{
 		Version: byzcoin.CurrentVersion,
 		ID:      s.byzID,
-		Key:     req.InstID.Slice(),
+		Key:     req.InstanceID.Slice(),
 	})
 	if err != nil {
 		log.Errorf("GetProof request failed: %v", err)
