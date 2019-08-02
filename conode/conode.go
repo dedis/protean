@@ -17,7 +17,8 @@ import (
 	"path"
 
 	//_ "github.com/ceyhunalp/protean_code/compiler"
-	_ "github.com/ceyhunalp/protean_code/dummy"
+	//_ "github.com/ceyhunalp/protean_code/dummy"
+	_ "github.com/ceyhunalp/protean_code/pristore"
 
 	//_ "github.com/ceyhunalp/protean_code/state"
 	//_ "go.dedis.ch/cothority/v3/blscosi"

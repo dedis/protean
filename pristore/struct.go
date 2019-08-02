@@ -1,4 +1,4 @@
-package privstore
+package pristore
 
 import (
 	"time"
@@ -8,7 +8,9 @@ import (
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/calypso"
 	"go.dedis.ch/cothority/v3/darc"
+	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/kyber/v3"
+	"go.dedis.ch/onet/v3"
 )
 
 //type KV struct {
@@ -36,6 +38,7 @@ type InitUnitRequest struct {
 
 type InitUnitReply struct {
 	Genesis []byte
+	ID      skipchain.SkipBlockID
 }
 
 type AuthorizeRequest struct {
@@ -47,8 +50,9 @@ type AuthorizeReply struct {
 }
 
 type CreateLTSRequest struct {
-	Ctx  byzcoin.ClientTransaction
-	Wait int
+	//Ctx  byzcoin.ClientTransaction
+	LTSRoster *onet.Roster
+	Wait      int
 }
 
 type CreateLTSReply struct {
@@ -87,4 +91,12 @@ type DecryptRequest struct {
 
 type DecryptReply struct {
 	Reply *calypso.DecryptKeyReply
+}
+
+type GetProofRequest struct {
+	InstanceID byzcoin.InstanceID
+}
+
+type GetProofReply struct {
+	*byzcoin.GetProofResponse
 }

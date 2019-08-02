@@ -160,7 +160,8 @@ func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 		log.Errorf("Cannot create the genesis block for Byzcoin: %v", err)
 		return nil, err
 	}
-	s.byzID = resp.Skipblock.SkipChainID()
+	//s.byzID = resp.Skipblock.SkipChainID()
+	s.byzID = resp.Skipblock.CalculateHash()
 	return &InitUnitReply{Genesis: s.genesis}, nil
 }
 
@@ -195,7 +196,8 @@ func (s *Service) InitByzcoin(req *InitByzcoinRequest) (*InitByzcoinReply, error
 		log.Errorf("Cannot create the genesis block for Byzcoin: %v", err)
 		return nil, err
 	}
-	s.byzID = resp.Skipblock.SkipChainID()
+	//s.byzID = resp.Skipblock.SkipChainID()
+	s.byzID = resp.Skipblock.CalculateHash()
 	return &InitByzcoinReply{}, nil
 }
 

@@ -1,4 +1,4 @@
-package privstore
+package pristore
 
 import (
 	"time"
@@ -40,46 +40,54 @@ func (c *Client) InitUnit(scData *utils.ScInitData, bStore *protean.BaseStorage,
 }
 
 func (c *Client) Authorize(who *network.ServerIdentity, id skipchain.SkipBlockID) error {
-	reply := AuthorizeReply{}
+	reply := &AuthorizeReply{}
 	req := &AuthorizeRequest{
 		Request: &calypso.Authorise{
 			ByzCoinID: id,
 		},
 	}
-	err := c.SendProtobuf(c.roster.List[0], req, reply)
+	err := c.SendProtobuf(who, req, reply)
 	return err
 }
 
-func (c *Client) CreateLTS(ltsRoster *onet.Roster, darcID darc.ID, signers []darc.Signer, counters []uint64, wait int) (*CreateLTSReply, error) {
-	buf, err := protobuf.Encode(&calypso.LtsInstanceInfo{Roster: *ltsRoster})
-	if err != nil {
-		log.Errorf("Protobuf encode error: %v", err)
-		return nil, err
-	}
-	ctx := byzcoin.ClientTransaction{
-		Instructions: []byzcoin.Instruction{{
-			InstanceID: byzcoin.NewInstanceID(darcID),
-			Spawn: &byzcoin.Spawn{
-				ContractID: calypso.ContractLongTermSecretID,
-				Args: []byzcoin.Argument{
-					{Name: "lts_instance_info", Value: buf},
-				},
-			},
-			SignerCounter: counters,
-		}},
-	}
-	err = ctx.FillSignersAndSignWith(signers...)
-	if err != nil {
-		log.Errorf("Sign transaction failed: %v", err)
-		return nil, err
-	}
+//func (c *Client) CreateLTS(ltsRoster *onet.Roster, darcID darc.ID, signers []darc.Signer, counters []uint64, wait int) (*CreateLTSReply, error) {
+//func (c *Client) CreateLTS(ltsRoster *onet.Roster, wait int) (*CreateLTSReply, error) {
+func (c *Client) CreateLTS(ltsRoster *onet.Roster, wait int) error {
+	//buf, err := protobuf.Encode(&calypso.LtsInstanceInfo{Roster: *ltsRoster})
+	//if err != nil {
+	//log.Errorf("Protobuf encode error: %v", err)
+	//return nil, err
+	//}
+	//ctx := byzcoin.ClientTransaction{
+	//Instructions: []byzcoin.Instruction{{
+	//InstanceID: byzcoin.NewInstanceID(darcID),
+	//Spawn: &byzcoin.Spawn{
+	//ContractID: calypso.ContractLongTermSecretID,
+	//Args: []byzcoin.Argument{
+	//{Name: "lts_instance_info", Value: buf},
+	//},
+	//},
+	//SignerCounter: counters,
+	//}},
+	//}
+	//err = ctx.FillSignersAndSignWith(signers...)
+	//if err != nil {
+	//log.Errorf("Sign transaction failed: %v", err)
+	//return nil, err
+	//}
 	req := &CreateLTSRequest{
-		Ctx:  ctx,
-		Wait: wait,
+		//Ctx:  ctx,
+		LTSRoster: ltsRoster,
+		Wait:      wait,
 	}
 	reply := &CreateLTSReply{}
-	err = c.SendProtobuf(c.roster.List[0], req, reply)
-	return reply, err
+	err := c.SendProtobuf(c.roster.List[0], req, reply)
+	//TODO: This check might be unnecessary
+	if err == nil {
+		c.ltsReply = reply.Reply
+	}
+	//return reply, err
+	return err
 }
 
 func (c *Client) SpawnDarc(spawnDarc darc.Darc, wait int) (*SpawnDarcReply, error) {
@@ -92,15 +100,20 @@ func (c *Client) SpawnDarc(spawnDarc darc.Darc, wait int) (*SpawnDarcReply, erro
 	return reply, err
 }
 
-func (c *Client) AddWrite(wd *WriteData, signer darc.Signer, signerCtr uint64, darc darc.Darc, wait int) (*AddWriteReply, error) {
+//func (c *Client) AddWrite(wd *WriteData, signer darc.Signer, signerCtr uint64, darc darc.Darc, wait int) (*AddWriteReply, error) {
+//func (c *Client) AddWrite(writeDarc darc.ID, data []byte, signer darc.Signer, signerCtr uint64, darc darc.Darc, wait int) (*AddWriteReply, error) {
+func (c *Client) AddWrite(data []byte, signer darc.Signer, signerCtr uint64, darc darc.Darc, wait int) (*AddWriteReply, error) {
 	reply := &AddWriteReply{}
-	write := calypso.NewWrite(cothority.Suite, wd.ltsID, wd.writeDarc, wd.aggKey, wd.data)
+	//write := calypso.NewWrite(cothority.Suite, wd.ltsID, wd.writeDarc, wd.aggKey, wd.data)
+	//write := calypso.NewWrite(cothority.Suite, c.ltsReply.InstanceID, writeDarc, c.ltsReply.X, data)
+	write := calypso.NewWrite(cothority.Suite, c.ltsReply.InstanceID, darc.GetBaseID(), c.ltsReply.X, data)
 	writeBuf, err := protobuf.Encode(write)
 	if err != nil {
 		return nil, err
 	}
 	ctx := byzcoin.ClientTransaction{
 		Instructions: byzcoin.Instructions{{
+			//InstanceID: byzcoin.NewInstanceID(darc.GetBaseID()),
 			InstanceID: byzcoin.NewInstanceID(darc.GetBaseID()),
 			Spawn: &byzcoin.Spawn{
 				ContractID: calypso.ContractWriteID,
@@ -124,7 +137,8 @@ func (c *Client) AddWrite(wd *WriteData, signer darc.Signer, signerCtr uint64, d
 	return reply, err
 }
 
-func (c *Client) AddRead(proof *byzcoin.Proof, signer darc.Signer, signerCtr uint64, darc darc.Darc, wait int) (*AddReadReply, error) {
+//func (c *Client) AddRead(proof *byzcoin.Proof, signer darc.Signer, signerCtr uint64, darc darc.Darc, wait int) (*AddReadReply, error) {
+func (c *Client) AddRead(proof *byzcoin.Proof, signer darc.Signer, signerCtr uint64, wait int) (*AddReadReply, error) {
 	reply := &AddReadReply{}
 	instID := proof.InclusionProof.Key()
 	read := &calypso.Read{
@@ -173,15 +187,15 @@ func (c *Client) Decrypt(wrProof byzcoin.Proof, rProof byzcoin.Proof) (*DecryptR
 	return reply, err
 }
 
-//func (c *Client) GetProof(r *onet.Roster, instID byzcoin.InstanceID) (*GetProofReply, error) {
-//if len(r.List) == 0 {
-//return nil, fmt.Errorf("Got an empty roster list")
-//}
-//dst := r.List[0]
-//req := &GetProofRequest{
-//InstID: instID,
-//}
-//reply := &GetProofReply{}
-//err := c.SendProtobuf(dst, req, reply)
-//return reply, err
-//}
+func (c *Client) DecodeKey(dkr *DecryptReply, reader darc.Signer) ([]byte, error) {
+	return calypso.DecodeKey(cothority.Suite, c.ltsReply.X, dkr.Reply.C, dkr.Reply.XhatEnc, reader.Ed25519.Secret)
+}
+
+func (c *Client) GetProof(instID byzcoin.InstanceID) (*GetProofReply, error) {
+	req := &GetProofRequest{
+		InstanceID: instID,
+	}
+	reply := &GetProofReply{}
+	err := c.SendProtobuf(c.roster.List[0], req, reply)
+	return reply, err
+}

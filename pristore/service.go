@@ -1,4 +1,4 @@
-package privstore
+package pristore
 
 import (
 	"github.com/ceyhunalp/protean_code/utils"
@@ -43,7 +43,7 @@ func init() {
 		&AuthorizeRequest{}, &AuthorizeReply{}, &CreateLTSRequest{},
 		&CreateLTSReply{}, &SpawnDarcRequest{}, &SpawnDarcReply{},
 		&AddWriteRequest{}, &AddWriteReply{}, &AddReadRequest{},
-		&AddReadReply{}, &DecryptRequest{}, &DecryptReply{})
+		&AddReadReply{}, &DecryptRequest{}, &DecryptReply{}, &GetProofRequest{}, &GetProofReply{})
 }
 
 func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
@@ -81,8 +81,9 @@ func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 		log.Errorf("Cannot create the genesis block for Byzcoin: %v", err)
 		return nil, err
 	}
-	s.byzID = resp.Skipblock.SkipChainID()
-	return &InitUnitReply{Genesis: s.genesis}, nil
+	//s.byzID = resp.Skipblock.SkipChainID()
+	s.byzID = resp.Skipblock.CalculateHash()
+	return &InitUnitReply{Genesis: s.genesis, ID: s.byzID}, nil
 }
 
 func (s *Service) Authorize(req *AuthorizeRequest) (*AuthorizeReply, error) {
@@ -97,11 +98,33 @@ func (s *Service) Authorize(req *AuthorizeRequest) (*AuthorizeReply, error) {
 }
 
 func (s *Service) CreateLTS(req *CreateLTSRequest) (*CreateLTSReply, error) {
+	buf, err := protobuf.Encode(&calypso.LtsInstanceInfo{Roster: *req.LTSRoster})
+	if err != nil {
+		log.Errorf("Protobuf encode error: %v", err)
+		return nil, err
+	}
+	ctx := byzcoin.ClientTransaction{
+		Instructions: []byzcoin.Instruction{{
+			InstanceID: byzcoin.NewInstanceID(s.gMsg.GenesisDarc.GetBaseID()),
+			Spawn: &byzcoin.Spawn{
+				ContractID: calypso.ContractLongTermSecretID,
+				Args: []byzcoin.Argument{
+					{Name: "lts_instance_info", Value: buf},
+				},
+			},
+			SignerCounter: []uint64{s.signerCtr},
+		}},
+	}
+	err = ctx.FillSignersAndSignWith(s.signer)
+	if err != nil {
+		log.Errorf("Sign transaction failed: %v", err)
+		return nil, err
+	}
 	reply := &CreateLTSReply{}
-	_, err := s.byzService.AddTransaction(&byzcoin.AddTxRequest{
+	_, err = s.byzService.AddTransaction(&byzcoin.AddTxRequest{
 		Version:       byzcoin.CurrentVersion,
 		SkipchainID:   s.byzID,
-		Transaction:   req.Ctx,
+		Transaction:   ctx,
 		InclusionWait: req.Wait,
 	})
 	if err != nil {
@@ -111,7 +134,7 @@ func (s *Service) CreateLTS(req *CreateLTSRequest) (*CreateLTSReply, error) {
 	gpResp, err := s.byzService.GetProof(&byzcoin.GetProof{
 		Version: byzcoin.CurrentVersion,
 		ID:      s.byzID,
-		Key:     req.Ctx.Instructions[0].DeriveID("").Slice(),
+		Key:     ctx.Instructions[0].DeriveID("").Slice(),
 	})
 	reply.Reply, err = s.calyService.CreateLTS(&calypso.CreateLTS{
 		Proof: gpResp.Proof,
@@ -120,6 +143,7 @@ func (s *Service) CreateLTS(req *CreateLTSRequest) (*CreateLTSReply, error) {
 		log.Errorf("CreateLTS error: %v", err)
 		return nil, err
 	}
+	s.signerCtr++
 	return reply, nil
 }
 
@@ -201,20 +225,20 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 	return reply, nil
 }
 
-//func (s *Service) GetProof(req *GetProofRequest) (*GetProofReply, error) {
-//var err error
-//reply := &GetProofReply{}
-//reply.GetProofResponse, err = s.byzService.GetProof(&byzcoin.GetProof{
-//Version: byzcoin.CurrentVersion,
-//ID:      s.byzID,
-//Key:     req.InstID.Slice(),
-//})
-//if err != nil {
-//log.Errorf("GetProof request failed: %v", err)
-//return nil, err
-//}
-//return reply, nil
-//}
+func (s *Service) GetProof(req *GetProofRequest) (*GetProofReply, error) {
+	var err error
+	reply := &GetProofReply{}
+	reply.GetProofResponse, err = s.byzService.GetProof(&byzcoin.GetProof{
+		Version: byzcoin.CurrentVersion,
+		ID:      s.byzID,
+		Key:     req.InstanceID.Slice(),
+	})
+	if err != nil {
+		log.Errorf("GetProof request failed: %v", err)
+		return nil, err
+	}
+	return reply, nil
+}
 
 func newService(c *onet.Context) (onet.Service, error) {
 	s := &Service{
@@ -224,7 +248,7 @@ func newService(c *onet.Context) (onet.Service, error) {
 		calyService:      c.Service(calypso.ServiceName).(*calypso.Service),
 		cosiService:      c.Service(blscosi.ServiceName).(*blscosi.Service),
 	}
-	err := s.RegisterHandlers(s.InitUnit, s.Authorize, s.CreateLTS, s.SpawnDarc, s.AddWrite, s.AddRead, s.Decrypt)
+	err := s.RegisterHandlers(s.InitUnit, s.Authorize, s.CreateLTS, s.SpawnDarc, s.AddWrite, s.AddRead, s.Decrypt, s.GetProof)
 	if err != nil {
 		log.Errorf("Cannot register handlers: %v", err)
 		return nil, err

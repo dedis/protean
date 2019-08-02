@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ceyhunalp/protean_code"
+	protean "github.com/ceyhunalp/protean_code"
 	"github.com/ceyhunalp/protean_code/compiler"
 	"github.com/ceyhunalp/protean_code/utils"
 	"go.dedis.ch/onet/v3"
@@ -70,14 +70,14 @@ func setup(roster *onet.Roster, uFilePtr *string, tFilePtr *string) ([]byte, map
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	cl := compiler.NewClient()
+	cl := compiler.NewClient(roster)
 	defer cl.Close()
 	//csReply, err := cl.CreateSkipchain(roster, 2, 2)
-	iuReply, err := cl.InitUnit(roster, &utils.ScInitData{Roster: roster, MHeight: 2, BHeight: 2})
+	iuReply, err := cl.InitUnit(&utils.ScInitData{Roster: roster, MHeight: 2, BHeight: 2})
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	reply, err := cl.CreateUnits(roster, iuReply.Genesis, units)
+	reply, err := cl.CreateUnits(iuReply.Genesis, units)
 	if err != nil {
 		return nil, nil, nil, err
 	}
