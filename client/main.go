@@ -343,25 +343,28 @@ func test(roster *onet.Roster) error {
 	dumCl := dummy.NewClient(roster)
 	_, err := dumCl.InitByzcoin(10, time.Second)
 	if err != nil {
-		fmt.Println("Cannot initialize byzcoin")
-		return err
+		return fmt.Errorf("Cannot initialize byzcoin %v", err)
 	}
 	org := darc.NewSignerEd25519(nil, nil)
 	orgDarc := darc.NewDarc(darc.InitRules([]darc.Identity{org.Identity()}, []darc.Identity{org.Identity()}), []byte("Organizer"))
 	cl1 := darc.NewSignerEd25519(nil, nil)
 	cl2 := darc.NewSignerEd25519(nil, nil)
 	//cl3 := darc.NewSignerEd25519(nil, nil)
-	orgDarc.Rules.AddRule(darc.Action("spawn:"+dummy.ContractLotteryID), expression.InitOrExpr(org.Identity().String()))
-	orgDarc.Rules.AddRule(darc.Action("invoke:"+dummy.ContractLotteryID+".update"), expression.InitOrExpr(org.Identity().String(), cl1.Identity().String(), cl2.Identity().String()))
+	err = orgDarc.Rules.AddRule(darc.Action("spawn:"+dummy.ContractLotteryID), expression.InitOrExpr(org.Identity().String()))
+	if err != nil {
+		return fmt.Errorf("Add rule to darc failed: %v", err)
+	}
+	err = orgDarc.Rules.AddRule(darc.Action("invoke:"+dummy.ContractLotteryID+".update"), expression.InitOrExpr(org.Identity().String(), cl1.Identity().String(), cl2.Identity().String()))
+	if err != nil {
+		return fmt.Errorf("Add rule to darc failed: %v", err)
+	}
 	_, err = dumCl.SpawnDarc(*orgDarc, 5)
 	if err != nil {
-		fmt.Println("Cannot spawn darc")
-		return err
+		return fmt.Errorf("Cannot spawn darc: %v", err)
 	}
 	k1, err := encoding.PointToStringHex(cothority.Suite, org.Ed25519.Point)
 	if err != nil {
-		log.Errorf("Encoding point to hex string failed: %v", err)
-		return err
+		return fmt.Errorf("Encoding point to hex string failed: %v", err)
 	}
 	lv1 := &dummy.LotteryValue{
 		Data: []byte("vahit"),
@@ -370,12 +373,10 @@ func test(roster *onet.Roster) error {
 	h.Write(lv1.Data)
 	lv1.Sig, err = org.Sign(h.Sum(nil))
 	if err != nil {
-		log.Errorf("Error signing: %v", err)
-		return nil
+		return fmt.Errorf("Error signing: %v", err)
 	}
 	val1, err := protobuf.Encode(lv1)
 	if err != nil {
-		log.Errorf("Protobuf encode failed: %v", err)
 		return err
 	}
 
@@ -392,6 +393,7 @@ func test(roster *onet.Roster) error {
 	if err != nil {
 		return fmt.Errorf("getproof failed: %v", err)
 	}
+	log.Info("IID is:", csReply.InstanceID)
 	if !gpReply.Proof.InclusionProof.Match(csReply.InstanceID[:]) {
 		return fmt.Errorf("Inclusion proof does not match")
 	} else {
@@ -424,12 +426,10 @@ func test(roster *onet.Roster) error {
 	h.Write(lv2.Data)
 	lv2.Sig, err = cl1.Sign(h.Sum(nil))
 	if err != nil {
-		log.Errorf("Error signing: %v", err)
-		return nil
+		return fmt.Errorf("Error signing: %v", err)
 	}
 	val2, err := protobuf.Encode(lv2)
 	if err != nil {
-		log.Errorf("Protobuf encode failed: %v", err)
 		return err
 	}
 	var upd []*dummy.KV
@@ -496,20 +496,26 @@ func testPrivstore(roster *onet.Roster) error {
 
 	provider1 := darc.NewSignerEd25519(nil, nil)
 	reader1 := darc.NewSignerEd25519(nil, nil)
-	//provider2 := darc.NewSignerEd25519(nil, nil)
+	provider2 := darc.NewSignerEd25519(nil, nil)
 	//reader2 := darc.NewSignerEd25519(nil, nil)
 
 	//TODO: Client side should not be using calypso!
 	// Move it inside the API
 	darc1 := darc.NewDarc(darc.InitRules([]darc.Identity{provider1.Identity()}, []darc.Identity{provider1.Identity()}), []byte("Provider1"))
-	darc1.Rules.AddRule(darc.Action("spawn:"+calypso.ContractWriteID), expression.InitOrExpr(provider1.Identity().String()))
-	darc1.Rules.AddRule(darc.Action("spawn:"+calypso.ContractReadID), expression.InitOrExpr(reader1.Identity().String()))
-
+	err = darc1.Rules.AddRule(darc.Action("spawn:"+calypso.ContractWriteID), expression.InitOrExpr(provider1.Identity().String(), provider2.Identity().String()))
+	if err != nil {
+		return fmt.Errorf("Add rule to darc failed: %v", err)
+	}
+	err = darc1.Rules.AddRule(darc.Action("spawn:"+calypso.ContractReadID), expression.InitOrExpr(reader1.Identity().String()))
+	if err != nil {
+		return fmt.Errorf("Add rule to darc failed: %v", err)
+	}
 	_, err = psCl.SpawnDarc(*darc1, 4)
 	if err != nil {
 		return fmt.Errorf("SpawnDarc error: %v", err)
 	}
 	data := []byte("On Wisconsin!")
+	data2 := []byte("Go Badgers!")
 	//wr1, err := psCl.AddWrite(darc1.GetBaseID(), data, provider1, 1, *darc1, 4)
 	wr1, err := psCl.AddWrite(data, provider1, 1, *darc1, 4)
 	if err != nil {
@@ -519,7 +525,20 @@ func testPrivstore(roster *onet.Roster) error {
 	if err != nil {
 		return fmt.Errorf("Proof does not exist: %v", err)
 	}
+	log.Info(wr1.InstanceID)
+	wr2, err := psCl.AddWrite(data2, provider2, 1, *darc1, 4)
+	if err != nil {
+		return fmt.Errorf("AddWrite error: %v", err)
+	}
+	log.Info(wr2.InstanceID)
+	_, err = psCl.GetProof(wr2.InstanceID)
+	if err != nil {
+		return fmt.Errorf("Proof does not exist: %v", err)
+	}
 	re1, err := psCl.AddRead(&wpReply.Proof, reader1, 1, 4)
+	if err != nil {
+		return fmt.Errorf("AddRead error: %v", err)
+	}
 	rpReply, err := psCl.GetProof(re1.InstanceID)
 	if err != nil {
 		return fmt.Errorf("Proof does not exist: %v", err)
@@ -534,28 +553,11 @@ func testPrivstore(roster *onet.Roster) error {
 	if err != nil {
 		return fmt.Errorf("Decrypt error: %v", err)
 	}
-	ptext, err := psCl.DecodeKey(dk, reader1)
+	ptext, err := psCl.RecoverKey(dk, reader1)
 	if err != nil {
 		return fmt.Errorf("DecodeKey error: %v", err)
 	}
 	fmt.Println("Recovered:", string(ptext))
-
-	//orgDarc := darc.NewDarc(darc.InitRules([]darc.Identity{org.Identity()}, []darc.Identity{org.Identity()}), []byte("Organizer"))
-	//cl1 := darc.NewSignerEd25519(nil, nil)
-	//cl2 := darc.NewSignerEd25519(nil, nil)
-	//cl3 := darc.NewSignerEd25519(nil, nil)
-	//fmt.Println("I'm", org.Identity().String())
-	//fmt.Println("I'm", cl1.Identity().String())
-	//fmt.Println("I'm", cl2.Identity().String())
-	//fmt.Println("I'm", cl3.Identity().String())
-	//orgDarc.Rules.AddRule(darc.Action("spawn:"+dummy.ContractKeyValueID), expression.InitOrExpr(org.Identity().String()))
-	//orgDarc.Rules.AddRule(darc.Action("invoke:"+dummy.ContractKeyValueID+".update"), expression.InitOrExpr(org.Identity().String(), cl1.Identity().String(), cl2.Identity().String()))
-	//_, err = dumCl.SpawnDarc(*orgDarc, 5)
-	//if err != nil {
-	//fmt.Println("Cannot spawn darc")
-	//return err
-	//}
-
 	return nil
 }
 
@@ -583,7 +585,7 @@ func main() {
 		//information
 		//err := testDummyUnit(roster)
 		//err := testStateUnit(roster)
-		//test(roster)
+		//err := test(roster)
 		err := testPrivstore(roster)
 		fmt.Println(err)
 	}

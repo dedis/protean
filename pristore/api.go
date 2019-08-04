@@ -86,7 +86,6 @@ func (c *Client) CreateLTS(ltsRoster *onet.Roster, wait int) error {
 	if err == nil {
 		c.ltsReply = reply.Reply
 	}
-	//return reply, err
 	return err
 }
 
@@ -113,7 +112,6 @@ func (c *Client) AddWrite(data []byte, signer darc.Signer, signerCtr uint64, dar
 	}
 	ctx := byzcoin.ClientTransaction{
 		Instructions: byzcoin.Instructions{{
-			//InstanceID: byzcoin.NewInstanceID(darc.GetBaseID()),
 			InstanceID: byzcoin.NewInstanceID(darc.GetBaseID()),
 			Spawn: &byzcoin.Spawn{
 				ContractID: calypso.ContractWriteID,
@@ -128,12 +126,14 @@ func (c *Client) AddWrite(data []byte, signer darc.Signer, signerCtr uint64, dar
 		log.Errorf("Sign transaction failed: %v", err)
 		return nil, err
 	}
-	reply.InstanceID = ctx.Instructions[0].DeriveID("")
 	req := &AddWriteRequest{
 		Ctx:  ctx,
 		Wait: wait,
 	}
 	err = c.SendProtobuf(c.roster.List[0], req, reply)
+	//if err != nil {
+	//reply.InstanceID = ctx.Instructions[0].DeriveID("")
+	//}
 	return reply, err
 }
 
@@ -150,13 +150,13 @@ func (c *Client) AddRead(proof *byzcoin.Proof, signer darc.Signer, signerCtr uin
 		log.Errorf("Protobuf encode error: %v", err)
 		return nil, err
 	}
+	log.Infof("In AddRead sending txn to %s contract", calypso.ContractReadID)
 	ctx := byzcoin.ClientTransaction{
 		Instructions: byzcoin.Instructions{{
 			InstanceID: byzcoin.NewInstanceID(instID),
 			Spawn: &byzcoin.Spawn{
 				ContractID: calypso.ContractReadID,
-				Args: byzcoin.Arguments{{
-					Name: "read", Value: readBuf}},
+				Args:       byzcoin.Arguments{{Name: "read", Value: readBuf}},
 			},
 			SignerCounter: []uint64{signerCtr},
 		}},
@@ -166,12 +166,14 @@ func (c *Client) AddRead(proof *byzcoin.Proof, signer darc.Signer, signerCtr uin
 		log.Errorf("Sign transaction failed: %v", err)
 		return nil, err
 	}
-	reply.InstanceID = ctx.Instructions[0].DeriveID("")
 	req := &AddReadRequest{
 		Ctx:  ctx,
 		Wait: wait,
 	}
 	err = c.SendProtobuf(c.roster.List[0], req, reply)
+	//if err != nil {
+	//reply.InstanceID = ctx.Instructions[0].DeriveID("")
+	//}
 	return reply, err
 }
 
@@ -187,8 +189,11 @@ func (c *Client) Decrypt(wrProof byzcoin.Proof, rProof byzcoin.Proof) (*DecryptR
 	return reply, err
 }
 
-func (c *Client) DecodeKey(dkr *DecryptReply, reader darc.Signer) ([]byte, error) {
-	return calypso.DecodeKey(cothority.Suite, c.ltsReply.X, dkr.Reply.C, dkr.Reply.XhatEnc, reader.Ed25519.Secret)
+//func (c *Client) DecodeKey(dkr *DecryptReply, reader darc.Signer) ([]byte, error) {
+//return calypso.DecodeKey(cothority.Suite, c.ltsReply.X, dkr.Reply.C, dkr.Reply.XhatEnc, reader.Ed25519.Secret)
+//}
+func (c *Client) RecoverKey(dkr *DecryptReply, reader darc.Signer) ([]byte, error) {
+	return dkr.Reply.RecoverKey(reader.Ed25519.Secret)
 }
 
 func (c *Client) GetProof(instID byzcoin.InstanceID) (*GetProofReply, error) {

@@ -196,11 +196,10 @@ func (s *Service) AddWrite(req *AddWriteRequest) (*AddWriteReply, error) {
 		log.Errorf("Cannot add write -- Byzcoin add transaction error: %v", err)
 		return nil, err
 	}
-	return &AddWriteReply{}, nil
+	return &AddWriteReply{InstanceID: req.Ctx.Instructions[0].DeriveID("")}, nil
 }
 
 func (s *Service) AddRead(req *AddReadRequest) (*AddReadReply, error) {
-	reply := &AddReadReply{}
 	_, err := s.byzService.AddTransaction(&byzcoin.AddTxRequest{
 		Version:       byzcoin.CurrentVersion,
 		SkipchainID:   s.byzID,
@@ -211,7 +210,7 @@ func (s *Service) AddRead(req *AddReadRequest) (*AddReadReply, error) {
 		log.Errorf("Cannot add read -- Byzcoin add transaction error: %v", err)
 		return nil, err
 	}
-	return reply, err
+	return &AddReadReply{InstanceID: req.Ctx.Instructions[0].DeriveID("")}, nil
 }
 
 func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
