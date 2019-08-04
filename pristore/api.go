@@ -51,7 +51,6 @@ func (c *Client) Authorize(who *network.ServerIdentity, id skipchain.SkipBlockID
 }
 
 //func (c *Client) CreateLTS(ltsRoster *onet.Roster, darcID darc.ID, signers []darc.Signer, counters []uint64, wait int) (*CreateLTSReply, error) {
-//func (c *Client) CreateLTS(ltsRoster *onet.Roster, wait int) (*CreateLTSReply, error) {
 func (c *Client) CreateLTS(ltsRoster *onet.Roster, wait int) error {
 	//buf, err := protobuf.Encode(&calypso.LtsInstanceInfo{Roster: *ltsRoster})
 	//if err != nil {
