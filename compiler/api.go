@@ -2,7 +2,6 @@ package compiler
 
 import (
 	protean "github.com/ceyhunalp/protean_code"
-	"github.com/ceyhunalp/protean_code/utils"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/onet/v3"
 )
@@ -16,7 +15,7 @@ func NewClient(r *onet.Roster) *Client {
 	return &Client{Client: onet.NewClient(cothority.Suite, ServiceName), roster: r}
 }
 
-func (c *Client) InitUnit(scData *utils.ScInitData) (*InitUnitReply, error) {
+func (c *Client) InitUnit(scData *protean.ScInitData) (*InitUnitReply, error) {
 	req := &InitUnitRequest{
 		ScData: scData,
 	}

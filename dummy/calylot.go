@@ -124,7 +124,6 @@ func (c *contractCalyLottery) Invoke(rst byzcoin.ReadOnlyStateTrie, inst byzcoin
 	default:
 		return nil, nil, fmt.Errorf("Invalid invoke command")
 	}
-	//return
 }
 
 func (ls *CalyLotteryStorage) pickWinner() string {
@@ -158,7 +157,6 @@ func (c *contractCalyLottery) Delete(rst byzcoin.ReadOnlyStateTrie, inst byzcoin
 		log.Errorf("Get values failed: %v", err)
 		return
 	}
-
 	sc = byzcoin.StateChanges{byzcoin.NewStateChange(byzcoin.Remove, inst.InstanceID, ContractCalyLotteryID, nil, darcID)}
 	return
 }
@@ -167,7 +165,6 @@ func (ls *CalyLotteryStorage) Update(args byzcoin.Arguments) {
 	lvStruct := &CalyLotteryValue{}
 	for _, kv := range args {
 		updated := false
-		//for i, stored := range ls.Storage {
 		for i, stored := range ls.WriteData.KV {
 			if stored.Key == kv.Name {
 				updated = true
@@ -182,7 +179,6 @@ func (ls *CalyLotteryStorage) Update(args byzcoin.Arguments) {
 					break
 				}
 				if kv.Value == nil || len(kv.Value) == 0 {
-					//ls.Storage = append(ls.Storage[0:i], ls.Storage[i+1:]...)
 					ls.WriteData.KV = append(ls.WriteData.KV[0:i], ls.WriteData.KV[i+1:]...)
 					break
 				}
@@ -195,7 +191,6 @@ func (ls *CalyLotteryStorage) Update(args byzcoin.Arguments) {
 	}
 }
 
-//func authorizeAccess(key string, lv *CalyLotteryValue) bool {
 func (lv *CalyLotteryValue) authorizeAccess(key string) bool {
 	pk, err := encoding.StringHexToPoint(cothority.Suite, key)
 	if err != nil {

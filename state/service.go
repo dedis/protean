@@ -25,10 +25,7 @@ var stateID onet.ServiceID
 const proteanSubFtCosi = "protean_sub_ftcosi"
 const proteanFtCosi = "protean_ftcosi"
 
-// Service is only used to being able to store our contracts
 type Service struct {
-	// We need to embed the ServiceProcessor, so that incoming messages
-	// are correctly handled.
 	*onet.ServiceProcessor
 	scService   *skipchain.Service
 	byzService  *byzcoin.Service
@@ -211,7 +208,6 @@ func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 		log.Errorf("Cannot create the Byzcoin genesis block: %v", err)
 		return nil, err
 	}
-	//s.byzID = resp.Skipblock.SkipChainID()
 	s.byzID = resp.Skipblock.CalculateHash()
 	return &InitUnitReply{Genesis: genesisReply.Latest.Hash}, nil
 }

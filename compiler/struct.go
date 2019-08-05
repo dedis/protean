@@ -2,7 +2,6 @@ package compiler
 
 import (
 	protean "github.com/ceyhunalp/protean_code"
-	"github.com/ceyhunalp/protean_code/utils"
 	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/kyber/v3"
@@ -27,7 +26,7 @@ type FunctionalUnit struct {
 //}
 
 type InitUnitRequest struct {
-	ScData *utils.ScInitData
+	ScData *protean.ScInitData
 }
 
 type InitUnitReply struct {

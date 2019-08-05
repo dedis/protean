@@ -4,7 +4,6 @@ import (
 	"time"
 
 	protean "github.com/ceyhunalp/protean_code"
-	"github.com/ceyhunalp/protean_code/utils"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/darc"
 	"go.dedis.ch/onet/v3"
@@ -52,7 +51,8 @@ type CalyLotteryValue struct {
 }
 
 type InitUnitRequest struct {
-	ScData       *utils.ScInitData
+	//ScData       *utils.ScInitData
+	ScData       *protean.ScInitData
 	BaseStore    *protean.BaseStorage
 	BlkInterval  time.Duration
 	DurationType time.Duration
@@ -60,7 +60,6 @@ type InitUnitRequest struct {
 
 type InitUnitReply struct {
 	Genesis []byte
-	//Sb      *skipchain.SkipBlock
 }
 
 type CreateStateRequest struct {
@@ -78,10 +77,6 @@ type UpdateStateRequest struct {
 }
 
 type UpdateStateReply struct {
-	//AddTxResp *byzcoin.AddTxResponse
-	//InstID    [32]byte
-	//InstID    byzcoin.InstanceID
-	//Sig protocol.BlsSignature
 }
 
 type SpawnDarcRequest struct {
@@ -94,7 +89,6 @@ type SpawnDarcReply struct {
 
 type GetProofRequest struct {
 	InstanceID byzcoin.InstanceID
-	//InstID []byte
 }
 
 type GetProofReply struct {
@@ -108,10 +102,3 @@ type InitByzcoinRequest struct {
 }
 
 type InitByzcoinReply struct{}
-
-//type ByzData struct {
-//Darc      darc.Darc
-//Signer    darc.Signer
-//Wait      int
-//SignerCtr uint64
-//}

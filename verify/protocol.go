@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ceyhunalp/protean_code"
+	protean "github.com/ceyhunalp/protean_code"
 	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/onet/v3"
@@ -36,11 +36,8 @@ type VP struct {
 	doneOnce       sync.Once
 }
 
-// Check that *TemplateProtocol implements onet.ProtocolInstance
-//var _ onet.ProtocolInstance = (*TemplateProtocol)(nil)
 var _ onet.ProtocolInstance = (*VP)(nil)
 
-// NewProtocol initialises the structure for use in one round
 func NewVerifyExecutionPlan(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
 	vp := &VP{
 		TreeNodeInstance: n,

@@ -4,7 +4,6 @@ import (
 	"time"
 
 	protean "github.com/ceyhunalp/protean_code"
-	"github.com/ceyhunalp/protean_code/utils"
 
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/byzcoin"
@@ -92,7 +91,7 @@ func (c *Client) SpawnDarc(spawnDarc darc.Darc, wait int) (*SpawnDarcReply, erro
 	return reply, err
 }
 
-func (c *Client) InitUnit(scData *utils.ScInitData, bStore *protean.BaseStorage, interval time.Duration, typeDur time.Duration) (*InitUnitReply, error) {
+func (c *Client) InitUnit(scData *protean.ScInitData, bStore *protean.BaseStorage, interval time.Duration, typeDur time.Duration) (*InitUnitReply, error) {
 	req := &InitUnitRequest{
 		ScData:       scData,
 		BaseStore:    bStore,

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 
+	protean "github.com/ceyhunalp/protean_code"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/blscosi"
 	"go.dedis.ch/cothority/v3/blscosi/protocol"
@@ -50,7 +51,7 @@ func StoreBlock(s *skipchain.Service, genesis skipchain.SkipBlockID, data []byte
 	return err
 }
 
-func CreateGenesisBlock(s *skipchain.Service, scData *ScInitData) (*skipchain.StoreSkipBlockReply, error) {
+func CreateGenesisBlock(s *skipchain.Service, scData *protean.ScInitData) (*skipchain.StoreSkipBlockReply, error) {
 	log.Infof("[CreateGenesisBlock] Service: %s", s.ServiceID())
 	genesis := skipchain.NewSkipBlock()
 	genesis.MaximumHeight = scData.MHeight

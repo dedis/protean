@@ -23,7 +23,6 @@ type contractLottery struct {
 
 func contractLotteryFromBytes(in []byte) (byzcoin.Contract, error) {
 	cv := &contractLottery{}
-	//err := protobuf.Decode(in, &cv.LotteryStorage)
 	err := protobuf.Decode(in, &cv.KVStorage)
 	if err != nil {
 		log.Errorf("Protobuf decode failed: %v", err)
@@ -40,7 +39,6 @@ func (c *contractLottery) Spawn(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Inst
 		log.Errorf("GetValues failed: %v", err)
 		return
 	}
-	//ls := &c.LotteryStorage
 	kvs := &c.KVStorage
 	lvStruct := &LotteryValue{}
 	for _, kv := range inst.Spawn.Args {
@@ -49,29 +47,18 @@ func (c *contractLottery) Spawn(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Inst
 			log.Errorf("Protobuf decode failed: %v", err)
 			return
 		}
-		//ok := authorizeAccess(kv.Name, lvStruct)
 		ok := lvStruct.authorizeAccess(kv.Name)
 		if !ok {
 			log.Errorf("Not authorized to insert a value for the key %s", kv.Name)
 			return
 		}
-		//ls.Storage = append(ls.Storage, KV{kv.Name, kv.Value})
 		kvs.KV = append(kvs.KV, KV{kv.Name, kv.Value})
 	}
-	//lsBuf, err := protobuf.Encode(&c.LotteryStorage)
 	kvsBuf, err := protobuf.Encode(&c.KVStorage)
 	if err != nil {
 		log.Errorf("Protobuf encode failed: %v", err)
 		return
 	}
-	//for _, kv := range inst.Spawn.Args {
-	//ls.Storage = append(ls.Storage, KV{kv.Name, kv.Value})
-	//}
-	//lsBuf, err := protobuf.Encode(&c.LotteryStorage)
-	//if err != nil {
-	//log.Errorf("Protobuf encode failed: %v", err)
-	//return
-	//}
 	sc = []byzcoin.StateChange{
 		byzcoin.NewStateChange(byzcoin.Create, inst.DeriveID(""), ContractLotteryID, kvsBuf, darcID),
 	}
@@ -90,7 +77,6 @@ func (c *contractLottery) Invoke(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Ins
 		log.Errorf("Value contract can only update")
 		return nil, nil, fmt.Errorf("Value contract can only update")
 	}
-	//kvd := &c.LotteryStorage
 	kvd := &c.KVStorage
 	kvd.UpdateStorage(inst.Invoke.Args)
 	var buf []byte
@@ -118,7 +104,6 @@ func (c *contractLottery) Delete(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Ins
 	return
 }
 
-//func (ls *LotteryStorage) Update(args byzcoin.Arguments) {
 func (kvs *KVStorage) UpdateStorage(args byzcoin.Arguments) {
 	lvStruct := &LotteryValue{}
 	for _, kv := range args {
@@ -131,7 +116,6 @@ func (kvs *KVStorage) UpdateStorage(args byzcoin.Arguments) {
 					log.Errorf("Protobuf decode failed: %v", err)
 					break
 				}
-				//ok := authorizeAccess(kv.Name, lvStruct)
 				ok := lvStruct.authorizeAccess(kv.Name)
 				if !ok {
 					log.Errorf("Not authorized to insert a value for the key %s", kv.Name)
@@ -150,7 +134,6 @@ func (kvs *KVStorage) UpdateStorage(args byzcoin.Arguments) {
 	}
 }
 
-//func authorizeAccess(key string, lv *LotteryValue) bool {
 func (lv *LotteryValue) authorizeAccess(key string) bool {
 	pk, err := encoding.StringHexToPoint(cothority.Suite, key)
 	if err != nil {

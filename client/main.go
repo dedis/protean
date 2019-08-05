@@ -115,7 +115,7 @@ func runClient(roster *onet.Roster, genesis []byte, uData map[string]string, tDa
 
 func testStateUnit(roster *onet.Roster) error {
 	stCl := state.NewClient(roster)
-	scData := &utils.ScInitData{
+	scData := &protean.ScInitData{
 		Roster:  roster,
 		MHeight: 2,
 		BHeight: 2,
@@ -226,7 +226,7 @@ func testStateUnit(roster *onet.Roster) error {
 
 func testDummyUnit(roster *onet.Roster) error {
 	dumCl := dummy.NewClient(roster)
-	scData := &utils.ScInitData{
+	scData := &protean.ScInitData{
 		Roster:  roster,
 		MHeight: 2,
 		BHeight: 2,
@@ -465,7 +465,7 @@ func test(roster *onet.Roster) error {
 
 func testPrivstore(roster *onet.Roster) error {
 	psCl := pristore.NewClient(roster)
-	scData := &utils.ScInitData{
+	scData := &protean.ScInitData{
 		Roster:  roster,
 		MHeight: 2,
 		BHeight: 2,

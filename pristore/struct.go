@@ -4,7 +4,6 @@ import (
 	"time"
 
 	protean "github.com/ceyhunalp/protean_code"
-	"github.com/ceyhunalp/protean_code/utils"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/calypso"
 	"go.dedis.ch/cothority/v3/darc"
@@ -30,7 +29,8 @@ type WriteData struct {
 }
 
 type InitUnitRequest struct {
-	ScData       *utils.ScInitData
+	//ScData       *utils.ScInitData
+	ScData       *protean.ScInitData
 	BaseStore    *protean.BaseStorage
 	BlkInterval  time.Duration
 	DurationType time.Duration
@@ -50,7 +50,6 @@ type AuthorizeReply struct {
 }
 
 type CreateLTSRequest struct {
-	//Ctx  byzcoin.ClientTransaction
 	LTSRoster *onet.Roster
 	Wait      int
 }

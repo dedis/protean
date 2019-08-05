@@ -3,19 +3,20 @@ package protean
 import (
 	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/kyber/v3"
+	"go.dedis.ch/onet/v3"
 )
+
+type ScInitData struct {
+	Roster  *onet.Roster
+	MHeight int
+	BHeight int
+}
 
 type UnitInfo struct {
 	UnitID   string
 	UnitName string
 	Txns     map[string]string
 }
-
-//type UnitStorage struct {
-//UnitID   string
-//Txns     map[string]string
-//CompKeys []kyber.Point
-//}
 
 type BaseStorage struct {
 	UInfo    *UnitInfo

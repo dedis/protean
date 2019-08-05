@@ -4,7 +4,6 @@ import (
 	"time"
 
 	protean "github.com/ceyhunalp/protean_code"
-	"github.com/ceyhunalp/protean_code/utils"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/calypso"
@@ -27,7 +26,7 @@ func NewClient(r *onet.Roster) *Client {
 	return &Client{Client: onet.NewClient(cothority.Suite, ServiceName), roster: r}
 }
 
-func (c *Client) InitUnit(scData *utils.ScInitData, bStore *protean.BaseStorage, interval time.Duration, typeDur time.Duration) (*InitUnitReply, error) {
+func (c *Client) InitUnit(scData *protean.ScInitData, bStore *protean.BaseStorage, interval time.Duration, typeDur time.Duration) (*InitUnitReply, error) {
 	req := &InitUnitRequest{
 		ScData:       scData,
 		BaseStore:    bStore,
@@ -50,38 +49,13 @@ func (c *Client) Authorize(who *network.ServerIdentity, id skipchain.SkipBlockID
 	return err
 }
 
-//func (c *Client) CreateLTS(ltsRoster *onet.Roster, darcID darc.ID, signers []darc.Signer, counters []uint64, wait int) (*CreateLTSReply, error) {
 func (c *Client) CreateLTS(ltsRoster *onet.Roster, wait int) error {
-	//buf, err := protobuf.Encode(&calypso.LtsInstanceInfo{Roster: *ltsRoster})
-	//if err != nil {
-	//log.Errorf("Protobuf encode error: %v", err)
-	//return nil, err
-	//}
-	//ctx := byzcoin.ClientTransaction{
-	//Instructions: []byzcoin.Instruction{{
-	//InstanceID: byzcoin.NewInstanceID(darcID),
-	//Spawn: &byzcoin.Spawn{
-	//ContractID: calypso.ContractLongTermSecretID,
-	//Args: []byzcoin.Argument{
-	//{Name: "lts_instance_info", Value: buf},
-	//},
-	//},
-	//SignerCounter: counters,
-	//}},
-	//}
-	//err = ctx.FillSignersAndSignWith(signers...)
-	//if err != nil {
-	//log.Errorf("Sign transaction failed: %v", err)
-	//return nil, err
-	//}
 	req := &CreateLTSRequest{
-		//Ctx:  ctx,
 		LTSRoster: ltsRoster,
 		Wait:      wait,
 	}
 	reply := &CreateLTSReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)
-	//TODO: This check might be unnecessary
 	if err == nil {
 		c.ltsReply = reply.Reply
 	}
@@ -98,11 +72,7 @@ func (c *Client) SpawnDarc(spawnDarc darc.Darc, wait int) (*SpawnDarcReply, erro
 	return reply, err
 }
 
-//func (c *Client) AddWrite(wd *WriteData, signer darc.Signer, signerCtr uint64, darc darc.Darc, wait int) (*AddWriteReply, error) {
-//func (c *Client) AddWrite(writeDarc darc.ID, data []byte, signer darc.Signer, signerCtr uint64, darc darc.Darc, wait int) (*AddWriteReply, error) {
 func (c *Client) AddWrite(data []byte, signer darc.Signer, signerCtr uint64, darc darc.Darc, wait int) (*AddWriteReply, error) {
-	//write := calypso.NewWrite(cothority.Suite, wd.ltsID, wd.writeDarc, wd.aggKey, wd.data)
-	//write := calypso.NewWrite(cothority.Suite, c.ltsReply.InstanceID, writeDarc, c.ltsReply.X, data)
 	write := calypso.NewWrite(cothority.Suite, c.ltsReply.InstanceID, darc.GetBaseID(), c.ltsReply.X, data)
 	writeBuf, err := protobuf.Encode(write)
 	if err != nil {
@@ -133,7 +103,6 @@ func (c *Client) AddWrite(data []byte, signer darc.Signer, signerCtr uint64, dar
 	return reply, err
 }
 
-//func (c *Client) AddRead(proof *byzcoin.Proof, signer darc.Signer, signerCtr uint64, darc darc.Darc, wait int) (*AddReadReply, error) {
 func (c *Client) AddRead(proof *byzcoin.Proof, signer darc.Signer, signerCtr uint64, wait int) (*AddReadReply, error) {
 	instID := proof.InclusionProof.Key()
 	read := &calypso.Read{
@@ -182,13 +151,6 @@ func (c *Client) Decrypt(wrProof byzcoin.Proof, rProof byzcoin.Proof) (*DecryptR
 	return reply, err
 }
 
-//func (c *Client) DecodeKey(dkr *DecryptReply, reader darc.Signer) ([]byte, error) {
-//return calypso.DecodeKey(cothority.Suite, c.ltsReply.X, dkr.Reply.C, dkr.Reply.XhatEnc, reader.Ed25519.Secret)
-//}
-func (c *Client) RecoverKey(dkr *DecryptReply, reader darc.Signer) ([]byte, error) {
-	return dkr.Reply.RecoverKey(reader.Ed25519.Secret)
-}
-
 func (c *Client) GetProof(instID byzcoin.InstanceID) (*GetProofReply, error) {
 	req := &GetProofRequest{
 		InstanceID: instID,
@@ -196,4 +158,8 @@ func (c *Client) GetProof(instID byzcoin.InstanceID) (*GetProofReply, error) {
 	reply := &GetProofReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)
 	return reply, err
+}
+
+func (c *Client) RecoverKey(dkr *DecryptReply, reader darc.Signer) ([]byte, error) {
+	return dkr.Reply.RecoverKey(reader.Ed25519.Secret)
 }
