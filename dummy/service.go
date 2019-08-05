@@ -55,7 +55,6 @@ func init() {
 func (s *Service) UpdateState(req *UpdateStateRequest) (*UpdateStateReply, error) {
 	//TODO: Do the same stuff as above in UpdateState
 	//Handle the byzcoin part
-	reply := &UpdateStateReply{}
 	_, err := s.byzService.AddTransaction(&byzcoin.AddTxRequest{
 		Version:       byzcoin.CurrentVersion,
 		SkipchainID:   s.byzID,
@@ -66,7 +65,7 @@ func (s *Service) UpdateState(req *UpdateStateRequest) (*UpdateStateReply, error
 		log.Errorf("Add transaction failed: %v", err)
 		return nil, err
 	}
-	return reply, nil
+	return &UpdateStateReply{}, nil
 }
 
 func (s *Service) CreateState(req *CreateStateRequest) (*CreateStateReply, error) {

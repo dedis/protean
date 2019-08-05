@@ -120,7 +120,6 @@ func (s *Service) CreateLTS(req *CreateLTSRequest) (*CreateLTSReply, error) {
 		log.Errorf("Sign transaction failed: %v", err)
 		return nil, err
 	}
-	reply := &CreateLTSReply{}
 	_, err = s.byzService.AddTransaction(&byzcoin.AddTxRequest{
 		Version:       byzcoin.CurrentVersion,
 		SkipchainID:   s.byzID,
@@ -136,6 +135,7 @@ func (s *Service) CreateLTS(req *CreateLTSRequest) (*CreateLTSReply, error) {
 		ID:      s.byzID,
 		Key:     ctx.Instructions[0].DeriveID("").Slice(),
 	})
+	reply := &CreateLTSReply{}
 	reply.Reply, err = s.calyService.CreateLTS(&calypso.CreateLTS{
 		Proof: gpResp.Proof,
 	})

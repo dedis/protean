@@ -54,7 +54,6 @@ func (c *Client) UpdateState(contractID string, kv []*KV, instID byzcoin.Instanc
 
 // This is called by the organize/owner/admin of the application
 func (c *Client) CreateState(contractID string, kv []*KV, adminDarc darc.Darc, signerCtr uint64, signer darc.Signer, wait int) (*CreateStateReply, error) {
-	reply := &CreateStateReply{}
 	var args byzcoin.Arguments
 	for _, elt := range kv {
 		args = append(args, byzcoin.Argument{Name: elt.Key, Value: elt.Value})
@@ -78,6 +77,7 @@ func (c *Client) CreateState(contractID string, kv []*KV, adminDarc darc.Darc, s
 		Ctx:  ctx,
 		Wait: wait,
 	}
+	reply := &CreateStateReply{}
 	err = c.SendProtobuf(c.roster.List[0], req, reply)
 	return reply, err
 }

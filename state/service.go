@@ -57,7 +57,6 @@ func init() {
 func (s *Service) UpdateState(req *UpdateStateRequest) (*UpdateStateReply, error) {
 	// Before we send Byzcoin transactions to update state, we need to make
 	// sure that the execution plan has the necesssary signatures
-	reply := &UpdateStateReply{}
 	db := s.scService.GetDB()
 	blk, err := db.GetLatest(db.GetByID(s.genesis))
 	if err != nil {
@@ -93,13 +92,12 @@ func (s *Service) UpdateState(req *UpdateStateRequest) (*UpdateStateReply, error
 		log.Errorf("Cannot produce blscosi signature: %v", err)
 		return nil, err
 	}
+	reply := &UpdateStateReply{}
 	reply.Sig = cosiResp.(*blscosi.SignatureResponse).Signature
-	return reply, err
+	return reply, nil
 }
 
 func (s *Service) CreateState(req *CreateStateRequest) (*CreateStateReply, error) {
-	reply := &CreateStateReply{}
-	reply.InstanceID = req.Ctx.Instructions[0].DeriveID("")
 	// First verify the execution plan
 	db := s.scService.GetDB()
 	blk, err := db.GetLatest(db.GetByID(s.genesis))
@@ -135,8 +133,10 @@ func (s *Service) CreateState(req *CreateStateRequest) (*CreateStateReply, error
 		log.Errorf("Cannot produce blscosi signature: %v", err)
 		return nil, err
 	}
+	reply := &CreateStateReply{}
+	reply.InstanceID = req.Ctx.Instructions[0].DeriveID("")
 	reply.Sig = cosiResp.(*blscosi.SignatureResponse).Signature
-	return reply, err
+	return reply, nil
 }
 
 func (s *Service) SpawnDarc(req *SpawnDarcRequest) (*SpawnDarcReply, error) {

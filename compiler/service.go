@@ -5,7 +5,7 @@ import (
 	"crypto/sha256"
 	"math"
 
-	"github.com/ceyhunalp/protean_code"
+	protean "github.com/ceyhunalp/protean_code"
 	"github.com/ceyhunalp/protean_code/utils"
 	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/cothority/v3/skipchain"
@@ -17,9 +17,10 @@ import (
 	"go.dedis.ch/protobuf"
 )
 
+//var storageKey = []byte("storage")
+
 var pairingSuite = suites.MustFind("bn256.Adapter").(*pairing.SuiteBn256)
 var compilerID onet.ServiceID
-var storageKey = []byte("storage")
 
 const ServiceName = "CompilerService"
 const execPlanSubFtCosi = "execplan_sub_ftcosi"
@@ -84,7 +85,6 @@ func (s *Service) GenerateExecutionPlan(req *ExecutionPlanRequest) (*ExecutionPl
 	//TODO: THE LEADER SHOULD PREPARE THE EXECUTION PLAN (WITH THE CRYPTO
 	//KEYS) AND SEND IT TO THE OTHER NODES. OTHERS VERIFY THAT IT'S
 	//CONSISTENT AND SENDS A SIGNATURE
-
 	db := s.scService.GetDB()
 	sbData, err := getBlockData(db, req.Genesis)
 	if err != nil {
@@ -142,24 +142,25 @@ func (s *Service) GenerateExecutionPlan(req *ExecutionPlanRequest) (*ExecutionPl
 }
 
 func (s *Service) verifyExecutionPlan(msg []byte, data []byte) bool {
+	valid := false
 	var req protean.ExecutionPlan
 	if err := protobuf.Decode(data, &req); err != nil {
 		log.Errorf("%s Protobuf decode error: %v:", s.ServerIdentity(), err)
-		return false
+		return valid
 	}
 	h := sha256.New()
 	h.Write(data)
 	digest := h.Sum(nil)
 	if !bytes.Equal(msg, digest) {
 		log.Errorf("%s: digest does not verify", s.ServerIdentity())
-		return false
+		return valid
 	}
 	// Check that the units and transactions in the workflow are valid
 	db := s.scService.GetDB()
 	sbData, err := getBlockData(db, req.Genesis)
 	if err != nil {
 		log.Errorf("Cannot get block data: %v", err)
-		return false
+		return valid
 	}
 	for _, wfn := range req.Workflow {
 		// val is uv
@@ -168,15 +169,14 @@ func (s *Service) verifyExecutionPlan(msg []byte, data []byte) bool {
 				log.LLvlf1("All good for %s - %s", wfn.UID, wfn.TID)
 			} else {
 				log.Errorf("%s is not a valid transaction", wfn.TID)
-				return false
+				return valid
 			}
 		} else {
 			log.Errorf("%s is not a valid functional unit", wfn.UID)
-			return false
+			return valid
 		}
 	}
-	valid := verifyDag(req.Workflow)
-
+	valid = verifyDag(req.Workflow)
 	// TODO: Check more stuff
 	return valid
 }

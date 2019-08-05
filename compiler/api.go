@@ -43,9 +43,6 @@ func (c *Client) GenerateExecutionPlan(genesis []byte, wf []*protean.WfNode) (*E
 	}
 	reply := &ExecutionPlanReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)
-	if err != nil {
-		return nil, err
-	}
 	return reply, err
 }
 

@@ -40,12 +40,12 @@ func (c *Client) InitUnit(scData *utils.ScInitData, bStore *protean.BaseStorage,
 }
 
 func (c *Client) Authorize(who *network.ServerIdentity, id skipchain.SkipBlockID) error {
-	reply := &AuthorizeReply{}
 	req := &AuthorizeRequest{
 		Request: &calypso.Authorise{
 			ByzCoinID: id,
 		},
 	}
+	reply := &AuthorizeReply{}
 	err := c.SendProtobuf(who, req, reply)
 	return err
 }
@@ -101,7 +101,6 @@ func (c *Client) SpawnDarc(spawnDarc darc.Darc, wait int) (*SpawnDarcReply, erro
 //func (c *Client) AddWrite(wd *WriteData, signer darc.Signer, signerCtr uint64, darc darc.Darc, wait int) (*AddWriteReply, error) {
 //func (c *Client) AddWrite(writeDarc darc.ID, data []byte, signer darc.Signer, signerCtr uint64, darc darc.Darc, wait int) (*AddWriteReply, error) {
 func (c *Client) AddWrite(data []byte, signer darc.Signer, signerCtr uint64, darc darc.Darc, wait int) (*AddWriteReply, error) {
-	reply := &AddWriteReply{}
 	//write := calypso.NewWrite(cothority.Suite, wd.ltsID, wd.writeDarc, wd.aggKey, wd.data)
 	//write := calypso.NewWrite(cothority.Suite, c.ltsReply.InstanceID, writeDarc, c.ltsReply.X, data)
 	write := calypso.NewWrite(cothority.Suite, c.ltsReply.InstanceID, darc.GetBaseID(), c.ltsReply.X, data)
@@ -129,16 +128,13 @@ func (c *Client) AddWrite(data []byte, signer darc.Signer, signerCtr uint64, dar
 		Ctx:  ctx,
 		Wait: wait,
 	}
+	reply := &AddWriteReply{}
 	err = c.SendProtobuf(c.roster.List[0], req, reply)
-	//if err != nil {
-	//reply.InstanceID = ctx.Instructions[0].DeriveID("")
-	//}
 	return reply, err
 }
 
 //func (c *Client) AddRead(proof *byzcoin.Proof, signer darc.Signer, signerCtr uint64, darc darc.Darc, wait int) (*AddReadReply, error) {
 func (c *Client) AddRead(proof *byzcoin.Proof, signer darc.Signer, signerCtr uint64, wait int) (*AddReadReply, error) {
-	reply := &AddReadReply{}
 	instID := proof.InclusionProof.Key()
 	read := &calypso.Read{
 		Write: byzcoin.NewInstanceID(instID),
@@ -169,10 +165,8 @@ func (c *Client) AddRead(proof *byzcoin.Proof, signer darc.Signer, signerCtr uin
 		Ctx:  ctx,
 		Wait: wait,
 	}
+	reply := &AddReadReply{}
 	err = c.SendProtobuf(c.roster.List[0], req, reply)
-	//if err != nil {
-	//reply.InstanceID = ctx.Instructions[0].DeriveID("")
-	//}
 	return reply, err
 }
 
