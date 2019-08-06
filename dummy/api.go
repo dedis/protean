@@ -8,6 +8,7 @@ import (
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/darc"
+	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
 )
@@ -121,4 +122,18 @@ func (c *Client) InitByzcoin(interval time.Duration, typeDur time.Duration) (*In
 	reply := &InitByzcoinReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)
 	return reply, err
+}
+
+func (c *Client) CopyOver(genesis skipchain.SkipBlockID) error {
+	req := &CopyRequest{
+		Genesis: genesis,
+	}
+	reply := &CopyReply{}
+	for _, who := range c.roster.List {
+		err := c.SendProtobuf(who, req, reply)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

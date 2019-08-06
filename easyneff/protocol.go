@@ -16,8 +16,8 @@ import (
 // ShuffleProtocol is a protocol for running the Neff shuffle in a chain.
 type ShuffleProtocol struct {
 	*onet.TreeNodeInstance
-	FinalProof chan Response
-	InitialReq Request
+	FinalProof chan ShuffleReply
+	InitialReq ShuffleRequest
 
 	suite     proof.Suite
 	reqChan   chan reqChan
@@ -26,7 +26,7 @@ type ShuffleProtocol struct {
 
 type reqChan struct {
 	*onet.TreeNode
-	Request
+	ShuffleRequest
 }
 
 type proofChan struct {
@@ -39,7 +39,7 @@ type proofChan struct {
 func NewShuffleProtocol(n *onet.TreeNodeInstance, suite proof.Suite) (onet.ProtocolInstance, error) {
 	p := &ShuffleProtocol{
 		TreeNodeInstance: n,
-		FinalProof:       make(chan Response, 1),
+		FinalProof:       make(chan ShuffleReply, 1),
 		suite:            suite,
 	}
 	if err := p.RegisterChannels(&p.reqChan, &p.proofChan); err != nil {
@@ -99,7 +99,7 @@ func (p *ShuffleProtocol) Dispatch() error {
 		return nil
 	}
 	// Send to the next node in the chain.
-	newReq := Request{
+	newReq := ShuffleRequest{
 		Pairs: signedPrf.Pairs,
 		G:     req.G,
 		H:     req.H,
@@ -124,7 +124,7 @@ func (p *ShuffleProtocol) Dispatch() error {
 	}
 	// Sort the proofs in order and use that as our final result.
 	log.LLvl3(p.ServerIdentity(), "sending back final proof")
-	p.FinalProof <- Response{sortProofs(proofMap, p.Root())}
+	p.FinalProof <- ShuffleReply{sortProofs(proofMap, p.Root())}
 	return nil
 }
 

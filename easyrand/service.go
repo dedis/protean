@@ -1,17 +1,15 @@
 package easyrand
 
-/*
-The service.go defines what to do for each API-call. This part of the service
-runs on the node.
-*/
-
 import (
 	"bytes"
 	"encoding/binary"
 	"errors"
 	"time"
 
+	"github.com/dedis/protean/utils"
+	"go.dedis.ch/cothority/v3/blscosi"
 	dkgprotocol "go.dedis.ch/cothority/v3/dkg/pedersen"
+	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/kyber/v3/pairing/bn256"
 	"go.dedis.ch/kyber/v3/share"
 	dkg "go.dedis.ch/kyber/v3/share/dkg/pedersen"
@@ -19,6 +17,8 @@ import (
 	"go.dedis.ch/kyber/v3/util/key"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
+	"go.dedis.ch/onet/v3/network"
+	"go.dedis.ch/protobuf"
 )
 
 var serviceID onet.ServiceID
@@ -29,8 +29,7 @@ const dkgProtoName = "easyrand_dkg"
 const signProtoName = "easyrand_sign"
 const genesisMsg = "genesis_msg"
 
-// ServiceName is the name of the easyrand service
-const ServiceName = "easyrand"
+const ServiceName = "EasyRandService"
 
 func init() {
 	var err error
@@ -38,11 +37,16 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+	network.RegisterMessages(&InitUnitRequest{}, &InitUnitReply{}, &InitDKGRequest{}, &InitDKGReply{}, &RandomnessRequest{}, &RandomnessReply{})
 }
 
 // EasyRand holds the internal state of the service.
 type EasyRand struct {
 	*onet.ServiceProcessor
+	scService   *skipchain.Service
+	cosiService *blscosi.Service
+	roster      *onet.Roster
+	genesis     skipchain.SkipBlockID
 
 	keypair      *key.Pair
 	distKeyStore *dkg.DistKeyShare
@@ -51,33 +55,76 @@ type EasyRand struct {
 	blocks [][]byte
 }
 
-// InitDKG starts the DKG protocol.
-func (s *EasyRand) InitDKG(req *InitDKGReq) (*InitDKGResp, error) {
-	tree := req.Roster.GenerateStar()
+func (s *EasyRand) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
+	genesisReply, err := utils.CreateGenesisBlock(s.scService, req.ScData)
+	if err != nil {
+		log.Errorf("Cannot create the skipchain genesis block: %v", err)
+		return nil, err
+	}
+	s.genesis = genesisReply.Latest.Hash
+	s.roster = req.ScData.Roster
+	///////////////////////
+	// Now adding a block with the unit information
+	enc, err := protobuf.Encode(req.BaseStore)
+	if err != nil {
+		log.Errorf("Error in protobuf encoding: %v", err)
+		return nil, err
+	}
+	err = utils.StoreBlock(s.scService, s.genesis, enc)
+	if err != nil {
+		return nil, err
+	}
+	///////////////////////
+	//InitDKG
+	///////////////////////
+	tree := s.roster.GenerateStar()
 	pi, err := s.CreateProtocol(dkgProtoName, tree)
 	if err != nil {
 		return nil, err
 	}
 	setup := pi.(*dkgprotocol.Setup)
 	setup.Wait = true
-
 	if err := pi.Start(); err != nil {
 		return nil, err
 	}
-
 	select {
 	case <-setup.Finished:
 		if err := s.storeShare(setup); err != nil {
 			return nil, err
 		}
 	case <-time.After(5 * time.Second):
-		return nil, errors.New("dkg did not finish")
+		return nil, errors.New("DKG did not finish")
 	}
-	return &InitDKGResp{}, nil
+	return &InitUnitReply{Genesis: genesisReply.Latest.Hash}, nil
 }
 
+// InitDKG starts the DKG protocol.
+//func (s *EasyRand) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
+//tree := req.Roster.GenerateStar()
+//pi, err := s.CreateProtocol(dkgProtoName, tree)
+//if err != nil {
+//return nil, err
+//}
+//setup := pi.(*dkgprotocol.Setup)
+//setup.Wait = true
+
+//if err := pi.Start(); err != nil {
+//return nil, err
+//}
+
+//select {
+//case <-setup.Finished:
+//if err := s.storeShare(setup); err != nil {
+//return nil, err
+//}
+//case <-time.After(5 * time.Second):
+//return nil, errors.New("dkg did not finish")
+//}
+//return &InitDKGReply{}, nil
+//}
+
 // Randomness returns the public randomness.
-func (s *EasyRand) Randomness(req *RandomnessReq) (*RandomnessResp, error) {
+func (s *EasyRand) Randomness(req *RandomnessRequest) (*RandomnessReply, error) {
 	pi, err := s.CreateProtocol(signProtoName, req.Roster.GenerateStar())
 	if err != nil {
 		return nil, err
@@ -91,7 +138,7 @@ func (s *EasyRand) Randomness(req *RandomnessReq) (*RandomnessResp, error) {
 	select {
 	case sig := <-signPi.FinalSignature:
 		s.blocks = append(s.blocks, sig)
-		return &RandomnessResp{uint64(len(s.blocks) - 1), sig}, nil
+		return &RandomnessReply{uint64(len(s.blocks) - 1), sig}, nil
 	case <-time.After(2 * time.Second):
 		return nil, errors.New("timeout waiting for final signature")
 	}
@@ -169,19 +216,27 @@ func newService(c *onet.Context) (onet.Service, error) {
 	s := &EasyRand{
 		ServiceProcessor: onet.NewServiceProcessor(c),
 		keypair:          key.NewKeyPair(vssSuite),
+		scService:        c.Service(skipchain.ServiceName).(*skipchain.Service),
+		cosiService:      c.Service(blscosi.ServiceName).(*blscosi.Service),
 	}
-	if _, err := s.ProtocolRegister(dkgProtoName, func(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
+	_, err := s.ProtocolRegister(dkgProtoName, func(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
 		return dkgprotocol.CustomSetup(n, vssSuite, s.keypair)
-	}); err != nil {
+	})
+	if err != nil {
+		log.Errorf("Registering protocol %s failed: %v", dkgProtoName, err)
 		return nil, err
 	}
-	if _, err := s.ProtocolRegister(signProtoName, func(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
+	_, err = s.ProtocolRegister(signProtoName, func(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
 		// TODO giving NewSignProtocol to pointers isn't so nice because these mutate
 		return NewSignProtocol(n, s.verify, s.distKeyStore.PriShare(), s.pubPoly, suite)
-	}); err != nil {
+	})
+	if err != nil {
+		log.Errorf("Registering protocol %s failed: %v", signProtoName, err)
 		return nil, err
 	}
-	if err := s.RegisterHandlers(s.InitDKG, s.Randomness); err != nil {
+	err = s.RegisterHandlers(s.InitUnit, s.Randomness)
+	if err != nil {
+		log.Errorf("Registering handlers failed: %v", err)
 		return nil, err
 	}
 	return s, nil

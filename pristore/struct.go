@@ -29,7 +29,6 @@ type WriteData struct {
 }
 
 type InitUnitRequest struct {
-	//ScData       *utils.ScInitData
 	ScData       *protean.ScInitData
 	BaseStore    *protean.BaseStorage
 	BlkInterval  time.Duration
@@ -67,6 +66,7 @@ type SpawnDarcReply struct {
 }
 
 type AddWriteRequest struct {
+	//ExecData *protean.ExecutionData
 	Ctx  byzcoin.ClientTransaction
 	Wait int
 }
@@ -76,6 +76,7 @@ type AddWriteReply struct {
 }
 
 type AddReadRequest struct {
+	//ExecData *protean.ExecutionData
 	Ctx  byzcoin.ClientTransaction
 	Wait int
 }
@@ -85,6 +86,7 @@ type AddReadReply struct {
 }
 
 type DecryptRequest struct {
+	//ExecData *protean.ExecutionData
 	Request *calypso.DecryptKey
 }
 

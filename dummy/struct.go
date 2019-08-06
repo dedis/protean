@@ -6,6 +6,7 @@ import (
 	"github.com/dedis/protean"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/darc"
+	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/onet/v3"
 )
 
@@ -102,3 +103,9 @@ type InitByzcoinRequest struct {
 }
 
 type InitByzcoinReply struct{}
+
+type CopyRequest struct {
+	Genesis skipchain.SkipBlockID
+}
+
+type CopyReply struct{}

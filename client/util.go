@@ -71,7 +71,6 @@ func setup(roster *onet.Roster, uFilePtr *string, tFilePtr *string) ([]byte, map
 	}
 	cl := compiler.NewClient(roster)
 	defer cl.Close()
-	//csReply, err := cl.CreateSkipchain(roster, 2, 2)
 	iuReply, err := cl.InitUnit(&protean.ScInitData{Roster: roster, MHeight: 2, BHeight: 2})
 	if err != nil {
 		return nil, nil, nil, err
@@ -136,12 +135,7 @@ func prepareUnits(roster *onet.Roster, uFilePtr *string, tFilePtr *string) ([]*c
 			log.Errorf("Cannot convert unit type: %v", err)
 			return nil, err
 		}
-		//txn := &compiler.Transaction{
-		//TxnName: tokens[1],
-		//}
-		//units[uIdx].Txns = append(units[uIdx].Txns, txn)
 		units[uIdx].Txns = append(units[uIdx].Txns, tokens[1])
 	}
 	return units, nil
-	//return &compiler.CreateUnitsRequest{Units: units}, nil
 }

@@ -23,7 +23,7 @@ func TestService(t *testing.T) {
 	services := local.GetServices(hosts, serviceID)
 	root := services[0].(*EasyNeff)
 	req := generateReq(10, []byte("abc"))
-	req.Roster = roster
+	//req.Roster = roster
 	resp, err := root.Shuffle(&req)
 	require.NoError(t, err)
 
@@ -37,7 +37,7 @@ func TestService(t *testing.T) {
 	require.Error(t, resp.Verify(req.G, req.H, req.Pairs, sigs))
 }
 
-func generateReq(n int, msg []byte) Request {
+func generateReq(n int, msg []byte) ShuffleRequest {
 	r := random.New()
 	pairs := make([]ElGamalPair, n)
 	for i := range pairs {
@@ -47,7 +47,7 @@ func generateReq(n int, msg []byte) Request {
 		pairs[i] = ElGamalPair{c1, c2}
 	}
 
-	return Request{
+	return ShuffleRequest{
 		Pairs: pairs,
 		G:     cothority.Suite.Point().Base(),
 		H:     cothority.Suite.Point().Pick(r),

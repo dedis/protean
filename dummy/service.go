@@ -43,7 +43,7 @@ func init() {
 		&SpawnDarcRequest{}, &SpawnDarcReply{}, &CreateStateRequest{},
 		&CreateStateReply{}, &GetProofRequest{}, &GetProofReply{},
 		&UpdateStateRequest{}, &UpdateStateReply{}, &InitByzcoinRequest{},
-		&InitByzcoinReply{})
+		&InitByzcoinReply{}, &CopyRequest{}, &CopyReply{})
 }
 
 func (s *Service) UpdateState(req *UpdateStateRequest) (*UpdateStateReply, error) {
@@ -172,6 +172,11 @@ func (s *Service) GetProof(req *GetProofRequest) (*GetProofReply, error) {
 	return reply, nil
 }
 
+func (s *Service) CopyOver(req *CopyRequest) (*CopyReply, error) {
+	s.genesis = req.Genesis
+	return nil, nil
+}
+
 func (s *Service) InitByzcoin(req *InitByzcoinRequest) (*InitByzcoinReply, error) {
 	var err error
 	s.roster = req.Roster
@@ -198,7 +203,7 @@ func newService(c *onet.Context) (onet.Service, error) {
 		byzService:       c.Service(byzcoin.ServiceName).(*byzcoin.Service),
 		scService:        c.Service(skipchain.ServiceName).(*skipchain.Service),
 	}
-	err := s.RegisterHandlers(s.InitUnit, s.InitByzcoin, s.SpawnDarc, s.CreateState, s.UpdateState, s.GetProof)
+	err := s.RegisterHandlers(s.InitUnit, s.InitByzcoin, s.SpawnDarc, s.CreateState, s.UpdateState, s.GetProof, s.CopyOver)
 	if err != nil {
 		log.Errorf("Cannot register handlers: %v", err)
 		return nil, err

@@ -18,6 +18,7 @@ import (
 
 	_ "github.com/dedis/protean/compiler"
 	_ "github.com/dedis/protean/dummy"
+	_ "github.com/dedis/protean/easyneff"
 	_ "github.com/dedis/protean/pristore"
 	_ "github.com/dedis/protean/state"
 
