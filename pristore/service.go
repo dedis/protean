@@ -1,7 +1,7 @@
 package pristore
 
 import (
-	"github.com/ceyhunalp/protean_code/utils"
+	"github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3/blscosi"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/calypso"

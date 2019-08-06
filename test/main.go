@@ -2,7 +2,6 @@ package main
 
 //"flag"
 //"fmt"
-//"github.com/ceyhunalp/protean_code/utils"
 //"go.dedis.ch/cothority/v3/blscosi"
 //"go.dedis.ch/cothority/v3/byzcoin"
 //"go.dedis.ch/kyber/v3/pairing"

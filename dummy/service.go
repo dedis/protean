@@ -4,10 +4,7 @@ import (
 	//"crypto/sha256"
 	//"errors"
 
-	//"github.com/ceyhunalp/protean_code"
-	//"github.com/ceyhunalp/protean_code/verify"
-	//"go.dedis.ch/cothority/v3/blscosi"
-	"github.com/ceyhunalp/protean_code/utils"
+	"github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/darc"
 	"go.dedis.ch/cothority/v3/skipchain"

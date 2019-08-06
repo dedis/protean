@@ -5,8 +5,8 @@ import (
 	"crypto/sha256"
 	"math"
 
-	protean "github.com/ceyhunalp/protean_code"
-	"github.com/ceyhunalp/protean_code/utils"
+	"github.com/dedis/protean"
+	"github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/kyber/v3/pairing"

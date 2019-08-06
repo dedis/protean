@@ -4,7 +4,7 @@ import (
 	"crypto/sha256"
 	"strings"
 
-	protean "github.com/ceyhunalp/protean_code"
+	"github.com/dedis/protean"
 
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/skipchain"

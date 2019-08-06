@@ -3,9 +3,9 @@ package state
 import (
 	"fmt"
 
-	protean "github.com/ceyhunalp/protean_code"
-	"github.com/ceyhunalp/protean_code/utils"
-	"github.com/ceyhunalp/protean_code/verify"
+	"github.com/dedis/protean"
+	"github.com/dedis/protean/utils"
+	"github.com/dedis/protean/verify"
 	"go.dedis.ch/cothority/v3/blscosi"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/darc"

@@ -3,7 +3,7 @@ package dummy
 import (
 	"time"
 
-	protean "github.com/ceyhunalp/protean_code"
+	"github.com/dedis/protean"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/darc"
 	"go.dedis.ch/onet/v3"

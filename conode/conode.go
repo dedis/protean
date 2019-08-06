@@ -16,13 +16,10 @@ import (
 	"os"
 	"path"
 
-	//_ "github.com/ceyhunalp/protean_code/compiler"
-	//_ "github.com/ceyhunalp/protean_code/dummy"
-	_ "github.com/ceyhunalp/protean_code/pristore"
-
-	//_ "github.com/ceyhunalp/protean_code/state"
-	//_ "go.dedis.ch/cothority/v3/blscosi"
-	//_ "go.dedis.ch/cothority/v3/calypso"
+	_ "github.com/dedis/protean/compiler"
+	_ "github.com/dedis/protean/dummy"
+	_ "github.com/dedis/protean/pristore"
+	_ "github.com/dedis/protean/state"
 
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/onet/v3/app"

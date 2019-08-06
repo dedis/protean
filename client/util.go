@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	protean "github.com/ceyhunalp/protean_code"
-	"github.com/ceyhunalp/protean_code/compiler"
+	"github.com/dedis/protean"
+	"github.com/dedis/protean/compiler"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
 )

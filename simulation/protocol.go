@@ -24,7 +24,7 @@ import (
 	"strconv"
 
 	"github.com/BurntSushi/toml"
-	"github.com/ceyhunalp/protean_code/protocol"
+	"github.com/dedis/protean/protocol"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/onet/v3/simul/monitor"

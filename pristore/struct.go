@@ -3,7 +3,7 @@ package pristore
 import (
 	"time"
 
-	protean "github.com/ceyhunalp/protean_code"
+	protean "github.com/dedis/protean"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/calypso"
 	"go.dedis.ch/cothority/v3/darc"

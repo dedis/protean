@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	protean "github.com/ceyhunalp/protean_code"
+	"github.com/dedis/protean"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/blscosi"
 	"go.dedis.ch/cothority/v3/blscosi/protocol"
