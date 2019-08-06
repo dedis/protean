@@ -1,6 +1,4 @@
-module github.com/dedis/paper_protean
-
-go 1.12
+module github.com/dedis/protean
 
 require (
 	github.com/stretchr/testify v1.3.0
