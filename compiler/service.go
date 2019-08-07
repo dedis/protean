@@ -182,7 +182,7 @@ func (s *Service) verifyExecutionPlan(msg []byte, data []byte) bool {
 }
 
 func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
-	genesisReply, err := utils.CreateGenesisBlock(s.scService, req.ScData)
+	genesisReply, err := utils.CreateGenesisBlock(s.scService, req.ScData, req.Roster)
 	if err != nil {
 		log.Errorf("Cannot create skipchain genesis block: %v", err)
 		return nil, err

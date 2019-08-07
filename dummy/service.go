@@ -121,7 +121,7 @@ func (s *Service) SpawnDarc(req *SpawnDarcRequest) (*SpawnDarcReply, error) {
 func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 	// Creating the skipchain here
 	log.Infof("Starting InitUnit")
-	genesisReply, err := utils.CreateGenesisBlock(s.scService, req.ScData)
+	genesisReply, err := utils.CreateGenesisBlock(s.scService, req.ScData, req.Roster)
 	if err != nil {
 		return nil, err
 	}

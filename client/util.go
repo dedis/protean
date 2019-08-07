@@ -69,9 +69,10 @@ func setup(roster *onet.Roster, uFilePtr *string, tFilePtr *string) ([]byte, map
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	cl := compiler.NewClient(roster)
+	cl := compiler.NewClient()
 	defer cl.Close()
-	iuReply, err := cl.InitUnit(&protean.ScInitData{Roster: roster, MHeight: 2, BHeight: 2})
+	//iuReply, err := cl.InitUnit(&protean.ScInitData{Roster: roster, MHeight: 2, BHeight: 2})
+	iuReply, err := cl.InitUnit(roster, &protean.ScInitData{MHeight: 2, BHeight: 2})
 	if err != nil {
 		return nil, nil, nil, err
 	}

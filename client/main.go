@@ -10,6 +10,7 @@ import (
 	"github.com/dedis/protean"
 	"github.com/dedis/protean/compiler"
 	"github.com/dedis/protean/dummy"
+	"github.com/dedis/protean/easyneff"
 	"github.com/dedis/protean/pristore"
 	"github.com/dedis/protean/state"
 
@@ -19,14 +20,16 @@ import (
 	"go.dedis.ch/cothority/v3/calypso"
 	"go.dedis.ch/cothority/v3/darc"
 	"go.dedis.ch/cothority/v3/darc/expression"
+	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/util/encoding"
+	"go.dedis.ch/kyber/v3/util/random"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/protobuf"
 )
 
 func runClient(roster *onet.Roster, genesis []byte, uData map[string]string, tData map[string]string, wfFilePtr *string) error {
-	compilerCl := compiler.NewClient(roster)
+	compilerCl := compiler.NewClient()
 	//creatScReply, err := compilerCl.CreateSkipchain(roster, 2, 2)
 	//if err != nil {
 	//return err
@@ -114,9 +117,9 @@ func runClient(roster *onet.Roster, genesis []byte, uData map[string]string, tDa
 }
 
 func testStateUnit(roster *onet.Roster) error {
-	stCl := state.NewClient(roster)
+	stCl := state.NewClient()
 	scData := &protean.ScInitData{
-		Roster:  roster,
+		//Roster:  roster,
 		MHeight: 2,
 		BHeight: 2,
 	}
@@ -129,7 +132,7 @@ func testStateUnit(roster *onet.Roster) error {
 		CompKeys: roster.ServicePublics(state.ServiceName),
 	}
 
-	_, err := stCl.InitUnit(scData, uData, 30, time.Second)
+	_, err := stCl.InitUnit(roster, scData, uData, 30, time.Second)
 	if err != nil {
 		fmt.Println("Cannot initialize state unit")
 		return err
@@ -225,9 +228,9 @@ func testStateUnit(roster *onet.Roster) error {
 }
 
 func testDummyUnit(roster *onet.Roster) error {
-	dumCl := dummy.NewClient(roster)
+	dumCl := dummy.NewClient()
 	scData := &protean.ScInitData{
-		Roster:  roster,
+		//Roster:  roster,
 		MHeight: 2,
 		BHeight: 2,
 	}
@@ -240,7 +243,7 @@ func testDummyUnit(roster *onet.Roster) error {
 		CompKeys: roster.ServicePublics(dummy.ServiceName),
 	}
 
-	_, err := dumCl.InitUnit(scData, uData, 15, time.Second)
+	_, err := dumCl.InitUnit(roster, scData, uData, 15, time.Second)
 	if err != nil {
 		fmt.Println("Cannot initialize state unit")
 		return err
@@ -340,7 +343,7 @@ func testDummyUnit(roster *onet.Roster) error {
 }
 
 func test(roster *onet.Roster) error {
-	dumCl := dummy.NewClient(roster)
+	dumCl := dummy.NewClient()
 	_, err := dumCl.InitByzcoin(10, time.Second)
 	if err != nil {
 		return fmt.Errorf("Cannot initialize byzcoin %v", err)
@@ -464,9 +467,9 @@ func test(roster *onet.Roster) error {
 }
 
 func testPrivstore(roster *onet.Roster) error {
-	psCl := pristore.NewClient(roster)
+	psCl := pristore.NewClient()
 	scData := &protean.ScInitData{
-		Roster:  roster,
+		//Roster:  roster,
 		MHeight: 2,
 		BHeight: 2,
 	}
@@ -479,7 +482,7 @@ func testPrivstore(roster *onet.Roster) error {
 		CompKeys: roster.ServicePublics(pristore.ServiceName),
 	}
 
-	reply, err := psCl.InitUnit(scData, uData, 15, time.Second)
+	reply, err := psCl.InitUnit(roster, scData, uData, 15, time.Second)
 	if err != nil {
 		return fmt.Errorf("InitUnit error: %v", err)
 	}
@@ -561,6 +564,54 @@ func testPrivstore(roster *onet.Roster) error {
 	return nil
 }
 
+func testShuffle(roster *onet.Roster) error {
+	neffCl := easyneff.NewClient()
+	scData := &protean.ScInitData{
+		//Roster:  roster,
+		MHeight: 2,
+		BHeight: 2,
+	}
+	uData := &protean.BaseStorage{
+		UInfo: &protean.UnitInfo{
+			UnitID:   "shuffle",
+			UnitName: "shuffleUnit",
+			Txns:     map[string]string{"a": "b", "c": "d"},
+		},
+		CompKeys: roster.ServicePublics(easyneff.ServiceName),
+	}
+
+	_, err := neffCl.InitUnit(roster, scData, uData, 10, time.Second)
+	if err != nil {
+		return fmt.Errorf("InitUnit error: %v", err)
+	}
+
+	pairs, g, h := generateReq(10, []byte("On Wisconsin"))
+	reply, err := neffCl.Shuffle(pairs, g, h)
+	if err != nil {
+		return fmt.Errorf("shuffle error: %v", err)
+	}
+	return reply.ShuffleVerify(g, h, pairs, roster.Publics())
+}
+
+//func generateReq(n int, msg []byte) ShuffleRequest {
+func generateReq(n int, msg []byte) ([]easyneff.ElGamalPair, kyber.Point, kyber.Point) {
+	r := random.New()
+	pairs := make([]easyneff.ElGamalPair, n)
+	for i := range pairs {
+		secret := cothority.Suite.Scalar().Pick(r)
+		public := cothority.Suite.Point().Mul(secret, nil)
+		c1, c2 := easyneff.Encrypt(public, msg)
+		pairs[i] = easyneff.ElGamalPair{c1, c2}
+	}
+
+	return pairs, cothority.Suite.Point().Base(), cothority.Suite.Point().Pick(r)
+	//return ShuffleRequest{
+	//Pairs: pairs,
+	//G:     cothority.Suite.Point().Base(),
+	//H:     cothority.Suite.Point().Pick(r),
+	//}
+}
+
 func main() {
 	rosterFilePtr := flag.String("r", "", "roster.toml file")
 	unitFilePtr := flag.String("u", "", "units.txt file")
@@ -586,7 +637,8 @@ func main() {
 		//err := testDummyUnit(roster)
 		//err := testStateUnit(roster)
 		//err := test(roster)
-		err := testPrivstore(roster)
+		//err := testPrivstore(roster)
+		err := testShuffle(roster)
 		fmt.Println(err)
 	}
 }

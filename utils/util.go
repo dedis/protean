@@ -51,12 +51,13 @@ func StoreBlock(s *skipchain.Service, genesis skipchain.SkipBlockID, data []byte
 	return err
 }
 
-func CreateGenesisBlock(s *skipchain.Service, scData *protean.ScInitData) (*skipchain.StoreSkipBlockReply, error) {
+func CreateGenesisBlock(s *skipchain.Service, scData *protean.ScInitData, roster *onet.Roster) (*skipchain.StoreSkipBlockReply, error) {
 	log.Infof("[CreateGenesisBlock] Service: %s", s.ServiceID())
 	genesis := skipchain.NewSkipBlock()
+	genesis.Roster = roster
 	genesis.MaximumHeight = scData.MHeight
 	genesis.BaseHeight = scData.BHeight
-	genesis.Roster = scData.Roster
+	//genesis.Roster = scData.Roster
 	genesis.VerifierIDs = skipchain.VerificationStandard
 	reply, err := s.StoreSkipBlock(&skipchain.StoreSkipBlock{
 		NewBlock: genesis,

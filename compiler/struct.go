@@ -26,6 +26,7 @@ type FunctionalUnit struct {
 //}
 
 type InitUnitRequest struct {
+	Roster *onet.Roster
 	ScData *protean.ScInitData
 }
 

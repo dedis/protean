@@ -20,12 +20,14 @@ type Client struct {
 	roster *onet.Roster
 }
 
-func NewClient(r *onet.Roster) *Client {
-	return &Client{Client: onet.NewClient(cothority.Suite, ServiceName), roster: r}
+func NewClient() *Client {
+	return &Client{Client: onet.NewClient(cothority.Suite, ServiceName)}
 }
 
-func (c *Client) InitUnit(scData *protean.ScInitData, bStore *protean.BaseStorage, interval time.Duration, typeDur time.Duration) (*InitUnitReply, error) {
+func (c *Client) InitUnit(roster *onet.Roster, scData *protean.ScInitData, bStore *protean.BaseStorage, interval time.Duration, typeDur time.Duration) (*InitUnitReply, error) {
+	c.roster = roster
 	req := &InitUnitRequest{
+		Roster:       roster,
 		ScData:       scData,
 		BaseStore:    bStore,
 		BlkInterval:  interval,

@@ -52,7 +52,7 @@ type CalyLotteryValue struct {
 }
 
 type InitUnitRequest struct {
-	//ScData       *utils.ScInitData
+	Roster       *onet.Roster
 	ScData       *protean.ScInitData
 	BaseStore    *protean.BaseStorage
 	BlkInterval  time.Duration

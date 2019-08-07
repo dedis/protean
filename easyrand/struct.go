@@ -8,6 +8,7 @@ import (
 )
 
 type InitUnitRequest struct {
+	Roster       *onet.Roster
 	ScData       *protean.ScInitData
 	BaseStore    *protean.BaseStorage
 	BlkInterval  time.Duration

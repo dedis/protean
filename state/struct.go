@@ -7,6 +7,7 @@ import (
 	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/darc"
+	"go.dedis.ch/onet/v3"
 )
 
 type KV struct {
@@ -20,6 +21,7 @@ type Storage struct {
 }
 
 type InitUnitRequest struct {
+	Roster       *onet.Roster
 	ScData       *protean.ScInitData
 	BaseStore    *protean.BaseStorage
 	BlkInterval  time.Duration
