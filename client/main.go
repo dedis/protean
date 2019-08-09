@@ -585,31 +585,45 @@ func testShuffle(roster *onet.Roster) error {
 		return fmt.Errorf("InitUnit error: %v", err)
 	}
 
-	pairs, g, h := generateReq(10, []byte("On Wisconsin"))
+	pairs, g, h, pris, _ := generateReq(10, []byte("On Wisconsin"))
 	reply, err := neffCl.Shuffle(pairs, g, h)
 	if err != nil {
 		return fmt.Errorf("shuffle error: %v", err)
 	}
-	return reply.ShuffleVerify(g, h, pairs, roster.Publics())
+	fmt.Println("Length of proofs:", len(reply.Proofs))
+	err = reply.ShuffleVerify(g, h, pairs, roster.Publics())
+	if err != nil {
+		return fmt.Errorf("Shuffle verify error: %v", err)
+	}
+
+	lastProof := reply.Proofs[len(reply.Proofs)-1]
+
+	for i := range lastProof.Pairs {
+		x := lastProof.Pairs[i].C1
+		y := lastProof.Pairs[i].C2
+		data, err := easyneff.Decrypt(pris[i], x, y).Data()
+		if err != nil {
+			return fmt.Errorf("dec error: %v", err)
+		}
+		fmt.Println(data)
+	}
+	return nil
 }
 
-//func generateReq(n int, msg []byte) ShuffleRequest {
-func generateReq(n int, msg []byte) ([]easyneff.ElGamalPair, kyber.Point, kyber.Point) {
+func generateReq(n int, msg []byte) ([]easyneff.ElGamalPair, kyber.Point, kyber.Point, []kyber.Scalar, []kyber.Point) {
+	var pri []kyber.Scalar
+	var pub []kyber.Point
 	r := random.New()
 	pairs := make([]easyneff.ElGamalPair, n)
 	for i := range pairs {
 		secret := cothority.Suite.Scalar().Pick(r)
 		public := cothority.Suite.Point().Mul(secret, nil)
+		pri = append(pri, secret)
+		pub = append(pub, public)
 		c1, c2 := easyneff.Encrypt(public, msg)
-		pairs[i] = easyneff.ElGamalPair{c1, c2}
+		pairs[i] = easyneff.ElGamalPair{C1: c1, C2: c2}
 	}
-
-	return pairs, cothority.Suite.Point().Base(), cothority.Suite.Point().Pick(r)
-	//return ShuffleRequest{
-	//Pairs: pairs,
-	//G:     cothority.Suite.Point().Base(),
-	//H:     cothority.Suite.Point().Pick(r),
-	//}
+	return pairs, cothority.Suite.Point().Base(), cothority.Suite.Point().Pick(r), pri, pub
 }
 
 func main() {
