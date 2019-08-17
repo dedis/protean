@@ -179,9 +179,8 @@ func testStateUnit(roster *onet.Roster) error {
 	}
 	if !gpReply.Proof.InclusionProof.Match(csReply.InstanceID[:]) {
 		return fmt.Errorf("Inclusion proof does not match")
-	} else {
-		fmt.Println("SUCCESS: Inclusion proof matched")
 	}
+	fmt.Println("SUCCESS: Inclusion proof matched")
 
 	_, val, _, _, err := gpReply.Proof.KeyValue()
 	storage := state.Storage{}
@@ -290,9 +289,8 @@ func testDummyUnit(roster *onet.Roster) error {
 	}
 	if !gpReply.Proof.InclusionProof.Match(csReply.InstanceID[:]) {
 		return fmt.Errorf("Inclusion proof does not match")
-	} else {
-		fmt.Println("SUCCESS: Inclusion proof matched")
 	}
+	fmt.Println("SUCCESS: Inclusion proof matched")
 
 	_, val, _, _, err := gpReply.Proof.KeyValue()
 	//storage := dummy.Storage{}
@@ -400,9 +398,8 @@ func test(roster *onet.Roster) error {
 	log.Info("IID is:", csReply.InstanceID)
 	if !gpReply.Proof.InclusionProof.Match(csReply.InstanceID[:]) {
 		return fmt.Errorf("Inclusion proof does not match")
-	} else {
-		fmt.Println("SUCCESS: Inclusion proof matched")
 	}
+	fmt.Println("SUCCESS: Inclusion proof matched")
 
 	_, val, _, _, err := gpReply.Proof.KeyValue()
 	storage := dummy.KVStorage{}
@@ -549,9 +546,8 @@ func testPrivstore(roster *onet.Roster) error {
 	}
 	if !rpReply.Proof.InclusionProof.Match(re1.InstanceID.Slice()) {
 		return fmt.Errorf("Inclusion proof does not match")
-	} else {
-		fmt.Println("SUCCESS: Inclusion proof matched")
 	}
+	fmt.Println("SUCCESS: Inclusion proof matched")
 
 	dk, err := psCl.Decrypt(wpReply.Proof, rpReply.Proof)
 	if err != nil {

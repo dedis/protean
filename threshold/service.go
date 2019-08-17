@@ -33,10 +33,6 @@ type storage struct {
 	Shared map[string]*dkgprotocol.SharedSecret
 	Polys  map[string]*pubPoly
 	DKS    map[string]*dkg.DistKeyShare
-	//Shared *dkgprotocol.SharedSecret
-	//Polys  *pubPoly
-	//DKS    *dkg.DistKeyShare
-
 	sync.Mutex
 }
 
