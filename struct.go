@@ -3,11 +3,10 @@ package protean
 import (
 	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/kyber/v3"
-	"go.dedis.ch/onet/v3"
 )
 
 type ScInitData struct {
-	Roster  *onet.Roster
+	//Roster  *onet.Roster
 	MHeight int
 	BHeight int
 }

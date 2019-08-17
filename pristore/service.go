@@ -50,7 +50,7 @@ func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 		return nil, err
 	}
 	s.genesis = genesisReply.Latest.Hash
-	s.roster = req.ScData.Roster
+	s.roster = req.Roster
 	///////////////////////
 	// Now adding a block with the unit information
 	enc, err := protobuf.Encode(req.BaseStore)
