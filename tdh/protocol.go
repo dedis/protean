@@ -67,15 +67,6 @@ func (d *TDHDecrypt) Start() error {
 		U:  d.U,
 		Xc: d.Xc,
 	}
-	//if len(d.VerificationData) > 0 {
-	//rc.VerificationData = &d.VerificationData
-	//}
-	//if d.Verify != nil {
-	//if !d.Verify(rc) {
-	//d.finish(false)
-	//return errors.New("refused to reencrypt")
-	//}
-	//}
 	d.timeout = time.AfterFunc(1*time.Minute, func() {
 		log.Lvl1("TDHDecrypt protocol timeout")
 		d.finish(false)
@@ -96,13 +87,6 @@ func (d *TDHDecrypt) decrypt(r structPartialRequest) error {
 	if err != nil {
 		return nil
 	}
-
-	//if d.Verify != nil {
-	//if !d.Verify(&r.Reencrypt) {
-	//log.Lvl2(d.ServerIdentity(), "refused to reencrypt")
-	//return d.SendToParent(&ReencryptReply{})
-	//}
-	//}
 
 	// Calculating proofs
 	var uiHat kyber.Point
@@ -126,8 +110,8 @@ func (d *TDHDecrypt) decrypt(r structPartialRequest) error {
 	})
 }
 
-// reencryptReply is the root-node waiting for all replies and generating
-// the reencryption key.
+// decryptReply is the root-node waiting for all replies and generating
+// the decrypted message
 func (d *TDHDecrypt) decryptReply(pdr structPartialReply) error {
 	if pdr.PartialReply.Ui == nil {
 		log.Lvl2("Node", pdr.ServerIdentity, "refused to reply")

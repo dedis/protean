@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/dedis/protean"
+	"github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3"
-	"go.dedis.ch/kyber/v3"
 
 	"go.dedis.ch/onet/v3"
 )
@@ -44,15 +44,17 @@ func (c *Client) InitDKG(id []byte) (*InitDKGReply, error) {
 	return reply, err
 }
 
-func (c *Client) Decrypt(id []byte, c1 kyber.Point, c2 kyber.Point) (*DecryptReply, error) {
+//func (c *Client) Decrypt(id []byte, c1 kyber.Point, c2 kyber.Point) (*DecryptReply, error) {
+func (c *Client) Decrypt(id []byte, cs []*utils.ElGamalPair) (*DecryptReply, error) {
 	hexID := hex.EncodeToString(id)
-	ct := &Ciphertext{
-		C1: c1,
-		C2: c2,
-	}
+	//ct := &Ciphertext{
+	//C1: c1,
+	//C2: c2,
+	//}
 	req := &DecryptRequest{
-		ID:         hexID,
-		Ciphertext: ct,
+		ID: hexID,
+		//Ciphertext: ct,
+		Cs: cs,
 	}
 	reply := &DecryptReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)

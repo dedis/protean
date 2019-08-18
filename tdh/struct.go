@@ -50,9 +50,9 @@ type DecryptRequest struct {
 	U  kyber.Point
 	Xc kyber.Point
 	//New fields
-	Ubar kyber.Point
-	E    kyber.Scalar
-	F    kyber.Scalar
+	//Ubar kyber.Point
+	//E    kyber.Scalar
+	//F    kyber.Scalar
 }
 
 type DecryptReply struct {
@@ -67,9 +67,9 @@ type PartialRequest struct {
 	U  kyber.Point
 	Xc kyber.Point // optional
 	// New fields
-	Ubar kyber.Point
-	E    kyber.Scalar
-	F    kyber.Scalar
+	//Ubar kyber.Point
+	//E    kyber.Scalar
+	//F    kyber.Scalar
 }
 
 type structPartialRequest struct {

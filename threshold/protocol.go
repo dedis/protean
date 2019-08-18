@@ -26,12 +26,12 @@ func init() {
 
 type ThreshDecrypt struct {
 	*onet.TreeNodeInstance
-	Shared     *dkgprotocol.SharedSecret
-	Ciphertext *Ciphertext
-	Threshold  int
-	Failures   int
-	Decrypted  chan bool
-	Partials   []kyber.Point
+	Shared    *dkgprotocol.SharedSecret
+	Cs        []*utils.ElGamalPair
+	Partials  []*Partial
+	Threshold int
+	Failures  int
+	Decrypted chan bool
 	// private fields
 	replies  []PartialReply
 	timeout  *time.Timer
@@ -57,12 +57,12 @@ func (d *ThreshDecrypt) Start() error {
 		d.finish(false)
 		return errors.New("Initialize Shared first")
 	}
-	if d.Ciphertext == nil {
+	if len(d.Cs) == 0 {
 		d.finish(false)
-		return errors.New("Empty ciphertext")
+		return errors.New("Empty ciphertext list")
 	}
 	pd := &PartialRequest{
-		Ciphertext: d.Ciphertext,
+		Cs: d.Cs,
 	}
 	d.timeout = time.AfterFunc(1*time.Minute, func() {
 		log.Lvl1("ThreshDecrypt protocol timeout")
@@ -80,9 +80,11 @@ func (d *ThreshDecrypt) decrypt(r structPartialRequest) error {
 	log.Lvl3(d.Name() + ": starting decrypt")
 	defer d.Done()
 
-	partial := utils.ElGamalDecrypt(d.Shared.V, r.Ciphertext.C1, r.Ciphertext.C2)
-	//S := cothority.Suite.Point().Mul(d.Shared.V, r.Ciphertext.C1)
-	//partial := cothority.Suite.Point().Sub(r.Ciphertext.C2, S)
+	//var shares []kyber.Point
+	shares := make([]kyber.Point, len(r.Cs))
+	for i, c := range r.Cs {
+		shares[i] = utils.ElGamalDecrypt(d.Shared.V, c)
+	}
 
 	// Calculating proofs
 	//si := cothority.Suite.Scalar().Pick(d.Suite().RandomStream())
@@ -95,14 +97,14 @@ func (d *ThreshDecrypt) decrypt(r structPartialRequest) error {
 	//ei := cothority.Suite.Scalar().SetBytes(hash.Sum(nil))
 
 	return d.SendToParent(&PartialReply{
-		Index:   d.Shared.Index,
-		Partial: partial,
+		Index:  d.Shared.Index,
+		Shares: shares,
 	})
 }
 
 // decryptReply is the root-node waiting for all replies
 func (d *ThreshDecrypt) decryptReply(pdr structPartialReply) error {
-	if pdr.PartialReply.Partial == nil {
+	if pdr.PartialReply.Shares == nil {
 		log.Lvl2("Node", pdr.ServerIdentity, "refused to reply")
 		d.Failures++
 		if d.Failures > len(d.Roster().List)-d.Threshold {
@@ -115,10 +117,16 @@ func (d *ThreshDecrypt) decryptReply(pdr structPartialReply) error {
 
 	// minus one to exclude the root
 	if len(d.replies) >= int(d.Threshold-1) {
-		d.Partials = make([]kyber.Point, len(d.List()))
-		d.Partials[0] = utils.ElGamalDecrypt(d.Shared.V, d.Ciphertext.C1, d.Ciphertext.C2)
-		//S := cothority.Suite.Point().Mul(d.Shared.V, d.Ciphertext.C1)
-		//d.Partials[0] = cothority.Suite.Point().Sub(d.Ciphertext.C2, S)
+		//d.Partials = make([]*Partial, len(d.Cs))
+		for i := 0; i < len(d.Cs); i++ {
+			d.Partials = append(d.Partials, &Partial{
+				Shares: make([]kyber.Point, len(d.List())),
+			})
+		}
+		for i, c := range d.Cs {
+			share := utils.ElGamalDecrypt(d.Shared.V, c)
+			d.Partials[i].Shares[d.Shared.Index] = share
+		}
 		for _, r := range d.replies {
 			// Verify proofs
 			//var ufi kyber.Point
@@ -143,8 +151,11 @@ func (d *ThreshDecrypt) decryptReply(pdr structPartialReply) error {
 			//} else {
 			//log.Lvl1("Received invalid share from node", r.Ui.I)
 			//}
-			if r.Partial != nil {
-				d.Partials[r.Index] = r.Partial
+
+			if r.Shares != nil && len(r.Shares) == len(d.Cs) {
+				for i, s := range r.Shares {
+					d.Partials[i].Shares[r.Index] = s
+				}
 			} else {
 				log.Lvl1("Received invalid share from node", r.Index)
 			}
@@ -167,11 +178,6 @@ func (d *ThreshDecrypt) getUI(U, Xc kyber.Point) (*share.PubShare, error) {
 	}
 	return &share.PubShare{I: d.Shared.Index, V: v}, nil
 }
-
-//func (d *ThreshDecrypt) getUI(U kyber.Point) (*share.PubShare, error) {
-//v := cothority.Suite.Point().Mul(d.Shared.V, U)
-//return &share.PubShare{I: d.Shared.Index, V: v}, nil
-//}
 
 func (d *ThreshDecrypt) finish(result bool) {
 	d.timeout.Stop()

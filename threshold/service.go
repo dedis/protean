@@ -142,8 +142,7 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 		return nil, errors.New("failed to create decrypt protocol: " + err.Error())
 	}
 	decProto := pi.(*ThreshDecrypt)
-	log.Info("Ciphertext is:", req.Ciphertext.C1.String(), req.Ciphertext.C2.String())
-	decProto.Ciphertext = req.Ciphertext
+	decProto.Cs = req.Cs
 	encoded, err := hexToBytes(req.ID)
 	if err != nil {
 		log.Errorf("Could not convert string to byte array: %v", err)
@@ -176,16 +175,17 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 	}
 	log.Lvl3("Decryption protocol is done.")
 
-	shares := make([]*share.PubShare, len(s.roster.List))
-	for i, _ := range decProto.Partials {
-		shares[i] = &share.PubShare{I: i, V: decProto.Partials[i]}
+	for i, partial := range decProto.Partials {
+		pubShares := make([]*share.PubShare, len(s.roster.List))
+		for j, sh := range partial.Shares {
+			pubShares[j] = &share.PubShare{I: j, V: sh}
+		}
+		p, err := share.RecoverCommit(cothority.Suite, pubShares, threshold, nodes)
+		if err != nil {
+			log.Errorf("Cannot recover message with index %d", i)
+		}
+		reply.Ps = append(reply.Ps, p)
 	}
-	reply.DecPt, err = share.RecoverCommit(cothority.Suite, shares, threshold, nodes)
-	//reply.XhatEnc, err = share.RecoverCommit(cothority.Suite, decProto.Uis, threshold, nodes)
-	//if err != nil {
-	//return nil, errors.New("Failed to recover commit: " + err.Error())
-	//}
-	//reply.C = req.C
 	log.Lvl3("Decryption success")
 	return reply, nil
 }

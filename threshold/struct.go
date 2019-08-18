@@ -4,16 +4,17 @@ import (
 	"time"
 
 	"github.com/dedis/protean"
+	"github.com/dedis/protean/utils"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/onet/v3"
 )
 
 const ThreshProtoName = "ThreshDecryptProto"
 
-type Ciphertext struct {
-	C1 kyber.Point
-	C2 kyber.Point
-}
+//type Ciphertext struct {
+//C1 kyber.Point
+//C2 kyber.Point
+//}
 
 type InitUnitRequest struct {
 	Roster       *onet.Roster
@@ -36,18 +37,22 @@ type InitDKGReply struct {
 }
 
 type DecryptRequest struct {
-	ID         string
-	Ciphertext *Ciphertext
+	ID string
+	Cs []*utils.ElGamalPair
 }
 
 type DecryptReply struct {
-	DecPt kyber.Point
+	//DecPt kyber.Point
+	Ps []kyber.Point
 }
 
 // Protocol messages
+type Partial struct {
+	Shares []kyber.Point
+}
 
 type PartialRequest struct {
-	Ciphertext *Ciphertext
+	Cs []*utils.ElGamalPair
 }
 
 type structPartialRequest struct {
@@ -56,8 +61,9 @@ type structPartialRequest struct {
 }
 
 type PartialReply struct {
-	Index   int
-	Partial kyber.Point
+	Index  int
+	Shares []kyber.Point
+	//Partial kyber.Point
 }
 
 type structPartialReply struct {

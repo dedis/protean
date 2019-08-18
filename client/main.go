@@ -690,9 +690,14 @@ func testThreshold(roster *onet.Roster) error {
 	var gen [32]byte
 	random.Bytes(gen[:], random.New())
 	keyPair := darc.NewSignerEd25519(nil, nil)
-	mesg := []byte("Robert Glasper Experiment!")
+
+	var mesgs [][]byte
+	mesgs = append(mesgs, []byte("Robert Glasper Experiment!"))
+	mesgs = append(mesgs, []byte("On Wisconsin!"))
+	mesgs = append(mesgs, []byte("Lotus Feet?"))
+
 	// Returns Schnorr signature
-	sig, err := keyPair.Sign(mesg)
+	sig, err := keyPair.Sign(mesgs[0])
 	if err != nil {
 		return fmt.Errorf("Sign failed: %v", err)
 	}
@@ -708,16 +713,23 @@ func testThreshold(roster *onet.Roster) error {
 		return fmt.Errorf("InitDKG error: %v", err)
 	}
 	fmt.Println("Key is", dkgReply.X.String())
-	c1, c2 := utils.ElGamalEncrypt(dkgReply.X, mesg)
-	decReply, err := thresholdCl.Decrypt(sig, c1, c2)
+	cs := make([]*utils.ElGamalPair, len(mesgs))
+	//c1, c2 := utils.ElGamalEncrypt(dkgReply.X, mesg)
+	for _, mesg := range mesgs {
+		cs = append(cs, utils.ElGamalEncrypt(dkgReply.X, mesg))
+	}
+	//decReply, err := thresholdCl.Decrypt(sig, c1, c2)
+	decReply, err := thresholdCl.Decrypt(sig, cs)
 	if err != nil {
 		return fmt.Errorf("Decrypt error: %v", err)
 	}
-	pt, err := decReply.DecPt.Data()
-	if err != nil {
-		return fmt.Errorf("Cannot get plaintext from curve point: %v", err)
+	for _, p := range decReply.Ps {
+		pt, err := p.Data()
+		if err != nil {
+			return fmt.Errorf("Cannot get plaintext from curve point: %v", err)
+		}
+		fmt.Println("Data is:", string(pt))
 	}
-	fmt.Println("Data is:", string(pt))
 
 	//random.Bytes(gen[:], random.New())
 	//kp := darc.NewSignerEd25519(nil, nil)
@@ -752,8 +764,9 @@ func generateReq(n int, msg []byte) ([]easyneff.ElGamalPair, kyber.Point, kyber.
 	for i := range pairs {
 		secret := cothority.Suite.Scalar().Pick(r)
 		public := cothority.Suite.Point().Mul(secret, nil)
-		c1, c2 := utils.ElGamalEncrypt(public, msg)
-		pairs[i] = easyneff.ElGamalPair{C1: c1, C2: c2}
+		//c1, c2 := utils.ElGamalEncrypt(public, msg)
+		c := utils.ElGamalEncrypt(public, msg)
+		pairs[i] = easyneff.ElGamalPair{C1: c.K, C2: c.C}
 	}
 	return pairs, cothority.Suite.Point().Base(), cothority.Suite.Point().Pick(r)
 }
