@@ -1,4 +1,4 @@
-package threshold
+package tdh
 
 import (
 	"encoding/hex"
@@ -12,7 +12,9 @@ import (
 	"go.dedis.ch/cothority/v3/blscosi"
 	dkgprotocol "go.dedis.ch/cothority/v3/dkg/pedersen"
 	"go.dedis.ch/cothority/v3/skipchain"
+	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/share"
+	dkg "go.dedis.ch/kyber/v3/share/dkg/pedersen"
 	"go.dedis.ch/kyber/v3/util/key"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
@@ -21,13 +23,15 @@ import (
 )
 
 var storageKey = []byte("storage")
-var ServiceName = "ThresholdService"
-var thresholdID onet.ServiceID
+var ServiceName = "TDHService"
+var tdhID onet.ServiceID
 
 const propagationTimeout = 20 * time.Second
 
 type storage struct {
 	Shared map[string]*dkgprotocol.SharedSecret
+	Polys  map[string]*pubPoly
+	DKS    map[string]*dkg.DistKeyShare
 	sync.Mutex
 }
 
@@ -43,7 +47,7 @@ type Service struct {
 
 func init() {
 	var err error
-	thresholdID, err = onet.RegisterNewService(ServiceName, newService)
+	tdhID, err = onet.RegisterNewService(ServiceName, newService)
 	log.ErrFatal(err)
 	network.RegisterMessages(&storage{}, &InitUnitRequest{}, &InitUnitReply{},
 		&InitDKGRequest{}, &InitDKGReply{}, &DecryptRequest{},
@@ -108,8 +112,7 @@ func (s *Service) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
 	log.Lvl3("Started DKG-protocol - waiting for done", len(s.roster.List))
 	select {
 	case <-setupDKG.Finished:
-		//shared, dks, err := setupDKG.SharedSecret()
-		shared, _, err := setupDKG.SharedSecret()
+		shared, dks, err := setupDKG.SharedSecret()
 		if err != nil {
 			log.Errorf("SharedSecret call error: %v", err)
 			return nil, err
@@ -119,8 +122,8 @@ func (s *Service) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
 		}
 		s.storage.Lock()
 		s.storage.Shared[req.ID] = shared
-		//s.storage.Polys[req.ID] = &pubPoly{s.Suite().Point().Base(), dks.Commits}
-		//s.storage.DKS[req.ID] = dks
+		s.storage.Polys[req.ID] = &pubPoly{s.Suite().Point().Base(), dks.Commits}
+		s.storage.DKS[req.ID] = dks
 		s.storage.Unlock()
 		err = s.save()
 		if err != nil {
@@ -137,13 +140,13 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 	nodes := len(s.roster.List)
 	threshold := nodes - (nodes-1)/3
 	tree := s.roster.GenerateNaryTreeWithRoot(nodes, s.ServerIdentity())
-	pi, err := s.CreateProtocol(ThreshProtoName, tree)
+	pi, err := s.CreateProtocol(TDHProtoName, tree)
 	if err != nil {
 		return nil, errors.New("failed to create decrypt protocol: " + err.Error())
 	}
-	decProto := pi.(*ThreshDecrypt)
-	log.Info("Ciphertext is:", req.Ciphertext.C1.String(), req.Ciphertext.C2.String())
-	decProto.Ciphertext = req.Ciphertext
+	decProto := pi.(*TDHDecrypt)
+	decProto.U = req.U
+	decProto.Xc = req.Xc
 	encoded, err := hexToBytes(req.ID)
 	if err != nil {
 		log.Errorf("Could not convert string to byte array: %v", err)
@@ -157,13 +160,13 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 
 	s.storage.Lock()
 	decProto.Shared = s.storage.Shared[req.ID]
-	//pp := s.storage.Polys[req.ID]
-	//reply.X = s.storage.Shared[req.ID].X.Clone()
-	//var commits []kyber.Point
-	//for _, c := range pp.Commits {
-	//commits = append(commits, c.Clone())
-	//}
-	//decProto.Poly = share.NewPubPoly(s.Suite(), pp.B.Clone(), commits)
+	pp := s.storage.Polys[req.ID]
+	reply.X = s.storage.Shared[req.ID].X.Clone()
+	var commits []kyber.Point
+	for _, c := range pp.Commits {
+		commits = append(commits, c.Clone())
+	}
+	decProto.Poly = share.NewPubPoly(s.Suite(), pp.B.Clone(), commits)
 	s.storage.Unlock()
 
 	log.Lvl3("Starting decryption protocol")
@@ -175,17 +178,11 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 		return nil, errors.New("Decryption got refused")
 	}
 	log.Lvl3("Decryption protocol is done.")
-
-	shares := make([]*share.PubShare, len(s.roster.List))
-	for i, _ := range decProto.Partials {
-		shares[i] = &share.PubShare{I: i, V: decProto.Partials[i]}
+	reply.XhatEnc, err = share.RecoverCommit(cothority.Suite, decProto.Uis, threshold, nodes)
+	if err != nil {
+		return nil, errors.New("Failed to recover commit: " + err.Error())
 	}
-	reply.DecPt, err = share.RecoverCommit(cothority.Suite, shares, threshold, nodes)
-	//reply.XhatEnc, err = share.RecoverCommit(cothority.Suite, decProto.Uis, threshold, nodes)
-	//if err != nil {
-	//return nil, errors.New("Failed to recover commit: " + err.Error())
-	//}
-	//reply.C = req.C
+	reply.C = req.C
 	log.Lvl3("Decryption success")
 	return reply, nil
 }
@@ -203,8 +200,7 @@ func (s *Service) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConfi
 		setupDKG.KeyPair = s.getKeyPair()
 		go func(id string) {
 			<-setupDKG.Finished
-			//shared, dks, err := setupDKG.SharedSecret()
-			shared, _, err := setupDKG.SharedSecret()
+			shared, dks, err := setupDKG.SharedSecret()
 			if err != nil {
 				log.Error(err)
 				return
@@ -212,7 +208,7 @@ func (s *Service) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConfi
 			log.Lvlf3("%v got shared %v", s.ServerIdentity(), shared)
 			s.storage.Lock()
 			s.storage.Shared[id] = shared
-			//s.storage.DKS[id] = dks
+			s.storage.DKS[id] = dks
 			s.storage.Unlock()
 			err = s.save()
 			if err != nil {
@@ -220,7 +216,7 @@ func (s *Service) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConfi
 			}
 		}(id)
 		return pi, nil
-	case ThreshProtoName:
+	case TDHProtoName:
 		id := hex.EncodeToString(conf.Data)
 		s.storage.Lock()
 		shared, ok := s.storage.Shared[id]
@@ -229,11 +225,11 @@ func (s *Service) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConfi
 		if !ok {
 			return nil, fmt.Errorf("Could not find shared data with id: %v", id)
 		}
-		pi, err := NewThreshDecrypt(tn)
+		pi, err := NewTDHDecrypt(tn)
 		if err != nil {
 			return nil, err
 		}
-		dec := pi.(*ThreshDecrypt)
+		dec := pi.(*TDHDecrypt)
 		dec.Shared = shared
 		return dec, nil
 	}
@@ -268,12 +264,12 @@ func (s *Service) tryLoad() error {
 		if len(s.storage.Shared) == 0 {
 			s.storage.Shared = make(map[string]*dkgprotocol.SharedSecret)
 		}
-		//if len(s.storage.Polys) == 0 {
-		//s.storage.Polys = make(map[string]*pubPoly)
-		//}
-		//if len(s.storage.DKS) == 0 {
-		//s.storage.DKS = make(map[string]*dkg.DistKeyShare)
-		//}
+		if len(s.storage.Polys) == 0 {
+			s.storage.Polys = make(map[string]*pubPoly)
+		}
+		if len(s.storage.DKS) == 0 {
+			s.storage.DKS = make(map[string]*dkg.DistKeyShare)
+		}
 	}()
 	msg, err := s.Load(storageKey)
 	if err != nil {

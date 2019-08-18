@@ -1,4 +1,4 @@
-package protocol
+package tdh
 
 import (
 	"crypto/sha256"
@@ -16,15 +16,15 @@ import (
 )
 
 func init() {
-	_, err := onet.GlobalProtocolRegister(NameDecrypt, NewDecrypt)
+	_, err := onet.GlobalProtocolRegister(TDHProtoName, NewTDHDecrypt)
 	if err != nil {
 		log.Errorf("Cannot register protocol: %v", err)
 		panic(err)
 	}
-	network.RegisterMessages(&PartialDecrypt{}, &PartialDecryptReply{})
+	network.RegisterMessages(&PartialRequest{}, &PartialReply{})
 }
 
-type Decrypt struct {
+type TDHDecrypt struct {
 	*onet.TreeNodeInstance
 	Shared    *dkgprotocol.SharedSecret
 	Poly      *share.PubPoly
@@ -35,13 +35,13 @@ type Decrypt struct {
 	Decrypted chan bool
 	Uis       []*share.PubShare
 	// private fields
-	replies  []PartialDecryptReply
+	replies  []PartialReply
 	timeout  *time.Timer
 	doneOnce sync.Once
 }
 
-func NewDecrypt(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
-	d := &Decrypt{
+func NewTDHDecrypt(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
+	d := &TDHDecrypt{
 		TreeNodeInstance: n,
 		Decrypted:        make(chan bool, 1),
 		Threshold:        len(n.Roster().List) - (len(n.Roster().List)-1)/3,
@@ -53,7 +53,7 @@ func NewDecrypt(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
 	return d, nil
 }
 
-func (d *Decrypt) Start() error {
+func (d *TDHDecrypt) Start() error {
 	log.Lvl3("Starting Protocol")
 	if d.Shared == nil {
 		d.finish(false)
@@ -63,7 +63,7 @@ func (d *Decrypt) Start() error {
 		d.finish(false)
 		return errors.New("Initialize U first")
 	}
-	pd := &PartialDecrypt{
+	pd := &PartialRequest{
 		U:  d.U,
 		Xc: d.Xc,
 	}
@@ -77,7 +77,7 @@ func (d *Decrypt) Start() error {
 	//}
 	//}
 	d.timeout = time.AfterFunc(1*time.Minute, func() {
-		log.Lvl1("Decrypt protocol timeout")
+		log.Lvl1("TDHDecrypt protocol timeout")
 		d.finish(false)
 	})
 	errs := d.Broadcast(pd)
@@ -88,12 +88,11 @@ func (d *Decrypt) Start() error {
 	return nil
 }
 
-func (d *Decrypt) decrypt(r structPartialDecrypt) error {
+func (d *TDHDecrypt) decrypt(r structPartialRequest) error {
 	log.Lvl3(d.Name() + ": starting decrypt")
 	defer d.Done()
 
 	ui, err := d.getUI(r.U, r.Xc)
-	//ui, err := d.getUI(r.U)
 	if err != nil {
 		return nil
 	}
@@ -120,7 +119,7 @@ func (d *Decrypt) decrypt(r structPartialDecrypt) error {
 	hiHat.MarshalTo(hash)
 	ei := cothority.Suite.Scalar().SetBytes(hash.Sum(nil))
 
-	return d.SendToParent(&PartialDecryptReply{
+	return d.SendToParent(&PartialReply{
 		Ui: ui,
 		Ei: ei,
 		Fi: cothority.Suite.Scalar().Add(si, cothority.Suite.Scalar().Mul(ei, d.Shared.V)),
@@ -129,8 +128,8 @@ func (d *Decrypt) decrypt(r structPartialDecrypt) error {
 
 // reencryptReply is the root-node waiting for all replies and generating
 // the reencryption key.
-func (d *Decrypt) decryptReply(pdr structPartialDecryptReply) error {
-	if pdr.PartialDecryptReply.Ui == nil {
+func (d *TDHDecrypt) decryptReply(pdr structPartialReply) error {
+	if pdr.PartialReply.Ui == nil {
 		log.Lvl2("Node", pdr.ServerIdentity, "refused to reply")
 		d.Failures++
 		if d.Failures > len(d.Roster().List)-d.Threshold {
@@ -139,18 +138,16 @@ func (d *Decrypt) decryptReply(pdr structPartialDecryptReply) error {
 		}
 		return nil
 	}
-	d.replies = append(d.replies, pdr.PartialDecryptReply)
+	d.replies = append(d.replies, pdr.PartialReply)
 
 	// minus one to exclude the root
 	if len(d.replies) >= int(d.Threshold-1) {
 		d.Uis = make([]*share.PubShare, len(d.List()))
 		var err error
 		d.Uis[0], err = d.getUI(d.U, d.Xc)
-		//d.Uis[0], err = d.getUI(d.U)
 		if err != nil {
 			return err
 		}
-
 		for _, r := range d.replies {
 			// Verify proofs
 			var ufi kyber.Point
@@ -161,7 +158,6 @@ func (d *Decrypt) decryptReply(pdr structPartialDecryptReply) error {
 			}
 			uiei := cothority.Suite.Point().Mul(cothority.Suite.Scalar().Neg(r.Ei), r.Ui.V)
 			uiHat := cothority.Suite.Point().Add(ufi, uiei)
-
 			gfi := cothority.Suite.Point().Mul(r.Fi, nil)
 			gxi := d.Poly.Eval(r.Ui.I).V
 			hiei := cothority.Suite.Point().Mul(cothority.Suite.Scalar().Neg(r.Ei), gxi)
@@ -179,18 +175,16 @@ func (d *Decrypt) decryptReply(pdr structPartialDecryptReply) error {
 		}
 		d.finish(true)
 	}
-
 	// If we are leaving by here it means that we do not have
 	// enough replies yet. We must eventually trigger a finish()
 	// somehow. It will either happen because we get another
 	// reply, and now we have enough, or because we get enough
 	// failures and know to give up, or because d.timeout triggers
 	// and calls finish(false) in it's callback function.
-
 	return nil
 }
 
-func (d *Decrypt) getUI(U, Xc kyber.Point) (*share.PubShare, error) {
+func (d *TDHDecrypt) getUI(U, Xc kyber.Point) (*share.PubShare, error) {
 	v := cothority.Suite.Point().Mul(d.Shared.V, U)
 	if Xc != nil {
 		v.Add(v, cothority.Suite.Point().Mul(d.Shared.V, Xc))
@@ -198,16 +192,11 @@ func (d *Decrypt) getUI(U, Xc kyber.Point) (*share.PubShare, error) {
 	return &share.PubShare{I: d.Shared.Index, V: v}, nil
 }
 
-//func (d *Decrypt) getUI(U kyber.Point) (*share.PubShare, error) {
-//v := cothority.Suite.Point().Mul(d.Shared.V, U)
-//return &share.PubShare{I: d.Shared.Index, V: v}, nil
-//}
-
-func (d *Decrypt) finish(result bool) {
+func (d *TDHDecrypt) finish(result bool) {
 	d.timeout.Stop()
 	select {
 	case d.Decrypted <- result:
-		// suceeded
+		// succeeded
 	default:
 		// would have blocked because some other call to finish()
 		// beat us.

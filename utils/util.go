@@ -14,6 +14,7 @@ import (
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/pairing"
 	"go.dedis.ch/kyber/v3/util/encoding"
+	"go.dedis.ch/kyber/v3/util/random"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/app"
 	"go.dedis.ch/onet/v3/log"
@@ -22,6 +23,28 @@ import (
 )
 
 var ps = pairing.NewSuiteBn256()
+
+// Encrypt performs the ElGamal encryption algorithm.
+func ElGamalEncrypt(public kyber.Point, message []byte) (K, C kyber.Point) {
+	if len(message) > cothority.Suite.Point().EmbedLen() {
+		panic("message size is too long")
+	}
+	M := cothority.Suite.Point().Embed(message, random.New())
+
+	// ElGamal-encrypt the point to produce ciphertext (K,C).
+	k := cothority.Suite.Scalar().Pick(random.New()) // ephemeral private key
+	K = cothority.Suite.Point().Mul(k, nil)          // ephemeral DH public key
+	S := cothority.Suite.Point().Mul(k, public)      // ephemeral DH shared secret
+	C = S.Add(S, M)                                  // message blinded with secret
+	return
+}
+
+// Decrypt performs the ElGamal decryption algorithm.
+func ElGamalDecrypt(private kyber.Scalar, K, C kyber.Point) kyber.Point {
+	// ElGamal-decrypt the ciphertext (K,C) to reproduce the message.
+	S := cothority.Suite.Point().Mul(private, K) // regenerate shared secret
+	return cothority.Suite.Point().Sub(C, S)     // use to un-blind the message
+}
 
 func BlsCosiSign(s *blscosi.Service, r *onet.Roster, data []byte) (network.Message, error) {
 	h := sha256.New()

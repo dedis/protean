@@ -13,6 +13,7 @@ import (
 	"github.com/dedis/protean/easyneff"
 	"github.com/dedis/protean/pristore"
 	"github.com/dedis/protean/state"
+	"github.com/dedis/protean/tdh"
 	"github.com/dedis/protean/threshold"
 
 	//"github.com/dedis/protean/dummy"
@@ -596,8 +597,83 @@ func testShuffle(roster *onet.Roster) error {
 	return nil
 }
 
-func testThresh(roster *onet.Roster) error {
-	thCl := threshold.NewClient()
+func testTDH(roster *onet.Roster) error {
+	tdhCl := tdh.NewClient()
+	scData := &protean.ScInitData{
+		MHeight: 2,
+		BHeight: 2,
+	}
+	uData := &protean.BaseStorage{
+		UInfo: &protean.UnitInfo{
+			UnitID:   "tdh",
+			UnitName: "tdhUnit",
+			Txns:     map[string]string{"a": "b", "c": "d"},
+		},
+		CompKeys: roster.ServicePublics(tdh.ServiceName),
+	}
+
+	var gen [32]byte
+	random.Bytes(gen[:], random.New())
+	keyPair := darc.NewSignerEd25519(nil, nil)
+	mesg := []byte("Go Badgers! On Wisconsin!")
+	// Returns Schnorr signature
+	sig, err := keyPair.Sign(mesg)
+	if err != nil {
+		return fmt.Errorf("Sign failed: %v", err)
+	}
+	fmt.Println("Signature:", sig)
+	fmt.Println("Length:", len(sig))
+
+	_, err = tdhCl.InitUnit(roster, scData, uData, 10, time.Second)
+	if err != nil {
+		return fmt.Errorf("InitUnit error: %v", err)
+	}
+	dkgReply, err := tdhCl.InitDKG(sig)
+	if err != nil {
+		return fmt.Errorf("InitDKG error: %v", err)
+	}
+	fmt.Println("Key is", dkgReply.X.String())
+	ctext := tdhCl.Encrypt(cothority.Suite, gen[:], dkgReply.X, mesg)
+	fmt.Println("Ciphertext is:", ctext)
+	decReply, err := tdhCl.Decrypt(sig, ctext.C, ctext.U, keyPair.Ed25519.Point)
+	if err != nil {
+		return fmt.Errorf("Decrypt error: %v", err)
+	}
+	data, err := tdhCl.RecoverPlaintext(decReply, keyPair.Ed25519.Secret)
+	if err != nil {
+		return fmt.Errorf("Data error: %v", err)
+	}
+	fmt.Println("Data is:", string(data))
+
+	random.Bytes(gen[:], random.New())
+	kp := darc.NewSignerEd25519(nil, nil)
+	mesg = []byte("Peanut butter jelly time!")
+	// Returns Schnorr signature
+	sig2, err := kp.Sign(mesg)
+	if err != nil {
+		return fmt.Errorf("Sign failed: %v", err)
+	}
+	dkgReply, err = tdhCl.InitDKG(sig2)
+	if err != nil {
+		return fmt.Errorf("InitDKG error: %v", err)
+	}
+	fmt.Println("Key is", dkgReply.X.String())
+	ctext = tdhCl.Encrypt(cothority.Suite, gen[:], dkgReply.X, mesg)
+	fmt.Println("Ciphertext is:", ctext)
+	decReply, err = tdhCl.Decrypt(sig, ctext.C, ctext.U, kp.Ed25519.Point)
+	if err != nil {
+		return fmt.Errorf("Decrypt error: %v", err)
+	}
+	data, err = tdhCl.RecoverPlaintext(decReply, kp.Ed25519.Secret)
+	if err != nil {
+		return fmt.Errorf("Data error: %v", err)
+	}
+	fmt.Println("Data is:", string(data))
+	return nil
+}
+
+func testThreshold(roster *onet.Roster) error {
+	thresholdCl := threshold.NewClient()
 	scData := &protean.ScInitData{
 		MHeight: 2,
 		BHeight: 2,
@@ -614,7 +690,7 @@ func testThresh(roster *onet.Roster) error {
 	var gen [32]byte
 	random.Bytes(gen[:], random.New())
 	keyPair := darc.NewSignerEd25519(nil, nil)
-	mesg := []byte("Go Badgers! On Wisconsin!")
+	mesg := []byte("Robert Glasper Experiment!")
 	// Returns Schnorr signature
 	sig, err := keyPair.Sign(mesg)
 	if err != nil {
@@ -623,51 +699,50 @@ func testThresh(roster *onet.Roster) error {
 	fmt.Println("Signature:", sig)
 	fmt.Println("Length:", len(sig))
 
-	_, err = thCl.InitUnit(roster, scData, uData, 10, time.Second)
+	_, err = thresholdCl.InitUnit(roster, scData, uData, 10, time.Second)
 	if err != nil {
 		return fmt.Errorf("InitUnit error: %v", err)
 	}
-	dkgReply, err := thCl.InitDKG(sig)
+	dkgReply, err := thresholdCl.InitDKG(sig)
 	if err != nil {
 		return fmt.Errorf("InitDKG error: %v", err)
 	}
 	fmt.Println("Key is", dkgReply.X.String())
-	ctext := thCl.Encrypt(cothority.Suite, gen[:], dkgReply.X, mesg)
-	fmt.Println("Ciphertext is:", ctext)
-	decReply, err := thCl.Decrypt(sig, ctext.C, ctext.U, keyPair.Ed25519.Point)
+	c1, c2 := utils.ElGamalEncrypt(dkgReply.X, mesg)
+	decReply, err := thresholdCl.Decrypt(sig, c1, c2)
 	if err != nil {
 		return fmt.Errorf("Decrypt error: %v", err)
 	}
-	data, err := thCl.RecoverPlaintext(decReply, keyPair.Ed25519.Secret)
+	pt, err := decReply.DecPt.Data()
 	if err != nil {
-		return fmt.Errorf("Data error: %v", err)
+		return fmt.Errorf("Cannot get plaintext from curve point: %v", err)
 	}
-	fmt.Println("Data is:", string(data))
+	fmt.Println("Data is:", string(pt))
 
-	random.Bytes(gen[:], random.New())
-	kp := darc.NewSignerEd25519(nil, nil)
-	mesg = []byte("Peanut butter jelly time!")
-	// Returns Schnorr signature
-	sig2, err := kp.Sign(mesg)
-	if err != nil {
-		return fmt.Errorf("Sign failed: %v", err)
-	}
-	dkgReply, err = thCl.InitDKG(sig2)
-	if err != nil {
-		return fmt.Errorf("InitDKG error: %v", err)
-	}
-	fmt.Println("Key is", dkgReply.X.String())
-	ctext = thCl.Encrypt(cothority.Suite, gen[:], dkgReply.X, mesg)
-	fmt.Println("Ciphertext is:", ctext)
-	decReply, err = thCl.Decrypt(sig, ctext.C, ctext.U, kp.Ed25519.Point)
-	if err != nil {
-		return fmt.Errorf("Decrypt error: %v", err)
-	}
-	data, err = thCl.RecoverPlaintext(decReply, kp.Ed25519.Secret)
-	if err != nil {
-		return fmt.Errorf("Data error: %v", err)
-	}
-	fmt.Println("Data is:", string(data))
+	//random.Bytes(gen[:], random.New())
+	//kp := darc.NewSignerEd25519(nil, nil)
+	//mesg = []byte("Peanut butter jelly time!")
+	//// Returns Schnorr signature
+	//sig2, err := kp.Sign(mesg)
+	//if err != nil {
+	//return fmt.Errorf("Sign failed: %v", err)
+	//}
+	//dkgReply, err = thresholdCl.InitDKG(sig2)
+	//if err != nil {
+	//return fmt.Errorf("InitDKG error: %v", err)
+	//}
+	//fmt.Println("Key is", dkgReply.X.String())
+	//ctext = thresholdCl.Encrypt(cothority.Suite, gen[:], dkgReply.X, mesg)
+	//fmt.Println("Ciphertext is:", ctext)
+	//decReply, err = thresholdCl.Decrypt(sig, ctext.C, ctext.U, kp.Ed25519.Point)
+	//if err != nil {
+	//return fmt.Errorf("Decrypt error: %v", err)
+	//}
+	//data, err = thresholdCl.RecoverPlaintext(decReply, kp.Ed25519.Secret)
+	//if err != nil {
+	//return fmt.Errorf("Data error: %v", err)
+	//}
+	//fmt.Println("Data is:", string(data))
 	return nil
 }
 
@@ -677,7 +752,7 @@ func generateReq(n int, msg []byte) ([]easyneff.ElGamalPair, kyber.Point, kyber.
 	for i := range pairs {
 		secret := cothority.Suite.Scalar().Pick(r)
 		public := cothority.Suite.Point().Mul(secret, nil)
-		c1, c2 := easyneff.Encrypt(public, msg)
+		c1, c2 := utils.ElGamalEncrypt(public, msg)
 		pairs[i] = easyneff.ElGamalPair{C1: c1, C2: c2}
 	}
 	return pairs, cothority.Suite.Point().Base(), cothority.Suite.Point().Pick(r)
@@ -710,7 +785,11 @@ func main() {
 		//err := test(roster)
 		//err := testPrivstore(roster)
 		//err := testShuffle(roster)
-		err := testThresh(roster)
-		fmt.Println(err)
+		//err := testTDH(roster)
+		err := testThreshold(roster)
+		//err := testSigver(roster)
+		if err != nil {
+			fmt.Println(err)
+		}
 	}
 }

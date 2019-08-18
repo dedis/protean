@@ -1,18 +1,27 @@
-package threshold
+package tdh
 
 import (
 	"time"
 
-	"github.com/dedis/protean"
+	protean "github.com/dedis/protean"
 	"go.dedis.ch/kyber/v3"
+	"go.dedis.ch/kyber/v3/share"
 	"go.dedis.ch/onet/v3"
 )
 
-const ThreshProtoName = "ThreshDecryptProto"
+const TDHProtoName = "THDDecryptProto"
+
+type pubPoly struct {
+	B       kyber.Point
+	Commits []kyber.Point
+}
 
 type Ciphertext struct {
-	C1 kyber.Point
-	C2 kyber.Point
+	U    kyber.Point
+	Ubar kyber.Point
+	E    kyber.Scalar
+	F    kyber.Scalar
+	C    kyber.Point
 }
 
 type InitUnitRequest struct {
@@ -36,18 +45,31 @@ type InitDKGReply struct {
 }
 
 type DecryptRequest struct {
-	ID         string
-	Ciphertext *Ciphertext
+	ID string
+	C  kyber.Point
+	U  kyber.Point
+	Xc kyber.Point
+	//New fields
+	Ubar kyber.Point
+	E    kyber.Scalar
+	F    kyber.Scalar
 }
 
 type DecryptReply struct {
-	DecPt kyber.Point
+	C       kyber.Point
+	X       kyber.Point
+	XhatEnc kyber.Point
 }
 
 // Protocol messages
 
 type PartialRequest struct {
-	Ciphertext *Ciphertext
+	U  kyber.Point
+	Xc kyber.Point // optional
+	// New fields
+	Ubar kyber.Point
+	E    kyber.Scalar
+	F    kyber.Scalar
 }
 
 type structPartialRequest struct {
@@ -56,8 +78,9 @@ type structPartialRequest struct {
 }
 
 type PartialReply struct {
-	Index   int
-	Partial kyber.Point
+	Ui *share.PubShare
+	Ei kyber.Scalar
+	Fi kyber.Scalar
 }
 
 type structPartialReply struct {
