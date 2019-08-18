@@ -1,2 +1,2 @@
-# Add decryption proofs to *threshold*
-# Figure out how to terminate *TDH* and *threshold* without waiting for the protocol timeout when decryption is unsuccessful
+- Add decryption proofs to *threshold*
+- Figure out how to terminate *TDH* and *threshold* without waiting for the protocol timeout when decryption is unsuccessful
