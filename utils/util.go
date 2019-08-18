@@ -29,8 +29,7 @@ type ElGamalPair struct {
 	C kyber.Point // C2
 }
 
-// Encrypt performs the ElGamal encryption algorithm.
-//func ElGamalEncrypt(public kyber.Point, message []byte) (K, C kyber.Point) {
+// ElGamalEncrypt performs the ElGamal encryption algorithm.
 func ElGamalEncrypt(public kyber.Point, message []byte) *ElGamalPair {
 	if len(message) > cothority.Suite.Point().EmbedLen() {
 		panic("message size is too long")
@@ -40,18 +39,14 @@ func ElGamalEncrypt(public kyber.Point, message []byte) *ElGamalPair {
 	// ElGamal-encrypt the point to produce ciphertext (K,C).
 	egp := &ElGamalPair{}
 	k := cothority.Suite.Scalar().Pick(random.New()) // ephemeral private key
-	//K = cothority.Suite.Point().Mul(k, nil)          // ephemeral DH public key
-	egp.K = cothority.Suite.Point().Mul(k, nil) // ephemeral DH public key
-	S := cothority.Suite.Point().Mul(k, public) // ephemeral DH shared secret
-	//C = S.Add(S, M)                              // message blinded with secret
-	egp.C = S.Add(S, M) // message blinded with secret
+	S := cothority.Suite.Point().Mul(k, public)      // ephemeral DH shared secret
+	egp.K = cothority.Suite.Point().Mul(k, nil)      // ephemeral DH public key
+	egp.C = S.Add(S, M)                              // message blinded with secret
 	return egp
 }
 
-// Decrypt performs the ElGamal decryption algorithm.
-//func ElGamalDecrypt(private kyber.Scalar, K, C kyber.Point) kyber.Point {
+// ElGamalDecrypt performs the ElGamal decryption algorithm.
 func ElGamalDecrypt(private kyber.Scalar, egp *ElGamalPair) kyber.Point {
-	// ElGamal-decrypt the ciphertext (K,C) to reproduce the message.
 	S := cothority.Suite.Point().Mul(private, egp.K) // regenerate shared secret
 	return cothority.Suite.Point().Sub(egp.C, S)     // use to un-blind the message
 }

@@ -3,6 +3,7 @@ package tdh
 import (
 	"crypto/sha256"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	dkgprotocol "go.dedis.ch/cothority/v3/dkg/pedersen"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/share"
+	"go.dedis.ch/kyber/v3/xof/keccak"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/onet/v3/network"
@@ -26,10 +28,12 @@ func init() {
 
 type TDHDecrypt struct {
 	*onet.TreeNodeInstance
-	Shared    *dkgprotocol.SharedSecret
-	Poly      *share.PubPoly
-	U         kyber.Point
+	Shared *dkgprotocol.SharedSecret
+	Poly   *share.PubPoly
+	//U         kyber.Point
+	Ct        *Ciphertext
 	Xc        kyber.Point
+	Gen       []byte
 	Threshold int
 	Failures  int
 	Decrypted chan bool
@@ -59,13 +63,16 @@ func (d *TDHDecrypt) Start() error {
 		d.finish(false)
 		return errors.New("Initialize Shared first")
 	}
-	if d.U == nil {
+	//if d.U == nil {
+	if d.Ct.U == nil {
 		d.finish(false)
 		return errors.New("Initialize U first")
 	}
 	pd := &PartialRequest{
-		U:  d.U,
-		Xc: d.Xc,
+		//U:   d.U,
+		Ct:  d.Ct,
+		Xc:  d.Xc,
+		Gen: d.Gen,
 	}
 	d.timeout = time.AfterFunc(1*time.Minute, func() {
 		log.Lvl1("TDHDecrypt protocol timeout")
@@ -83,7 +90,13 @@ func (d *TDHDecrypt) decrypt(r structPartialRequest) error {
 	log.Lvl3(d.Name() + ": starting decrypt")
 	defer d.Done()
 
-	ui, err := d.getUI(r.U, r.Xc)
+	err := r.Ct.checkEncProof(r.Gen)
+	if err != nil {
+		return err
+	}
+	log.Info(d.Name() + " verified encryption proof")
+	//ui, err := d.getUI(r.U, r.Xc)
+	ui, err := d.getUI(r.Ct.U, r.Xc)
 	if err != nil {
 		return nil
 	}
@@ -92,9 +105,11 @@ func (d *TDHDecrypt) decrypt(r structPartialRequest) error {
 	var uiHat kyber.Point
 	si := cothority.Suite.Scalar().Pick(d.Suite().RandomStream())
 	if r.Xc == nil {
-		uiHat = cothority.Suite.Point().Mul(si, r.U)
+		//uiHat = cothority.Suite.Point().Mul(si, r.U)
+		uiHat = cothority.Suite.Point().Mul(si, r.Ct.U)
 	} else {
-		uiHat = cothority.Suite.Point().Mul(si, cothority.Suite.Point().Add(r.U, r.Xc))
+		//uiHat = cothority.Suite.Point().Mul(si, cothority.Suite.Point().Add(r.U, r.Xc))
+		uiHat = cothority.Suite.Point().Mul(si, cothority.Suite.Point().Add(r.Ct.U, r.Xc))
 	}
 	hiHat := cothority.Suite.Point().Mul(si, nil)
 	hash := sha256.New()
@@ -113,6 +128,7 @@ func (d *TDHDecrypt) decrypt(r structPartialRequest) error {
 // decryptReply is the root-node waiting for all replies and generating
 // the decrypted message
 func (d *TDHDecrypt) decryptReply(pdr structPartialReply) error {
+	var err error
 	if pdr.PartialReply.Ui == nil {
 		log.Lvl2("Node", pdr.ServerIdentity, "refused to reply")
 		d.Failures++
@@ -126,9 +142,14 @@ func (d *TDHDecrypt) decryptReply(pdr structPartialReply) error {
 
 	// minus one to exclude the root
 	if len(d.replies) >= int(d.Threshold-1) {
+		err = d.Ct.checkEncProof(d.Gen)
+		if err != nil {
+			return err
+		}
+		log.Info(d.Name() + " verified encryption proof")
 		d.Uis = make([]*share.PubShare, len(d.List()))
-		var err error
-		d.Uis[0], err = d.getUI(d.U, d.Xc)
+		//d.Uis[0], err = d.getUI(d.U, d.Xc)
+		d.Uis[0], err = d.getUI(d.Ct.U, d.Xc)
 		if err != nil {
 			return err
 		}
@@ -136,9 +157,11 @@ func (d *TDHDecrypt) decryptReply(pdr structPartialReply) error {
 			// Verify proofs
 			var ufi kyber.Point
 			if d.Xc == nil {
-				ufi = cothority.Suite.Point().Mul(r.Fi, d.U)
+				//ufi = cothority.Suite.Point().Mul(r.Fi, d.U)
+				ufi = cothority.Suite.Point().Mul(r.Fi, d.Ct.U)
 			} else {
-				ufi = cothority.Suite.Point().Mul(r.Fi, cothority.Suite.Point().Add(d.U, d.Xc))
+				//ufi = cothority.Suite.Point().Mul(r.Fi, cothority.Suite.Point().Add(d.U, d.Xc))
+				ufi = cothority.Suite.Point().Mul(r.Fi, cothority.Suite.Point().Add(d.Ct.U, d.Xc))
 			}
 			uiei := cothority.Suite.Point().Mul(cothority.Suite.Scalar().Neg(r.Ei), r.Ui.V)
 			uiHat := cothority.Suite.Point().Add(ufi, uiei)
@@ -168,14 +191,6 @@ func (d *TDHDecrypt) decryptReply(pdr structPartialReply) error {
 	return nil
 }
 
-func (d *TDHDecrypt) getUI(U, Xc kyber.Point) (*share.PubShare, error) {
-	v := cothority.Suite.Point().Mul(d.Shared.V, U)
-	if Xc != nil {
-		v.Add(v, cothority.Suite.Point().Mul(d.Shared.V, Xc))
-	}
-	return &share.PubShare{I: d.Shared.Index, V: v}, nil
-}
-
 func (d *TDHDecrypt) finish(result bool) {
 	d.timeout.Stop()
 	select {
@@ -186,4 +201,37 @@ func (d *TDHDecrypt) finish(result bool) {
 		// beat us.
 	}
 	d.doneOnce.Do(func() { d.Done() })
+}
+
+func (d *TDHDecrypt) getUI(U, Xc kyber.Point) (*share.PubShare, error) {
+	v := cothority.Suite.Point().Mul(d.Shared.V, U)
+	if Xc != nil {
+		v.Add(v, cothority.Suite.Point().Mul(d.Shared.V, Xc))
+	}
+	return &share.PubShare{I: d.Shared.Index, V: v}, nil
+}
+
+func (ct *Ciphertext) checkEncProof(gen []byte) error {
+	gf := cothority.Suite.Point().Mul(ct.F, nil)
+	ue := cothority.Suite.Point().Mul(cothority.Suite.Scalar().Neg(ct.E), ct.U)
+	w := cothority.Suite.Point().Add(gf, ue)
+
+	gBar := cothority.Suite.Point().Embed(gen, keccak.New(gen))
+	gfBar := cothority.Suite.Point().Mul(ct.F, gBar)
+	ueBar := cothority.Suite.Point().Mul(cothority.Suite.Scalar().Neg(ct.E), ct.Ubar)
+	wBar := cothority.Suite.Point().Add(gfBar, ueBar)
+
+	hash := sha256.New()
+	ct.C.MarshalTo(hash)
+	ct.U.MarshalTo(hash)
+	ct.Ubar.MarshalTo(hash)
+	w.MarshalTo(hash)
+	wBar.MarshalTo(hash)
+
+	e := cothority.Suite.Scalar().SetBytes(hash.Sum(nil))
+	if e.Equal(ct.E) {
+		return nil
+	}
+	return fmt.Errorf("Cannot verify the encryption proof:\n"+"%s\n%s",
+		e.String(), ct.E.String())
 }

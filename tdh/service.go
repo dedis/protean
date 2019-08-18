@@ -145,8 +145,10 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 		return nil, errors.New("failed to create decrypt protocol: " + err.Error())
 	}
 	decProto := pi.(*TDHDecrypt)
-	decProto.U = req.U
+	//decProto.U = req.U
+	decProto.Ct = req.Ct
 	decProto.Xc = req.Xc
+	decProto.Gen = req.Gen
 	encoded, err := hexToBytes(req.ID)
 	if err != nil {
 		log.Errorf("Could not convert string to byte array: %v", err)
@@ -182,7 +184,8 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 	if err != nil {
 		return nil, errors.New("Failed to recover commit: " + err.Error())
 	}
-	reply.C = req.C
+	//reply.C = req.C
+	reply.C = req.Ct.C
 	log.Lvl3("Decryption success")
 	return reply, nil
 }

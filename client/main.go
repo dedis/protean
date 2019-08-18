@@ -612,8 +612,8 @@ func testTDH(roster *onet.Roster) error {
 		CompKeys: roster.ServicePublics(tdh.ServiceName),
 	}
 
-	var gen [32]byte
-	random.Bytes(gen[:], random.New())
+	gen := make([]byte, 32)
+	random.Bytes(gen, random.New())
 	keyPair := darc.NewSignerEd25519(nil, nil)
 	mesg := []byte("Go Badgers! On Wisconsin!")
 	// Returns Schnorr signature
@@ -621,8 +621,8 @@ func testTDH(roster *onet.Roster) error {
 	if err != nil {
 		return fmt.Errorf("Sign failed: %v", err)
 	}
-	fmt.Println("Signature:", sig)
-	fmt.Println("Length:", len(sig))
+	//fmt.Println("Signature:", sig)
+	//fmt.Println("Length:", len(sig))
 
 	_, err = tdhCl.InitUnit(roster, scData, uData, 10, time.Second)
 	if err != nil {
@@ -633,9 +633,9 @@ func testTDH(roster *onet.Roster) error {
 		return fmt.Errorf("InitDKG error: %v", err)
 	}
 	fmt.Println("Key is", dkgReply.X.String())
-	ctext := tdhCl.Encrypt(cothority.Suite, gen[:], dkgReply.X, mesg)
-	fmt.Println("Ciphertext is:", ctext)
-	decReply, err := tdhCl.Decrypt(sig, ctext.C, ctext.U, keyPair.Ed25519.Point)
+	ctext := tdhCl.Encrypt(cothority.Suite, gen, dkgReply.X, mesg)
+	//decReply, err := tdhCl.Decrypt(sig, gen[:], ctext.C, ctext.U, keyPair.Ed25519.Point)
+	decReply, err := tdhCl.Decrypt(sig, gen, ctext, keyPair.Ed25519.Point)
 	if err != nil {
 		return fmt.Errorf("Decrypt error: %v", err)
 	}
@@ -645,7 +645,8 @@ func testTDH(roster *onet.Roster) error {
 	}
 	fmt.Println("Data is:", string(data))
 
-	random.Bytes(gen[:], random.New())
+	///// Failing decryption test
+
 	kp := darc.NewSignerEd25519(nil, nil)
 	mesg = []byte("Peanut butter jelly time!")
 	// Returns Schnorr signature
@@ -658,9 +659,10 @@ func testTDH(roster *onet.Roster) error {
 		return fmt.Errorf("InitDKG error: %v", err)
 	}
 	fmt.Println("Key is", dkgReply.X.String())
-	ctext = tdhCl.Encrypt(cothority.Suite, gen[:], dkgReply.X, mesg)
-	fmt.Println("Ciphertext is:", ctext)
-	decReply, err = tdhCl.Decrypt(sig, ctext.C, ctext.U, kp.Ed25519.Point)
+	ctext = tdhCl.Encrypt(cothority.Suite, gen, dkgReply.X, mesg)
+	//decReply, err = tdhCl.Decrypt(sig, gen[:], ctext.C, ctext.U, kp.Ed25519.Point)
+	random.Bytes(gen, random.New())
+	decReply, err = tdhCl.Decrypt(sig2, gen, ctext, kp.Ed25519.Point)
 	if err != nil {
 		return fmt.Errorf("Decrypt error: %v", err)
 	}
@@ -687,8 +689,8 @@ func testThreshold(roster *onet.Roster) error {
 		CompKeys: roster.ServicePublics(threshold.ServiceName),
 	}
 
-	var gen [32]byte
-	random.Bytes(gen[:], random.New())
+	gen := make([]byte, 32)
+	random.Bytes(gen, random.New())
 	keyPair := darc.NewSignerEd25519(nil, nil)
 
 	var mesgs [][]byte
@@ -701,8 +703,8 @@ func testThreshold(roster *onet.Roster) error {
 	if err != nil {
 		return fmt.Errorf("Sign failed: %v", err)
 	}
-	fmt.Println("Signature:", sig)
-	fmt.Println("Length:", len(sig))
+	//fmt.Println("Signature:", sig)
+	//fmt.Println("Length:", len(sig))
 
 	_, err = thresholdCl.InitUnit(roster, scData, uData, 10, time.Second)
 	if err != nil {
@@ -712,7 +714,7 @@ func testThreshold(roster *onet.Roster) error {
 	if err != nil {
 		return fmt.Errorf("InitDKG error: %v", err)
 	}
-	fmt.Println("Key is", dkgReply.X.String())
+	//fmt.Println("Key is", dkgReply.X.String())
 	cs := make([]*utils.ElGamalPair, len(mesgs))
 	//c1, c2 := utils.ElGamalEncrypt(dkgReply.X, mesg)
 	for _, mesg := range mesgs {
@@ -798,8 +800,8 @@ func main() {
 		//err := test(roster)
 		//err := testPrivstore(roster)
 		//err := testShuffle(roster)
-		//err := testTDH(roster)
-		err := testThreshold(roster)
+		err := testTDH(roster)
+		//err := testThreshold(roster)
 		//err := testSigver(roster)
 		if err != nil {
 			fmt.Println(err)

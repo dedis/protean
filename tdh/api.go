@@ -47,13 +47,16 @@ func (c *Client) InitDKG(id []byte) (*InitDKGReply, error) {
 	return reply, err
 }
 
-func (c *Client) Decrypt(id []byte, cP kyber.Point, u kyber.Point, xc kyber.Point) (*DecryptReply, error) {
+//func (c *Client) Decrypt(id []byte, gen []byte, cP kyber.Point, u kyber.Point, xc kyber.Point) (*DecryptReply, error) {
+func (c *Client) Decrypt(id []byte, gen []byte, ct *Ciphertext, xc kyber.Point) (*DecryptReply, error) {
 	hexID := hex.EncodeToString(id)
 	req := &DecryptRequest{
-		ID: hexID,
-		C:  cP,
-		U:  u,
-		Xc: xc,
+		ID:  hexID,
+		Gen: gen,
+		Ct:  ct,
+		Xc:  xc,
+		//C:   cP,
+		//U:   u,
 	}
 	reply := &DecryptReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)

@@ -45,14 +45,12 @@ type InitDKGReply struct {
 }
 
 type DecryptRequest struct {
-	ID string
-	C  kyber.Point
-	U  kyber.Point
-	Xc kyber.Point
-	//New fields
-	//Ubar kyber.Point
-	//E    kyber.Scalar
-	//F    kyber.Scalar
+	ID  string
+	Gen []byte
+	Ct  *Ciphertext
+	Xc  kyber.Point
+	//C   kyber.Point
+	//U   kyber.Point
 }
 
 type DecryptReply struct {
@@ -64,12 +62,10 @@ type DecryptReply struct {
 // Protocol messages
 
 type PartialRequest struct {
-	U  kyber.Point
-	Xc kyber.Point // optional
-	// New fields
-	//Ubar kyber.Point
-	//E    kyber.Scalar
-	//F    kyber.Scalar
+	//U   kyber.Point
+	Ct  *Ciphertext
+	Xc  kyber.Point // optional
+	Gen []byte
 }
 
 type structPartialRequest struct {

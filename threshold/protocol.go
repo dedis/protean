@@ -80,7 +80,6 @@ func (d *ThreshDecrypt) decrypt(r structPartialRequest) error {
 	log.Lvl3(d.Name() + ": starting decrypt")
 	defer d.Done()
 
-	//var shares []kyber.Point
 	shares := make([]kyber.Point, len(r.Cs))
 	for i, c := range r.Cs {
 		shares[i] = utils.ElGamalDecrypt(d.Shared.V, c)
