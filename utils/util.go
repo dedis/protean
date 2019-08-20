@@ -61,6 +61,16 @@ func BlsCosiSign(s *blscosi.Service, r *onet.Roster, data []byte) (network.Messa
 	return resp, err
 }
 
+func VerifySignature(s interface{}, sig protocol.BlsSignature, publics []kyber.Point) error {
+	data, err := protobuf.Encode(s)
+	if err != nil {
+		return err
+	}
+	h := sha256.New()
+	h.Write(data)
+	return sig.Verify(ps, h.Sum(nil), publics)
+}
+
 func StoreBlock(s *skipchain.Service, genesis skipchain.SkipBlockID, data []byte) error {
 	log.Infof("In StoreBlock service id is: %s", s.ServiceID())
 	db := s.GetDB()
@@ -91,16 +101,6 @@ func CreateGenesisBlock(s *skipchain.Service, scData *protean.ScInitData, roster
 		NewBlock: genesis,
 	})
 	return reply, err
-}
-
-func VerifySignature(s interface{}, sig protocol.BlsSignature, publics []kyber.Point) error {
-	data, err := protobuf.Encode(s)
-	if err != nil {
-		return err
-	}
-	h := sha256.New()
-	h.Write(data)
-	return sig.Verify(ps, h.Sum(nil), publics)
 }
 
 func GetServerKey(fname *string) (kyber.Point, error) {

@@ -8,11 +8,12 @@ import (
 	"time"
 
 	"github.com/dedis/protean/utils"
-	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/blscosi"
 	dkgprotocol "go.dedis.ch/cothority/v3/dkg/pedersen"
 	"go.dedis.ch/cothority/v3/skipchain"
+	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/share"
+	dkg "go.dedis.ch/kyber/v3/share/dkg/pedersen"
 	"go.dedis.ch/kyber/v3/util/key"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
@@ -28,6 +29,8 @@ const propagationTimeout = 20 * time.Second
 
 type storage struct {
 	Shared map[string]*dkgprotocol.SharedSecret
+	Polys  map[string]*pubPoly
+	DKS    map[string]*dkg.DistKeyShare
 	sync.Mutex
 }
 
@@ -75,7 +78,6 @@ func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 }
 
 func (s *Service) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
-	log.Info("Roster length is:", len(s.roster.List))
 	reply := &InitDKGReply{}
 	tree := s.roster.GenerateNaryTreeWithRoot(len(s.roster.List), s.ServerIdentity())
 	if tree == nil {
@@ -108,8 +110,7 @@ func (s *Service) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
 	log.Lvl3("Started DKG-protocol - waiting for done", len(s.roster.List))
 	select {
 	case <-setupDKG.Finished:
-		//shared, dks, err := setupDKG.SharedSecret()
-		shared, _, err := setupDKG.SharedSecret()
+		shared, dks, err := setupDKG.SharedSecret()
 		if err != nil {
 			log.Errorf("SharedSecret call error: %v", err)
 			return nil, err
@@ -119,8 +120,8 @@ func (s *Service) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
 		}
 		s.storage.Lock()
 		s.storage.Shared[req.ID] = shared
-		//s.storage.Polys[req.ID] = &pubPoly{s.Suite().Point().Base(), dks.Commits}
-		//s.storage.DKS[req.ID] = dks
+		s.storage.Polys[req.ID] = &pubPoly{s.Suite().Point().Base(), dks.Commits}
+		s.storage.DKS[req.ID] = dks
 		s.storage.Unlock()
 		err = s.save()
 		if err != nil {
@@ -134,15 +135,15 @@ func (s *Service) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
 
 func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 	reply := &DecryptReply{}
-	nodes := len(s.roster.List)
-	threshold := nodes - (nodes-1)/3
-	tree := s.roster.GenerateNaryTreeWithRoot(nodes, s.ServerIdentity())
+	numNodes := len(s.roster.List)
+	tree := s.roster.GenerateNaryTreeWithRoot(numNodes, s.ServerIdentity())
 	pi, err := s.CreateProtocol(ThreshProtoName, tree)
 	if err != nil {
 		return nil, errors.New("failed to create decrypt protocol: " + err.Error())
 	}
 	decProto := pi.(*ThreshDecrypt)
 	decProto.Cs = req.Cs
+	decProto.Server = req.Server
 	encoded, err := hexToBytes(req.ID)
 	if err != nil {
 		log.Errorf("Could not convert string to byte array: %v", err)
@@ -156,13 +157,12 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 
 	s.storage.Lock()
 	decProto.Shared = s.storage.Shared[req.ID]
-	//pp := s.storage.Polys[req.ID]
-	//reply.X = s.storage.Shared[req.ID].X.Clone()
-	//var commits []kyber.Point
-	//for _, c := range pp.Commits {
-	//commits = append(commits, c.Clone())
-	//}
-	//decProto.Poly = share.NewPubPoly(s.Suite(), pp.B.Clone(), commits)
+	pp := s.storage.Polys[req.ID]
+	var commits []kyber.Point
+	for _, c := range pp.Commits {
+		commits = append(commits, c.Clone())
+	}
+	decProto.Poly = share.NewPubPoly(s.Suite(), pp.B.Clone(), commits)
 	s.storage.Unlock()
 
 	log.Lvl3("Starting decryption protocol")
@@ -175,18 +175,13 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 	}
 	log.Lvl3("Decryption protocol is done.")
 
-	for i, partial := range decProto.Partials {
-		pubShares := make([]*share.PubShare, len(s.roster.List))
-		for j, sh := range partial.Shares {
-			pubShares[j] = &share.PubShare{I: j, V: sh}
+	if req.Server {
+		for i, partial := range decProto.Partials {
+			reply.Ps = append(reply.Ps, recoverCommit(numNodes, req.Cs[i], partial.Shares))
 		}
-		p, err := share.RecoverCommit(cothority.Suite, pubShares, threshold, nodes)
-		if err != nil {
-			log.Errorf("Cannot recover message with index %d", i)
-		}
-		reply.Ps = append(reply.Ps, p)
+	} else {
+		reply.Partials = decProto.Partials
 	}
-	log.Lvl3("Decryption success")
 	return reply, nil
 }
 
@@ -203,8 +198,7 @@ func (s *Service) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConfi
 		setupDKG.KeyPair = s.getKeyPair()
 		go func(id string) {
 			<-setupDKG.Finished
-			//shared, dks, err := setupDKG.SharedSecret()
-			shared, _, err := setupDKG.SharedSecret()
+			shared, dks, err := setupDKG.SharedSecret()
 			if err != nil {
 				log.Error(err)
 				return
@@ -212,7 +206,7 @@ func (s *Service) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConfi
 			log.Lvlf3("%v got shared %v", s.ServerIdentity(), shared)
 			s.storage.Lock()
 			s.storage.Shared[id] = shared
-			//s.storage.DKS[id] = dks
+			s.storage.DKS[id] = dks
 			s.storage.Unlock()
 			err = s.save()
 			if err != nil {
@@ -268,12 +262,12 @@ func (s *Service) tryLoad() error {
 		if len(s.storage.Shared) == 0 {
 			s.storage.Shared = make(map[string]*dkgprotocol.SharedSecret)
 		}
-		//if len(s.storage.Polys) == 0 {
-		//s.storage.Polys = make(map[string]*pubPoly)
-		//}
-		//if len(s.storage.DKS) == 0 {
-		//s.storage.DKS = make(map[string]*dkg.DistKeyShare)
-		//}
+		if len(s.storage.Polys) == 0 {
+			s.storage.Polys = make(map[string]*pubPoly)
+		}
+		if len(s.storage.DKS) == 0 {
+			s.storage.DKS = make(map[string]*dkg.DistKeyShare)
+		}
 	}()
 	msg, err := s.Load(storageKey)
 	if err != nil {

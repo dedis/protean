@@ -554,7 +554,8 @@ func testPrivstore(roster *onet.Roster) error {
 	if err != nil {
 		return fmt.Errorf("Decrypt error: %v", err)
 	}
-	ptext, err := psCl.RecoverKey(dk, reader1)
+	//ptext, err := psCl.RecoverKey(dk, reader1)
+	ptext, err := dk.RecoverKey(reader1)
 	if err != nil {
 		return fmt.Errorf("DecodeKey error: %v", err)
 	}
@@ -633,13 +634,15 @@ func testTDH(roster *onet.Roster) error {
 		return fmt.Errorf("InitDKG error: %v", err)
 	}
 	fmt.Println("Key is", dkgReply.X.String())
-	ctext := tdhCl.Encrypt(cothority.Suite, gen, dkgReply.X, mesg)
+	//ctext := tdhCl.Encrypt(cothority.Suite, gen, dkgReply.X, mesg)
+	ctext := tdh.Encrypt(cothority.Suite, gen, dkgReply.X, mesg)
 	//decReply, err := tdhCl.Decrypt(sig, gen[:], ctext.C, ctext.U, keyPair.Ed25519.Point)
 	decReply, err := tdhCl.Decrypt(sig, gen, ctext, keyPair.Ed25519.Point)
 	if err != nil {
 		return fmt.Errorf("Decrypt error: %v", err)
 	}
-	data, err := tdhCl.RecoverPlaintext(decReply, keyPair.Ed25519.Secret)
+	//data, err := tdhCl.RecoverPlaintext(decReply, keyPair.Ed25519.Secret)
+	data, err := tdh.RecoverPlaintext(decReply, keyPair.Ed25519.Secret)
 	if err != nil {
 		return fmt.Errorf("Data error: %v", err)
 	}
@@ -659,14 +662,16 @@ func testTDH(roster *onet.Roster) error {
 		return fmt.Errorf("InitDKG error: %v", err)
 	}
 	fmt.Println("Key is", dkgReply.X.String())
-	ctext = tdhCl.Encrypt(cothority.Suite, gen, dkgReply.X, mesg)
+	//ctext = tdhCl.Encrypt(cothority.Suite, gen, dkgReply.X, mesg)
+	ctext = tdh.Encrypt(cothority.Suite, gen, dkgReply.X, mesg)
 	//decReply, err = tdhCl.Decrypt(sig, gen[:], ctext.C, ctext.U, kp.Ed25519.Point)
 	random.Bytes(gen, random.New())
 	decReply, err = tdhCl.Decrypt(sig2, gen, ctext, kp.Ed25519.Point)
 	if err != nil {
 		return fmt.Errorf("Decrypt error: %v", err)
 	}
-	data, err = tdhCl.RecoverPlaintext(decReply, kp.Ed25519.Secret)
+	//data, err = tdhCl.RecoverPlaintext(decReply, kp.Ed25519.Secret)
+	data, err = tdh.RecoverPlaintext(decReply, kp.Ed25519.Secret)
 	if err != nil {
 		return fmt.Errorf("Data error: %v", err)
 	}
@@ -714,14 +719,11 @@ func testThreshold(roster *onet.Roster) error {
 	if err != nil {
 		return fmt.Errorf("InitDKG error: %v", err)
 	}
-	//fmt.Println("Key is", dkgReply.X.String())
-	cs := make([]*utils.ElGamalPair, len(mesgs))
-	//c1, c2 := utils.ElGamalEncrypt(dkgReply.X, mesg)
+	var cs []*utils.ElGamalPair
 	for _, mesg := range mesgs {
 		cs = append(cs, utils.ElGamalEncrypt(dkgReply.X, mesg))
 	}
-	//decReply, err := thresholdCl.Decrypt(sig, c1, c2)
-	decReply, err := thresholdCl.Decrypt(sig, cs)
+	decReply, err := thresholdCl.Decrypt(sig, cs, true)
 	if err != nil {
 		return fmt.Errorf("Decrypt error: %v", err)
 	}
@@ -733,30 +735,19 @@ func testThreshold(roster *onet.Roster) error {
 		fmt.Println("Data is:", string(pt))
 	}
 
-	//random.Bytes(gen[:], random.New())
-	//kp := darc.NewSignerEd25519(nil, nil)
-	//mesg = []byte("Peanut butter jelly time!")
-	//// Returns Schnorr signature
-	//sig2, err := kp.Sign(mesg)
-	//if err != nil {
-	//return fmt.Errorf("Sign failed: %v", err)
-	//}
-	//dkgReply, err = thresholdCl.InitDKG(sig2)
-	//if err != nil {
-	//return fmt.Errorf("InitDKG error: %v", err)
-	//}
-	//fmt.Println("Key is", dkgReply.X.String())
-	//ctext = thresholdCl.Encrypt(cothority.Suite, gen[:], dkgReply.X, mesg)
-	//fmt.Println("Ciphertext is:", ctext)
-	//decReply, err = thresholdCl.Decrypt(sig, ctext.C, ctext.U, kp.Ed25519.Point)
-	//if err != nil {
-	//return fmt.Errorf("Decrypt error: %v", err)
-	//}
-	//data, err = thresholdCl.RecoverPlaintext(decReply, kp.Ed25519.Secret)
-	//if err != nil {
-	//return fmt.Errorf("Data error: %v", err)
-	//}
-	//fmt.Println("Data is:", string(data))
+	decReply, err = thresholdCl.Decrypt(sig, cs, false)
+	if err != nil {
+		return fmt.Errorf("Decrypt error: %v", err)
+	}
+	fmt.Println("----------")
+	ps := threshold.RecoverMessages(len(roster.List), cs, decReply.Partials)
+	for _, p := range ps {
+		pt, err := p.Data()
+		if err != nil {
+			return fmt.Errorf("Cannot get plaintext from curve point: %v", err)
+		}
+		fmt.Println("Data is:", string(pt))
+	}
 	return nil
 }
 
@@ -800,8 +791,8 @@ func main() {
 		//err := test(roster)
 		//err := testPrivstore(roster)
 		//err := testShuffle(roster)
-		err := testTDH(roster)
-		//err := testThreshold(roster)
+		//err := testTDH(roster)
+		err := testThreshold(roster)
 		//err := testSigver(roster)
 		if err != nil {
 			fmt.Println(err)

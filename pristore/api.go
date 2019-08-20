@@ -162,6 +162,7 @@ func (c *Client) GetProof(instID byzcoin.InstanceID) (*GetProofReply, error) {
 	return reply, err
 }
 
-func (c *Client) RecoverKey(dkr *DecryptReply, reader darc.Signer) ([]byte, error) {
+//func (c *Client) RecoverKey(dkr *DecryptReply, reader darc.Signer) ([]byte, error) {
+func (dkr *DecryptReply) RecoverKey(reader darc.Signer) ([]byte, error) {
 	return dkr.Reply.RecoverKey(reader.Ed25519.Secret)
 }

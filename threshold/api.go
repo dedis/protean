@@ -7,8 +7,11 @@ import (
 	"github.com/dedis/protean"
 	"github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3"
+	"go.dedis.ch/kyber/v3"
+	"go.dedis.ch/kyber/v3/share"
 
 	"go.dedis.ch/onet/v3"
+	"go.dedis.ch/onet/v3/log"
 )
 
 type Client struct {
@@ -44,37 +47,31 @@ func (c *Client) InitDKG(id []byte) (*InitDKGReply, error) {
 	return reply, err
 }
 
-//func (c *Client) Decrypt(id []byte, c1 kyber.Point, c2 kyber.Point) (*DecryptReply, error) {
-func (c *Client) Decrypt(id []byte, cs []*utils.ElGamalPair) (*DecryptReply, error) {
+func (c *Client) Decrypt(id []byte, cs []*utils.ElGamalPair, server bool) (*DecryptReply, error) {
 	hexID := hex.EncodeToString(id)
-	//ct := &Ciphertext{
-	//C1: c1,
-	//C2: c2,
-	//}
 	req := &DecryptRequest{
-		ID: hexID,
-		//Ciphertext: ct,
-		Cs: cs,
+		ID:     hexID,
+		Cs:     cs,
+		Server: server,
 	}
 	reply := &DecryptReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)
 	return reply, err
 }
 
-//func (c *Client) RecoverPlaintext(reply *DecryptReply, xc kyber.Scalar) ([]byte, error) {
-//var data []byte
-//var err error
-//if xc == nil {
-//xHatInv := cothority.Suite.Point().Neg(reply.XhatEnc)
-//dataPt := cothority.Suite.Point().Add(reply.C, xHatInv)
-//data, err = dataPt.Data()
-//} else {
-//xcInv := xc.Clone().Neg(xc)
-//xHatDec := reply.X.Clone().Mul(xcInv, reply.X)
-//xHat := xHatDec.Clone().Add(reply.XhatEnc, xHatDec)
-//xHatInv := xHat.Clone().Neg(xHat)
-//xHatInv.Add(reply.C, xHatInv)
-//data, err = xHatInv.Data()
-//}
-//return data, err
-//}
+func RecoverMessages(numNodes int, cs []*utils.ElGamalPair, partials []*Partial) []kyber.Point {
+	var ps []kyber.Point
+	for i, partial := range partials {
+		var validShares []*share.PubShare
+		for j, sh := range partial.Shares {
+			ok := VerifyDecProof(sh.V, partial.Eis[j], partial.Fis[j], cs[i].K, partial.Pubs[j])
+			if ok {
+				validShares = append(validShares, sh)
+			} else {
+				log.Info("Cannot verify decryption proof from node", j)
+			}
+		}
+		ps = append(ps, recoverCommit(numNodes, cs[i], validShares))
+	}
+	return ps
+}

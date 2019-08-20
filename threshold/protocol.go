@@ -1,6 +1,7 @@
 package threshold
 
 import (
+	"crypto/sha256"
 	"errors"
 	"sync"
 	"time"
@@ -27,8 +28,10 @@ func init() {
 type ThreshDecrypt struct {
 	*onet.TreeNodeInstance
 	Shared    *dkgprotocol.SharedSecret
+	Poly      *share.PubPoly
 	Cs        []*utils.ElGamalPair
-	Partials  []*Partial
+	Partials  []*Partial // len(Partials) == number of ciphertexts to be dec
+	Server    bool       // If false - do not reconstruct secret here
 	Threshold int
 	Failures  int
 	Decrypted chan bool
@@ -79,24 +82,17 @@ func (d *ThreshDecrypt) Start() error {
 func (d *ThreshDecrypt) decrypt(r structPartialRequest) error {
 	log.Lvl3(d.Name() + ": starting decrypt")
 	defer d.Done()
-
-	shares := make([]kyber.Point, len(r.Cs))
+	shares := make([]*Share, len(r.Cs))
 	for i, c := range r.Cs {
-		shares[i] = utils.ElGamalDecrypt(d.Shared.V, c)
+		sh := cothority.Suite.Point().Mul(d.Shared.V, c.K)
+		ei, fi := d.generateDecProof(c.K, sh)
+		shares[i] = &Share{
+			Sh: &share.PubShare{I: d.Shared.Index, V: sh},
+			Ei: ei,
+			Fi: fi,
+		}
 	}
-
-	// Calculating proofs
-	//si := cothority.Suite.Scalar().Pick(d.Suite().RandomStream())
-	//uiHat := cothority.Suite.Point().Mul(si, r.Ciphertext.C1)
-	//hiHat := cothority.Suite.Point().Mul(si, nil)
-	//hash := sha256.New()
-	//S.MarshalTo(hash)
-	//uiHat.MarshalTo(hash)
-	//hiHat.MarshalTo(hash)
-	//ei := cothority.Suite.Scalar().SetBytes(hash.Sum(nil))
-
 	return d.SendToParent(&PartialReply{
-		Index:  d.Shared.Index,
 		Shares: shares,
 	})
 }
@@ -116,47 +112,49 @@ func (d *ThreshDecrypt) decryptReply(pdr structPartialReply) error {
 
 	// minus one to exclude the root
 	if len(d.replies) >= int(d.Threshold-1) {
-		//d.Partials = make([]*Partial, len(d.Cs))
+		// Each Partial contains n shares/eis/fis - one from each node
 		for i := 0; i < len(d.Cs); i++ {
-			d.Partials = append(d.Partials, &Partial{
-				Shares: make([]kyber.Point, len(d.List())),
-			})
+			d.Partials = append(d.Partials, &Partial{})
+		}
+		// Root node prepares its share by performing EG decryption
+		for i, c := range d.Cs {
+			sh := cothority.Suite.Point().Mul(d.Shared.V, c.K)
+			if d.Server == false {
+				// Root node also generates decryption proofs
+				// since reconstruction is going to happen on
+				// the client-side
+				ei, fi := d.generateDecProof(c.K, sh)
+				d.Partials[i].Eis = append(d.Partials[i].Eis, ei)
+				d.Partials[i].Fis = append(d.Partials[i].Fis, fi)
+				d.Partials[i].Pubs = append(d.Partials[i].Pubs, d.Poly.Eval(d.Shared.Index).V)
+			}
+			d.Partials[i].Shares = append(d.Partials[i].Shares, &share.PubShare{I: d.Shared.Index, V: sh})
+		}
+
+		// pubs is used to save doing poly.eval for each ciphertext
+		pubs := make([]kyber.Point, len(d.List()))
+		for _, r := range d.replies {
+			idx := r.Shares[0].Sh.I
+			pubs[idx] = d.Poly.Eval(idx).V
 		}
 		for i, c := range d.Cs {
-			share := utils.ElGamalDecrypt(d.Shared.V, c)
-			d.Partials[i].Shares[d.Shared.Index] = share
-		}
-		for _, r := range d.replies {
-			// Verify proofs
-			//var ufi kyber.Point
-			//if d.Xc == nil {
-			//ufi = cothority.Suite.Point().Mul(r.Fi, d.U)
-			//} else {
-			//ufi = cothority.Suite.Point().Mul(r.Fi, cothority.Suite.Point().Add(d.U, d.Xc))
-			//}
-			//uiei := cothority.Suite.Point().Mul(cothority.Suite.Scalar().Neg(r.Ei), r.Ui.V)
-			//uiHat := cothority.Suite.Point().Add(ufi, uiei)
-			//gfi := cothority.Suite.Point().Mul(r.Fi, nil)
-			//gxi := d.Poly.Eval(r.Ui.I).V
-			//hiei := cothority.Suite.Point().Mul(cothority.Suite.Scalar().Neg(r.Ei), gxi)
-			//hiHat := cothority.Suite.Point().Add(gfi, hiei)
-			//hash := sha256.New()
-			//r.Ui.V.MarshalTo(hash)
-			//uiHat.MarshalTo(hash)
-			//hiHat.MarshalTo(hash)
-			//e := cothority.Suite.Scalar().SetBytes(hash.Sum(nil))
-			//if e.Equal(r.Ei) {
-			//d.Uis[r.Ui.I] = r.Ui
-			//} else {
-			//log.Lvl1("Received invalid share from node", r.Ui.I)
-			//}
-
-			if r.Shares != nil && len(r.Shares) == len(d.Cs) {
-				for i, s := range r.Shares {
-					d.Partials[i].Shares[r.Index] = s
+			for _, r := range d.replies {
+				tmpSh := r.Shares[i]
+				if d.Server {
+					// if server flag set, then verify
+					// decryption proof
+					ok := VerifyDecProof(tmpSh.Sh.V, tmpSh.Ei, tmpSh.Fi, c.K, pubs[tmpSh.Sh.I])
+					if ok {
+						d.Partials[i].Shares = append(d.Partials[i].Shares, tmpSh.Sh)
+					} else {
+						log.LLvlf1("Received invalid share for ciphertext %d from node %d", i, tmpSh.Sh.I)
+					}
+				} else {
+					d.Partials[i].Shares = append(d.Partials[i].Shares, tmpSh.Sh)
+					d.Partials[i].Eis = append(d.Partials[i].Eis, tmpSh.Ei)
+					d.Partials[i].Fis = append(d.Partials[i].Fis, tmpSh.Fi)
+					d.Partials[i].Pubs = append(d.Partials[i].Pubs, pubs[tmpSh.Sh.I])
 				}
-			} else {
-				log.Lvl1("Received invalid share from node", r.Index)
 			}
 		}
 		d.finish(true)
@@ -170,14 +168,6 @@ func (d *ThreshDecrypt) decryptReply(pdr structPartialReply) error {
 	return nil
 }
 
-func (d *ThreshDecrypt) getUI(U, Xc kyber.Point) (*share.PubShare, error) {
-	v := cothority.Suite.Point().Mul(d.Shared.V, U)
-	if Xc != nil {
-		v.Add(v, cothority.Suite.Point().Mul(d.Shared.V, Xc))
-	}
-	return &share.PubShare{I: d.Shared.Index, V: v}, nil
-}
-
 func (d *ThreshDecrypt) finish(result bool) {
 	d.timeout.Stop()
 	select {
@@ -188,4 +178,17 @@ func (d *ThreshDecrypt) finish(result bool) {
 		// beat us.
 	}
 	d.doneOnce.Do(func() { d.Done() })
+}
+
+func (d *ThreshDecrypt) generateDecProof(u kyber.Point, sh kyber.Point) (kyber.Scalar, kyber.Scalar) {
+	si := cothority.Suite.Scalar().Pick(d.Suite().RandomStream())
+	uiHat := cothority.Suite.Point().Mul(si, u)
+	hiHat := cothority.Suite.Point().Mul(si, nil)
+	hash := sha256.New()
+	sh.MarshalTo(hash)
+	uiHat.MarshalTo(hash)
+	hiHat.MarshalTo(hash)
+	ei := cothority.Suite.Scalar().SetBytes(hash.Sum(nil))
+	fi := cothority.Suite.Scalar().Add(si, cothority.Suite.Scalar().Mul(ei, d.Shared.V))
+	return ei, fi
 }
