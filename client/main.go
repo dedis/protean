@@ -744,9 +744,10 @@ func testThreshold(roster *onet.Roster) error {
 	for _, p := range ps {
 		pt, err := p.Data()
 		if err != nil {
-			return fmt.Errorf("Cannot get plaintext from curve point: %v", err)
+			log.Errorf("Cannot get plaintext from curve point: %v", err)
+		} else {
+			fmt.Println("Data is:", string(pt))
 		}
-		fmt.Println("Data is:", string(pt))
 	}
 	return nil
 }

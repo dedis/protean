@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/dedis/protean"
+	"github.com/dedis/protean/utils"
 	"github.com/stretchr/testify/require"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/kyber/v3/util/random"
@@ -48,8 +49,8 @@ func generateReq(n int, msg []byte) ShuffleRequest {
 	for i := range pairs {
 		secret := cothority.Suite.Scalar().Pick(r)
 		public := cothority.Suite.Point().Mul(secret, nil)
-		c1, c2 := Encrypt(public, msg)
-		pairs[i] = ElGamalPair{c1, c2}
+		c := utils.ElGamalEncrypt(public, msg)
+		pairs[i] = ElGamalPair{C1: c.K, C2: c.C}
 	}
 
 	return ShuffleRequest{
