@@ -694,8 +694,6 @@ func testThreshold(roster *onet.Roster) error {
 		CompKeys: roster.ServicePublics(threshold.ServiceName),
 	}
 
-	gen := make([]byte, 32)
-	random.Bytes(gen, random.New())
 	keyPair := darc.NewSignerEd25519(nil, nil)
 
 	var mesgs [][]byte
@@ -708,8 +706,6 @@ func testThreshold(roster *onet.Roster) error {
 	if err != nil {
 		return fmt.Errorf("Sign failed: %v", err)
 	}
-	//fmt.Println("Signature:", sig)
-	//fmt.Println("Length:", len(sig))
 
 	_, err = thresholdCl.InitUnit(roster, scData, uData, 10, time.Second)
 	if err != nil {
@@ -723,6 +719,16 @@ func testThreshold(roster *onet.Roster) error {
 	for _, mesg := range mesgs {
 		cs = append(cs, utils.ElGamalEncrypt(dkgReply.X, mesg))
 	}
+
+	time.Sleep(5 * time.Second)
+
+	_, err = thresholdCl.Decrypt([]byte("badreq"), cs, true)
+	if err != nil {
+		fmt.Println("Decrypt request failed:", err)
+	}
+
+	time.Sleep(5 * time.Second)
+
 	decReply, err := thresholdCl.Decrypt(sig, cs, true)
 	if err != nil {
 		return fmt.Errorf("Decrypt error: %v", err)

@@ -13,6 +13,8 @@ type InitUnitRequest struct {
 	BaseStore    *protean.BaseStorage
 	BlkInterval  time.Duration
 	DurationType time.Duration
+	// Timeout waiting for final signature - originally 2 seconds
+	Timeout time.Duration
 }
 
 type InitUnitReply struct {
@@ -20,7 +22,8 @@ type InitUnitReply struct {
 }
 
 type InitDKGRequest struct {
-	Roster *onet.Roster
+	// Timeout waiting for DKG to finish - originally 5 seconds
+	Timeout int
 }
 
 // InitDKGReply is the response of DKG.
@@ -29,7 +32,6 @@ type InitDKGReply struct {
 
 // RandomnessRequest is a request to get the public randomness.
 type RandomnessRequest struct {
-	Roster *onet.Roster
 }
 
 // RandomnessReply is the returned public randomness.

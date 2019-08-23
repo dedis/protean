@@ -136,6 +136,30 @@ func (s *Service) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
 func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 	reply := &DecryptReply{}
 	numNodes := len(s.roster.List)
+
+	s.storage.Lock()
+	shared, ok := s.storage.Shared[req.ID]
+	if !ok {
+		s.storage.Unlock()
+		log.Errorf("Cannot find ID: %v", req.ID)
+		return reply, errors.New("No DKG entry found for the given ID")
+	}
+	//TODO: Why is shared originally not cloned but everything else in this
+	//lock-unlock scope?
+	shared = shared.Clone()
+	pp, ok := s.storage.Polys[req.ID]
+	if !ok {
+		s.storage.Unlock()
+		log.Errorf("Cannot find ID: %v", req.ID)
+		return nil, errors.New("No DKG entry found for the given ID")
+	}
+	var commits []kyber.Point
+	for _, c := range pp.Commits {
+		commits = append(commits, c.Clone())
+	}
+	bb := pp.B.Clone()
+	s.storage.Unlock()
+
 	tree := s.roster.GenerateNaryTreeWithRoot(numNodes, s.ServerIdentity())
 	pi, err := s.CreateProtocol(ThreshProtoName, tree)
 	if err != nil {
@@ -144,6 +168,8 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 	decProto := pi.(*ThreshDecrypt)
 	decProto.Cs = req.Cs
 	decProto.Server = req.Server
+	decProto.Shared = shared
+	decProto.Poly = share.NewPubPoly(s.Suite(), bb, commits)
 	encoded, err := hexToBytes(req.ID)
 	if err != nil {
 		log.Errorf("Could not convert string to byte array: %v", err)
@@ -154,16 +180,6 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 		log.Errorf("Could not set config: %v", err)
 		return nil, err
 	}
-
-	s.storage.Lock()
-	decProto.Shared = s.storage.Shared[req.ID]
-	pp := s.storage.Polys[req.ID]
-	var commits []kyber.Point
-	for _, c := range pp.Commits {
-		commits = append(commits, c.Clone())
-	}
-	decProto.Poly = share.NewPubPoly(s.Suite(), pp.B.Clone(), commits)
-	s.storage.Unlock()
 
 	log.Lvl3("Starting decryption protocol")
 	err = decProto.Start()
@@ -184,6 +200,69 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 	}
 	return reply, nil
 }
+
+//func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
+//reply := &DecryptReply{}
+//numNodes := len(s.roster.List)
+//tree := s.roster.GenerateNaryTreeWithRoot(numNodes, s.ServerIdentity())
+//pi, err := s.CreateProtocol(ThreshProtoName, tree)
+//if err != nil {
+//return nil, errors.New("failed to create decrypt protocol: " + err.Error())
+//}
+//decProto := pi.(*ThreshDecrypt)
+//decProto.Cs = req.Cs
+//decProto.Server = req.Server
+//encoded, err := hexToBytes(req.ID)
+//if err != nil {
+//log.Errorf("Could not convert string to byte array: %v", err)
+//return nil, err
+//}
+//err = decProto.SetConfig(&onet.GenericConfig{Data: encoded})
+//if err != nil {
+//log.Errorf("Could not set config: %v", err)
+//return nil, err
+//}
+
+//var ok bool
+//s.storage.Lock()
+//decProto.Shared, ok = s.storage.Shared[req.ID]
+//if !ok {
+//s.storage.Unlock()
+//log.Errorf("Cannot find ID: %v", req.ID)
+//return nil, errors.New("No DKG entry found for the given ID")
+//}
+//pp, ok := s.storage.Polys[req.ID]
+//if !ok {
+//s.storage.Unlock()
+//log.Errorf("Cannot find ID: %v", req.ID)
+//return nil, errors.New("No DKG entry found for the given ID")
+//}
+//var commits []kyber.Point
+//for _, c := range pp.Commits {
+//commits = append(commits, c.Clone())
+//}
+//decProto.Poly = share.NewPubPoly(s.Suite(), pp.B.Clone(), commits)
+//s.storage.Unlock()
+
+//log.Lvl3("Starting decryption protocol")
+//err = decProto.Start()
+//if err != nil {
+//return nil, errors.New("Failed to start the decryption protocol: " + err.Error())
+//}
+//if !<-decProto.Decrypted {
+//return nil, errors.New("Decryption got refused")
+//}
+//log.Lvl3("Decryption protocol is done.")
+
+//if req.Server {
+//for i, partial := range decProto.Partials {
+//reply.Ps = append(reply.Ps, recoverCommit(numNodes, req.Cs[i], partial.Shares))
+//}
+//} else {
+//reply.Partials = decProto.Partials
+//}
+//return reply, nil
+//}
 
 func (s *Service) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConfig) (onet.ProtocolInstance, error) {
 	log.Lvl3(s.ServerIdentity(), tn.ProtocolName(), conf)

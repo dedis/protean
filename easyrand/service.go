@@ -48,6 +48,8 @@ type EasyRand struct {
 	roster      *onet.Roster
 	genesis     skipchain.SkipBlockID
 
+	// Timeout waiting for final signtaure
+	timeout      time.Duration
 	keypair      *key.Pair
 	distKeyStore *dkg.DistKeyShare
 	pubPoly      *share.PubPoly
@@ -63,6 +65,7 @@ func (s *EasyRand) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 	}
 	s.genesis = genesisReply.Latest.Hash
 	s.roster = req.Roster
+	s.timeout = req.Timeout
 	///////////////////////
 	// Now adding a block with the unit information
 	enc, err := protobuf.Encode(req.BaseStore)
@@ -74,64 +77,53 @@ func (s *EasyRand) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 	if err != nil {
 		return nil, err
 	}
-	///////////////////////
-	//InitDKG
-	///////////////////////
-	tree := s.roster.GenerateStar()
-	pi, err := s.CreateProtocol(dkgProtoName, tree)
-	if err != nil {
-		return nil, err
-	}
-	setup := pi.(*dkgprotocol.Setup)
-	setup.Wait = true
-	if err := pi.Start(); err != nil {
-		return nil, err
-	}
-	select {
-	case <-setup.Finished:
-		if err := s.storeShare(setup); err != nil {
-			return nil, err
-		}
-	case <-time.After(5 * time.Second):
-		return nil, errors.New("DKG did not finish")
-	}
 	return &InitUnitReply{Genesis: genesisReply.Latest.Hash}, nil
 }
 
 // InitDKG starts the DKG protocol.
-//func (s *EasyRand) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
-//tree := req.Roster.GenerateStar()
-//pi, err := s.CreateProtocol(dkgProtoName, tree)
-//if err != nil {
-//return nil, err
-//}
-//setup := pi.(*dkgprotocol.Setup)
-//setup.Wait = true
+func (s *EasyRand) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
+	tree := s.roster.GenerateStar()
+	pi, err := s.CreateProtocol(dkgProtoName, tree)
+	if err != nil {
+		log.Errorf("Create protocol error: %v", err)
+		return nil, err
+	}
+	setup := pi.(*dkgprotocol.Setup)
+	setup.Wait = true
 
-//if err := pi.Start(); err != nil {
-//return nil, err
-//}
+	err = pi.Start()
+	if err != nil {
+		log.Errorf("Start protocol error: %v", err)
+		return nil, err
+	}
 
-//select {
-//case <-setup.Finished:
-//if err := s.storeShare(setup); err != nil {
-//return nil, err
-//}
-//case <-time.After(5 * time.Second):
-//return nil, errors.New("dkg did not finish")
-//}
-//return &InitDKGReply{}, nil
-//}
+	select {
+	case <-setup.Finished:
+		err := s.storeShare(setup)
+		if err != nil {
+			log.Errorf("Storing DKG shares failed: %v", err)
+			return nil, err
+		}
+	// Timeout was originally 5 seconds
+	case <-time.After(time.Duration(req.Timeout) * time.Second):
+		log.Errorf("DKG did not finish")
+		return nil, errors.New("dkg did not finish")
+	}
+	return &InitDKGReply{}, nil
+}
 
 // Randomness returns the public randomness.
 func (s *EasyRand) Randomness(req *RandomnessRequest) (*RandomnessReply, error) {
-	pi, err := s.CreateProtocol(signProtoName, req.Roster.GenerateStar())
+	pi, err := s.CreateProtocol(signProtoName, s.roster.GenerateStar())
 	if err != nil {
+		log.Errorf("Create protocol error: %v", err)
 		return nil, err
 	}
 	signPi := pi.(*SignProtocol)
 	signPi.Msg = createNextMsg(s.blocks)
-	if err := pi.Start(); err != nil {
+	err = pi.Start()
+	if err != nil {
+		log.Errorf("Start protocol error: %v", err)
 		return nil, err
 	}
 
@@ -139,7 +131,9 @@ func (s *EasyRand) Randomness(req *RandomnessRequest) (*RandomnessReply, error) 
 	case sig := <-signPi.FinalSignature:
 		s.blocks = append(s.blocks, sig)
 		return &RandomnessReply{uint64(len(s.blocks) - 1), sig}, nil
-	case <-time.After(2 * time.Second):
+	// s.timeout was originally 2 seconds
+	case <-time.After(s.timeout * time.Second):
+		log.Errorf("Timed out waiting for the final signature")
 		return nil, errors.New("timeout waiting for final signature")
 	}
 }
@@ -151,20 +145,23 @@ func (s *EasyRand) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConf
 	case dkgProtoName:
 		pi, err := dkgprotocol.CustomSetup(tn, vssSuite, s.keypair)
 		if err != nil {
+			log.Errorf("DKG protocol custom setup failed: %v", err)
 			return nil, err
 		}
 		setup := pi.(*dkgprotocol.Setup)
 
 		go func() {
 			<-setup.Finished
-			if err := s.storeShare(setup); err != nil {
-				log.Error(s.ServerIdentity(), err)
+			err := s.storeShare(setup)
+			if err != nil {
+				log.Errorf("%s failed while storing DKG shares: %v", s.ServerIdentity(), err)
 			}
 		}()
 		return pi, nil
 	case signProtoName:
 		pi, err := NewSignProtocol(tn, s.verify, s.distKeyStore.PriShare(), s.pubPoly, suite)
 		if err != nil {
+			log.Errorf("Cannot initialize the signing protocol: %v", err)
 			return nil, err
 		}
 		signProto := pi.(*SignProtocol)
@@ -174,7 +171,7 @@ func (s *EasyRand) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConf
 			case sig := <-signProto.FinalSignature:
 				s.blocks = append(s.blocks, sig)
 			case <-time.After(time.Second):
-				log.Error(s.ServerIdentity(), "time out while waiting for signature")
+				log.Errorf("%s time out while waiting for signature", s.ServerIdentity())
 			}
 		}()
 

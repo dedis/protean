@@ -13,8 +13,8 @@ import (
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/darc"
 	"go.dedis.ch/kyber/v3"
-	"go.dedis.ch/kyber/v3/util/random"
 	"go.dedis.ch/onet/v3"
+	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/protobuf"
 )
 
@@ -25,12 +25,12 @@ func TestElGamal(t *testing.T) {
 
 	scData, uData := prepareUnitData(egt.roster)
 
-	gen := make([]byte, 32)
-	random.Bytes(gen, random.New())
 	keypair := darc.NewSignerEd25519(nil, nil)
 
 	sig, err := keypair.Sign([]byte("thresh-test"))
 	require.Nil(t, err)
+	log.Info("Length is:", len(sig))
+	log.Info("Sig is:", sig)
 
 	client := threshold.NewClient()
 	_, err = client.InitUnit(egt.roster, scData, uData, 10, time.Second)
