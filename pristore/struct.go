@@ -12,15 +12,6 @@ import (
 	"go.dedis.ch/onet/v3"
 )
 
-//type KV struct {
-//Key   string
-//Value []byte
-//}
-
-//type KVStorage struct {
-//KV []KV
-//}
-
 type WriteData struct {
 	ltsID     byzcoin.InstanceID
 	writeDarc darc.ID

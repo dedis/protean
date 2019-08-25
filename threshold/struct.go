@@ -12,6 +12,8 @@ import (
 
 const ThreshProtoName = "ThreshDecryptProto"
 
+type DKGID [32]byte
+
 type InitUnitRequest struct {
 	Roster       *onet.Roster
 	ScData       *protean.ScInitData
@@ -25,7 +27,7 @@ type InitUnitReply struct {
 }
 
 type InitDKGRequest struct {
-	ID string
+	ID DKGID
 }
 
 type InitDKGReply struct {
@@ -33,7 +35,7 @@ type InitDKGReply struct {
 }
 
 type DecryptRequest struct {
-	ID string
+	ID DKGID
 	Cs []*utils.ElGamalPair
 	// Server is a flag that specifies where the secret reconstruction is
 	// going to happen. If true, threshold unit handles the secret

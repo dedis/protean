@@ -8,6 +8,7 @@ import (
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/calypso"
 	"go.dedis.ch/cothority/v3/darc"
+	"go.dedis.ch/cothority/v3/darc/expression"
 
 	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/onet/v3"
@@ -162,7 +163,26 @@ func (c *Client) GetProof(instID byzcoin.InstanceID) (*GetProofReply, error) {
 	return reply, err
 }
 
-//func (c *Client) RecoverKey(dkr *DecryptReply, reader darc.Signer) ([]byte, error) {
 func (dkr *DecryptReply) RecoverKey(reader darc.Signer) ([]byte, error) {
 	return dkr.Reply.RecoverKey(reader.Ed25519.Secret)
+}
+
+func CreateDarc(ownerID darc.Identity, name string) *darc.Darc {
+	return darc.NewDarc(darc.InitRules([]darc.Identity{ownerID}, []darc.Identity{ownerID}), []byte(name))
+}
+
+func AddWriteRule(d *darc.Darc, writers ...darc.Signer) error {
+	var ids []string
+	for _, w := range writers {
+		ids = append(ids, w.Identity().String())
+	}
+	return d.Rules.AddRule(darc.Action("spawn:"+calypso.ContractWriteID), expression.InitOrExpr(ids...))
+}
+
+func AddReadRule(d *darc.Darc, readers ...darc.Signer) error {
+	var ids []string
+	for _, r := range readers {
+		ids = append(ids, r.Identity().String())
+	}
+	return d.Rules.AddRule(darc.Action("spawn:"+calypso.ContractReadID), expression.InitOrExpr(ids...))
 }

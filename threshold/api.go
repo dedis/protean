@@ -1,7 +1,6 @@
 package threshold
 
 import (
-	"encoding/hex"
 	"time"
 
 	"github.com/dedis/protean"
@@ -38,9 +37,8 @@ func (c *Client) InitUnit(roster *onet.Roster, scData *protean.ScInitData, bStor
 }
 
 func (c *Client) InitDKG(id []byte) (*InitDKGReply, error) {
-	hexID := hex.EncodeToString(id)
 	req := &InitDKGRequest{
-		ID: hexID,
+		ID: NewDKGID(id),
 	}
 	reply := &InitDKGReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)
@@ -48,9 +46,8 @@ func (c *Client) InitDKG(id []byte) (*InitDKGReply, error) {
 }
 
 func (c *Client) Decrypt(id []byte, cs []*utils.ElGamalPair, server bool) (*DecryptReply, error) {
-	hexID := hex.EncodeToString(id)
 	req := &DecryptRequest{
-		ID:     hexID,
+		ID:     NewDKGID(id),
 		Cs:     cs,
 		Server: server,
 	}

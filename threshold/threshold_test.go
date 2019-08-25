@@ -2,7 +2,6 @@ package threshold
 
 import (
 	"bytes"
-	"encoding/hex"
 	"fmt"
 	"testing"
 	"time"
@@ -12,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/kyber/v3"
+	"go.dedis.ch/kyber/v3/util/random"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
 )
@@ -32,7 +32,7 @@ func TestThreshold_Server(t *testing.T) {
 	_, err := root.InitUnit(initReq)
 	require.Nil(t, err)
 
-	id := hex.EncodeToString([]byte("thresh-test"))
+	id := NewDKGID(generateRandBytes())
 	dkgReply, err := root.InitDKG(&InitDKGRequest{ID: id})
 	require.Nil(t, err)
 	mesgs, cs := generateMesgs(10, "Go Badgers!", dkgReply.X)
@@ -59,7 +59,7 @@ func TestThreshold_ServerFalse(t *testing.T) {
 	_, err := root.InitUnit(initReq)
 	require.Nil(t, err)
 
-	id := hex.EncodeToString([]byte("thresh-test"))
+	id := NewDKGID(generateRandBytes())
 	dkgReply, err := root.InitDKG(&InitDKGRequest{ID: id})
 	require.Nil(t, err)
 	mesgs, cs := generateMesgs(10, "Go Badgers!", dkgReply.X)
@@ -87,8 +87,8 @@ func TestThreshold_Failures(t *testing.T) {
 	_, err := root.InitUnit(initReq)
 	require.Nil(t, err)
 
-	id := hex.EncodeToString([]byte("thresh-test"))
-	fakeID := hex.EncodeToString([]byte("threshtest"))
+	id := NewDKGID(generateRandBytes())
+	fakeID := NewDKGID(generateRandBytes())
 	dkgReply, err := root.InitDKG(&InitDKGRequest{ID: id})
 	require.Nil(t, err)
 	mesgs, cs := generateMesgs(10, "Go Badgers!", dkgReply.X)
@@ -103,6 +103,12 @@ func TestThreshold_Failures(t *testing.T) {
 		require.Nil(t, err)
 		require.True(t, !bytes.Equal(p, mesgs[i]))
 	}
+}
+
+func generateRandBytes() []byte {
+	slc := make([]byte, 32)
+	random.Bytes(slc, random.New())
+	return slc
 }
 
 func generateMesgs(count int, m string, key kyber.Point) ([][]byte, []*utils.ElGamalPair) {

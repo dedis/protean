@@ -28,10 +28,16 @@ var thresholdID onet.ServiceID
 const propagationTimeout = 20 * time.Second
 
 type storage struct {
-	Shared map[string]*dkgprotocol.SharedSecret
-	Polys  map[string]*pubPoly
-	DKS    map[string]*dkg.DistKeyShare
+	Shared map[[32]byte]*dkgprotocol.SharedSecret
+	Polys  map[[32]byte]*pubPoly
+	DKS    map[[32]byte]*dkg.DistKeyShare
 	sync.Mutex
+}
+
+func NewDKGID(in []byte) DKGID {
+	var id DKGID
+	copy(id[:], in)
+	return id
 }
 
 type Service struct {
@@ -90,12 +96,13 @@ func (s *Service) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
 		return nil, err
 	}
 	setupDKG := pi.(*dkgprotocol.Setup)
-	encoded, err := hexToBytes(req.ID)
-	if err != nil {
-		log.Errorf("Could not convert string to byte array: %v", err)
-		return nil, err
-	}
-	err = setupDKG.SetConfig(&onet.GenericConfig{Data: encoded})
+	//encoded, err := hexToBytes(req.ID)
+	//if err != nil {
+	//log.Errorf("Could not convert string to byte array: %v", err)
+	//return nil, err
+	//}
+	//err = setupDKG.SetConfig(&onet.GenericConfig{Data: encoded})
+	err = setupDKG.SetConfig(&onet.GenericConfig{Data: req.ID[:]})
 	if err != nil {
 		log.Errorf("Could not set config: %v", err)
 		return nil, err
@@ -170,12 +177,13 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 	decProto.Server = req.Server
 	decProto.Shared = shared
 	decProto.Poly = share.NewPubPoly(s.Suite(), bb, commits)
-	encoded, err := hexToBytes(req.ID)
-	if err != nil {
-		log.Errorf("Could not convert string to byte array: %v", err)
-		return nil, err
-	}
-	err = decProto.SetConfig(&onet.GenericConfig{Data: encoded})
+	//encoded, err := hexToBytes(req.ID)
+	//if err != nil {
+	//log.Errorf("Could not convert string to byte array: %v", err)
+	//return nil, err
+	//}
+	//err = decProto.SetConfig(&onet.GenericConfig{Data: encoded})
+	err = decProto.SetConfig(&onet.GenericConfig{Data: req.ID[:]})
 	if err != nil {
 		log.Errorf("Could not set config: %v", err)
 		return nil, err
@@ -268,20 +276,21 @@ func (s *Service) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConfi
 	log.Lvl3(s.ServerIdentity(), tn.ProtocolName(), conf)
 	switch tn.ProtocolName() {
 	case dkgprotocol.Name:
-		id := hex.EncodeToString(conf.Data)
+		//id := hex.EncodeToString(conf.Data)
 		pi, err := dkgprotocol.NewSetup(tn)
 		if err != nil {
 			return nil, err
 		}
 		setupDKG := pi.(*dkgprotocol.Setup)
 		setupDKG.KeyPair = s.getKeyPair()
-		go func(id string) {
+		go func(idSlice []byte) {
 			<-setupDKG.Finished
 			shared, dks, err := setupDKG.SharedSecret()
 			if err != nil {
 				log.Error(err)
 				return
 			}
+			id := NewDKGID(idSlice)
 			log.Lvlf3("%v got shared %v", s.ServerIdentity(), shared)
 			s.storage.Lock()
 			s.storage.Shared[id] = shared
@@ -291,10 +300,11 @@ func (s *Service) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConfi
 			if err != nil {
 				log.Error(err)
 			}
-		}(id)
+		}(conf.Data)
 		return pi, nil
 	case ThreshProtoName:
-		id := hex.EncodeToString(conf.Data)
+		//id := hex.EncodeToString(conf.Data)
+		id := NewDKGID(conf.Data)
 		s.storage.Lock()
 		shared, ok := s.storage.Shared[id]
 		shared = shared.Clone()
@@ -339,13 +349,13 @@ func (s *Service) tryLoad() error {
 	s.storage = &storage{}
 	defer func() {
 		if len(s.storage.Shared) == 0 {
-			s.storage.Shared = make(map[string]*dkgprotocol.SharedSecret)
+			s.storage.Shared = make(map[[32]byte]*dkgprotocol.SharedSecret)
 		}
 		if len(s.storage.Polys) == 0 {
-			s.storage.Polys = make(map[string]*pubPoly)
+			s.storage.Polys = make(map[[32]byte]*pubPoly)
 		}
 		if len(s.storage.DKS) == 0 {
-			s.storage.DKS = make(map[string]*dkg.DistKeyShare)
+			s.storage.DKS = make(map[[32]byte]*dkg.DistKeyShare)
 		}
 	}()
 	msg, err := s.Load(storageKey)
