@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/dedis/protean"
+	"github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/proof"
@@ -37,7 +38,8 @@ func (c *Client) InitUnit(roster *onet.Roster, scData *protean.ScInitData, bStor
 	return reply, err
 }
 
-func (c *Client) Shuffle(pairs []ElGamalPair, g kyber.Point, h kyber.Point) (*ShuffleReply, error) {
+//func (c *Client) Shuffle(pairs []ElGamalPair, g kyber.Point, h kyber.Point) (*ShuffleReply, error) {
+func (c *Client) Shuffle(pairs []utils.ElGamalPair, g kyber.Point, h kyber.Point) (*ShuffleReply, error) {
 	if len(pairs) <= 0 {
 		return nil, fmt.Errorf("No ciphertext to shuffle")
 	}
@@ -53,7 +55,8 @@ func (c *Client) Shuffle(pairs []ElGamalPair, g kyber.Point, h kyber.Point) (*Sh
 
 //TODO: Not sure if this is the right place for this function. To be seen once
 //I start implementing the e-voting application
-func (r *ShuffleReply) ShuffleVerify(G, H kyber.Point, initialPairs []ElGamalPair, publics []kyber.Point) error {
+//func (r *ShuffleReply) ShuffleVerify(G, H kyber.Point, initialPairs []ElGamalPair, publics []kyber.Point) error {
+func (r *ShuffleReply) ShuffleVerify(G, H kyber.Point, initialPairs []utils.ElGamalPair, publics []kyber.Point) error {
 	x, y := splitPairs(initialPairs)
 	for i, proof := range r.Proofs {
 		// check that the signature on the proof is correct

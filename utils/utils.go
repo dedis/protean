@@ -46,7 +46,8 @@ func ElGamalEncrypt(public kyber.Point, message []byte) *ElGamalPair {
 }
 
 // ElGamalDecrypt performs the ElGamal decryption algorithm.
-func ElGamalDecrypt(private kyber.Scalar, egp *ElGamalPair) kyber.Point {
+//func ElGamalDecrypt(private kyber.Scalar, egp *ElGamalPair) kyber.Point {
+func ElGamalDecrypt(private kyber.Scalar, egp ElGamalPair) kyber.Point {
 	S := cothority.Suite.Point().Mul(private, egp.K) // regenerate shared secret
 	return cothority.Suite.Point().Sub(egp.C, S)     // use to un-blind the message
 }

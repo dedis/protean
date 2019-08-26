@@ -2,11 +2,16 @@ package threshold
 
 import (
 	"crypto/sha256"
+	"fmt"
+	"time"
 
+	"github.com/dedis/protean"
 	"github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/share"
+	"go.dedis.ch/kyber/v3/util/random"
+	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
 )
 
@@ -36,4 +41,46 @@ func VerifyDecProof(sh kyber.Point, ei kyber.Scalar, fi kyber.Scalar, u kyber.Po
 	hiHat.MarshalTo(hash)
 	e := cothority.Suite.Scalar().SetBytes(hash.Sum(nil))
 	return e.Equal(ei)
+}
+
+func GenerateInitRequest(roster *onet.Roster) *InitUnitRequest {
+	scData := &protean.ScInitData{
+		MHeight: 2,
+		BHeight: 2,
+	}
+	uData := &protean.BaseStorage{
+		UInfo: &protean.UnitInfo{
+			UnitID:   "threshold",
+			UnitName: "thresholdUnit",
+			Txns:     map[string]string{"a": "b", "c": "d"},
+		},
+	}
+	return &InitUnitRequest{
+		Roster:       roster,
+		ScData:       scData,
+		BaseStore:    uData,
+		BlkInterval:  10,
+		DurationType: time.Second,
+	}
+}
+
+func GenerateMesgs(count int, m string, key kyber.Point) ([][]byte, []*utils.ElGamalPair) {
+	mesgs := make([][]byte, count)
+	cs := make([]*utils.ElGamalPair, count)
+	for i := 0; i < count; i++ {
+		s := fmt.Sprintf("%s%s%d%s", m, " -- ", i, "!")
+		mesgs[i] = []byte(s)
+		cs[i] = utils.ElGamalEncrypt(key, mesgs[i])
+	}
+	return mesgs, cs
+}
+
+func GenerateRandBytes() []byte {
+	slc := make([]byte, 32)
+	random.Bytes(slc, random.New())
+	return slc
+}
+
+func GetServiceID() onet.ServiceID {
+	return thresholdID
 }

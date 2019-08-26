@@ -4,6 +4,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/proof"
@@ -128,23 +129,25 @@ func (p *ShuffleProtocol) Dispatch() error {
 	return nil
 }
 
-func splitPairs(pairs []ElGamalPair) ([]kyber.Point, []kyber.Point) {
+func splitPairs(pairs []utils.ElGamalPair) ([]kyber.Point, []kyber.Point) {
 	xs := make([]kyber.Point, len(pairs))
 	ys := make([]kyber.Point, len(pairs))
 	for i := range pairs {
-		xs[i] = pairs[i].C1
-		ys[i] = pairs[i].C2
+		//xs[i] = pairs[i].C1
+		//ys[i] = pairs[i].C2
+		xs[i] = pairs[i].K
+		ys[i] = pairs[i].C
 	}
 	return xs, ys
 }
 
-func combinePairs(xs, ys []kyber.Point) []ElGamalPair {
+func combinePairs(xs, ys []kyber.Point) []utils.ElGamalPair {
 	if len(xs) != len(ys) {
 		panic("slices have different lengths")
 	}
-	pairs := make([]ElGamalPair, len(xs))
+	pairs := make([]utils.ElGamalPair, len(xs))
 	for i := range xs {
-		pairs[i] = ElGamalPair{xs[i], ys[i]}
+		pairs[i] = utils.ElGamalPair{xs[i], ys[i]}
 	}
 	return pairs
 }

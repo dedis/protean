@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/dedis/protean"
+	"github.com/dedis/protean/utils"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/onet/v3"
 )
@@ -23,7 +24,8 @@ type InitUnitReply struct {
 // ShuffleRequest is a message that the client sends to initiate Neff shuffle. The
 // points G and H are public generators used in ElGamal encryption.
 type ShuffleRequest struct {
-	Pairs []ElGamalPair
+	//Pairs []ElGamalPair
+	Pairs []utils.ElGamalPair
 	G, H  kyber.Point
 	//Roster *onet.Roster
 }
@@ -36,14 +38,15 @@ type ShuffleReply struct {
 }
 
 // ElGamalPair is an ElGamal ciphertext.
-type ElGamalPair struct {
-	C1 kyber.Point
-	C2 kyber.Point
-}
+//type ElGamalPair struct {
+//C1 kyber.Point
+//C2 kyber.Point
+//}
 
 // Proof is the Neff shuffle proof with a signature.
 type Proof struct {
-	Pairs     []ElGamalPair
+	//Pairs     []ElGamalPair
+	Pairs     []utils.ElGamalPair
 	Proof     []byte
 	Signature []byte // on the Proof
 }

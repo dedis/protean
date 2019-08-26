@@ -244,7 +244,7 @@ func testDummyUnit(roster *onet.Roster) error {
 		CompKeys: roster.ServicePublics(dummy.ServiceName),
 	}
 
-	_, err := dumCl.InitUnit(roster, scData, uData, 15, time.Second)
+	_, err := dumCl.InitUnit(roster, scData, uData, 10, time.Second)
 	if err != nil {
 		fmt.Println("Cannot initialize state unit")
 		return err
@@ -758,17 +758,101 @@ func testThreshold(roster *onet.Roster) error {
 	return nil
 }
 
-func generateReq(n int, msg []byte) ([]easyneff.ElGamalPair, kyber.Point, kyber.Point) {
+//func generateReq(n int, msg []byte) ([]easyneff.ElGamalPair, kyber.Point, kyber.Point) {
+func generateReq(n int, msg []byte) ([]utils.ElGamalPair, kyber.Point, kyber.Point) {
 	r := random.New()
-	pairs := make([]easyneff.ElGamalPair, n)
+	//pairs := make([]easyneff.ElGamalPair, n)
+	pairs := make([]utils.ElGamalPair, n)
 	for i := range pairs {
 		secret := cothority.Suite.Scalar().Pick(r)
 		public := cothority.Suite.Point().Mul(secret, nil)
-		//c1, c2 := utils.ElGamalEncrypt(public, msg)
 		c := utils.ElGamalEncrypt(public, msg)
-		pairs[i] = easyneff.ElGamalPair{C1: c.K, C2: c.C}
+		//pairs[i] = easyneff.ElGamalPair{C1: c.K, C2: c.C}
+		pairs[i] = utils.ElGamalPair{K: c.K, C: c.C}
 	}
 	return pairs, cothority.Suite.Point().Base(), cothority.Suite.Point().Pick(r)
+}
+
+func testFail(roster *onet.Roster) error {
+	psCl := pristore.NewClient()
+	scData := &protean.ScInitData{
+		MHeight: 2,
+		BHeight: 2,
+	}
+	uData := &protean.BaseStorage{
+		UInfo: &protean.UnitInfo{
+			UnitID:   "pristore",
+			UnitName: "pristoreUnit",
+			Txns:     map[string]string{"a": "b", "c": "d"},
+		},
+		CompKeys: roster.ServicePublics(pristore.ServiceName),
+	}
+
+	reply, err := psCl.InitUnit(roster, scData, uData, 15, time.Second)
+	if err != nil {
+		return fmt.Errorf("InitUnit error: %v", err)
+	}
+	for _, who := range roster.List {
+		err := psCl.Authorize(who, reply.ID)
+		if err != nil {
+			return fmt.Errorf("Authorize error: %v", err)
+		}
+	}
+	err = psCl.CreateLTS(roster, 4)
+	if err != nil {
+		return fmt.Errorf("CreateLTS error: %v", err)
+	}
+
+	provider1 := darc.NewSignerEd25519(nil, nil)
+	reader1 := darc.NewSignerEd25519(nil, nil)
+	//provider2 := darc.NewSignerEd25519(nil, nil)
+
+	darc1 := darc.NewDarc(darc.InitRules([]darc.Identity{provider1.Identity()}, []darc.Identity{provider1.Identity()}), []byte("Provider1"))
+	err = darc1.Rules.AddRule(darc.Action("spawn:"+calypso.ContractWriteID), expression.InitOrExpr(provider1.Identity().String()))
+	if err != nil {
+		return fmt.Errorf("Add rule to darc failed: %v", err)
+	}
+	err = darc1.Rules.AddRule(darc.Action("spawn:"+calypso.ContractReadID), expression.InitOrExpr(reader1.Identity().String()))
+	if err != nil {
+		return fmt.Errorf("Add rule to darc failed: %v", err)
+	}
+	_, err = psCl.SpawnDarc(*darc1, 4)
+	if err != nil {
+		return fmt.Errorf("SpawnDarc error: %v", err)
+	}
+	data := []byte("On Wisconsin!")
+	wr1, err := psCl.AddWrite(data, provider1, 1, *darc1, 4)
+	if err != nil {
+		return fmt.Errorf("AddWrite error: %v", err)
+	}
+	wpReply, err := psCl.GetProof(wr1.InstanceID)
+	if err != nil {
+		return fmt.Errorf("Proof does not exist: %v", err)
+	}
+	re1, err := psCl.AddRead(&wpReply.Proof, reader1, 1, 4)
+	if err != nil {
+		return fmt.Errorf("AddRead error: %v", err)
+	}
+	rpReply, err := psCl.GetProof(re1.InstanceID)
+	if err != nil {
+		return fmt.Errorf("Proof does not exist: %v", err)
+	}
+	if !rpReply.Proof.InclusionProof.Match(re1.InstanceID.Slice()) {
+		return fmt.Errorf("Inclusion proof does not match")
+	}
+	fmt.Println("SUCCESS: Inclusion proof matched")
+
+	dk, err := psCl.Decrypt(wpReply.Proof, rpReply.Proof)
+	if err != nil {
+		return fmt.Errorf("Decrypt error: %v", err)
+	}
+	//ptext, err := psCl.RecoverKey(dk, reader1)
+	ptext, err := dk.RecoverKey(reader1)
+	if err != nil {
+		return fmt.Errorf("DecodeKey error: %v", err)
+	}
+	fmt.Println("Recovered:", string(ptext))
+	return nil
 }
 
 func main() {
@@ -799,8 +883,9 @@ func main() {
 		//err := testPrivstore(roster)
 		//err := testShuffle(roster)
 		//err := testTDH(roster)
-		err := testThreshold(roster)
+		//err := testThreshold(roster)
 		//err := testSigver(roster)
+		err := testFail(roster)
 		if err != nil {
 			fmt.Println(err)
 		}

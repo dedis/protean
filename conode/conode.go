@@ -18,11 +18,11 @@ import (
 
 	//_ "github.com/dedis/protean/compiler"
 	//_ "github.com/dedis/protean/dummy"
-	//_ "github.com/dedis/protean/easyneff"
+	_ "github.com/dedis/protean/easyneff"
 	//_ "github.com/dedis/protean/easyrand"
 	//_ "github.com/dedis/protean/pristore"
 	//_ "github.com/dedis/protean/state"
-	_ "github.com/dedis/protean/tdh"
+	//_ "github.com/dedis/protean/tdh"
 	_ "github.com/dedis/protean/threshold"
 
 	//_ "github.com/dedis/protean/sigver"

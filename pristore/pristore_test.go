@@ -20,7 +20,7 @@ func TestMain(m *testing.M) {
 	log.MainTest(m)
 }
 
-func TestPristore_MultipleReaders(t *testing.T) {
+func TestPristore_Multiple(t *testing.T) {
 	n := 7
 	local := onet.NewTCPTest(cothority.Suite)
 	hosts, roster, _ := local.GenTree(n, true)
@@ -38,27 +38,29 @@ func TestPristore_MultipleReaders(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	ltsReply, err := root.CreateLTS(&CreateLTSRequest{LTSRoster: roster, Wait: 4})
+	ltsReply, err := root.CreateLTS(&CreateLTSRequest{LTSRoster: roster, Wait: 2})
 	require.NoError(t, err)
 
-	writers := generateWriters(10)
+	writers := generateWriters(2)
 	readers := generateReaders(1)
 	darc1 := CreateDarc(readers[0].Identity(), "provider1")
 	err = AddWriteRule(darc1, writers...)
 	require.NoError(t, err)
 	err = AddReadRule(darc1, readers...)
 	require.NoError(t, err)
-	_, err = root.SpawnDarc(&SpawnDarcRequest{Darc: *darc1, Wait: 4})
+	_, err = root.SpawnDarc(&SpawnDarcRequest{Darc: *darc1, Wait: 2})
 	require.NoError(t, err)
 
 	data := []byte("mor daglar")
 	data2 := []byte("i remember mom")
 	ctx, err := prepareWriteTransaction(ltsReply, data, writers[0], 1, *darc1)
 	require.NoError(t, err)
-	wr1, err := root.AddWrite(&AddWriteRequest{Ctx: ctx, Wait: 4})
+	wr1, err := root.AddWrite(&AddWriteRequest{Ctx: ctx, Wait: 0})
+	require.NoError(t, err)
 	ctx, err = prepareWriteTransaction(ltsReply, data2, writers[1], 1, *darc1)
 	require.NoError(t, err)
-	wr2, err := root.AddWrite(&AddWriteRequest{Ctx: ctx, Wait: 4})
+	wr2, err := root.AddWrite(&AddWriteRequest{Ctx: ctx, Wait: 2})
+	require.NoError(t, err)
 
 	wpr1, err := root.GetProof(&GetProofRequest{InstanceID: wr1.InstanceID})
 	require.NoError(t, err)
@@ -68,12 +70,12 @@ func TestPristore_MultipleReaders(t *testing.T) {
 	readerCt := uint64(1)
 	ctx, err = prepareReadTransaction(&wpr1.Proof, readers[0], readerCt)
 	require.NoError(t, err)
-	r1, err := root.AddRead(&AddReadRequest{Ctx: ctx, Wait: 4})
+	r1, err := root.AddRead(&AddReadRequest{Ctx: ctx, Wait: 0})
 	require.NoError(t, err)
 	readerCt++
 	ctx, err = prepareReadTransaction(&wpr2.Proof, readers[0], readerCt)
 	require.NoError(t, err)
-	r2, err := root.AddRead(&AddReadRequest{Ctx: ctx, Wait: 4})
+	r2, err := root.AddRead(&AddReadRequest{Ctx: ctx, Wait: 2})
 	require.NoError(t, err)
 	readerCt++
 
@@ -84,6 +86,16 @@ func TestPristore_MultipleReaders(t *testing.T) {
 	require.True(t, rpr1.Proof.InclusionProof.Match(r1.InstanceID.Slice()))
 	require.True(t, rpr2.Proof.InclusionProof.Match(r2.InstanceID.Slice()))
 
+	_, err = root.Decrypt(&DecryptRequest{Request: &calypso.DecryptKey{
+		Read:  rpr2.Proof,
+		Write: wpr1.Proof,
+	}})
+	require.Error(t, err)
+	_, err = root.Decrypt(&DecryptRequest{Request: &calypso.DecryptKey{
+		Read:  rpr1.Proof,
+		Write: wpr2.Proof,
+	}})
+	require.Error(t, err)
 	dr1, err := root.Decrypt(&DecryptRequest{Request: &calypso.DecryptKey{
 		Read:  rpr1.Proof,
 		Write: wpr1.Proof,
@@ -101,7 +113,6 @@ func TestPristore_MultipleReaders(t *testing.T) {
 	pt2, err := dr2.RecoverKey(readers[0])
 	require.True(t, bytes.Equal(pt2, data2))
 	require.NoError(t, err)
-
 }
 
 func prepareReadTransaction(proof *byzcoin.Proof, signer darc.Signer, signerCtr uint64) (byzcoin.ClientTransaction, error) {
