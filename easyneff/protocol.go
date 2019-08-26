@@ -147,7 +147,8 @@ func combinePairs(xs, ys []kyber.Point) []utils.ElGamalPair {
 	}
 	pairs := make([]utils.ElGamalPair, len(xs))
 	for i := range xs {
-		pairs[i] = utils.ElGamalPair{xs[i], ys[i]}
+		//pairs[i] = utils.ElGamalPair{xs[i], ys[i]}
+		pairs[i] = utils.ElGamalPair{K: xs[i], C: ys[i]}
 	}
 	return pairs
 }

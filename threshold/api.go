@@ -57,7 +57,8 @@ func (c *Client) Decrypt(id []byte, cs []*utils.ElGamalPair, server bool) (*Decr
 }
 
 func RecoverMessages(numNodes int, cs []*utils.ElGamalPair, partials []*Partial) []kyber.Point {
-	var ps []kyber.Point
+	//var ps []kyber.Point
+	ps := make([]kyber.Point, len(partials))
 	for i, partial := range partials {
 		var validShares []*share.PubShare
 		for j, sh := range partial.Shares {
@@ -68,7 +69,8 @@ func RecoverMessages(numNodes int, cs []*utils.ElGamalPair, partials []*Partial)
 				log.Info("Cannot verify decryption proof from node", j)
 			}
 		}
-		ps = append(ps, recoverCommit(numNodes, cs[i], validShares))
+		//ps = append(ps, recoverCommit(numNodes, cs[i], validShares))
+		ps[i] = recoverCommit(numNodes, cs[i], validShares)
 	}
 	return ps
 }

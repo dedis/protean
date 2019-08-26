@@ -164,9 +164,9 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 	decProto.Shared = s.storage.Shared[req.ID]
 	pp := s.storage.Polys[req.ID]
 	reply.X = s.storage.Shared[req.ID].X.Clone()
-	var commits []kyber.Point
-	for _, c := range pp.Commits {
-		commits = append(commits, c.Clone())
+	commits := make([]kyber.Point, len(pp.Commits))
+	for i, c := range pp.Commits {
+		commits[i] = c.Clone()
 	}
 	decProto.Poly = share.NewPubPoly(s.Suite(), pp.B.Clone(), commits)
 	s.storage.Unlock()

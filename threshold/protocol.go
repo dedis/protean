@@ -113,8 +113,9 @@ func (d *ThreshDecrypt) decryptReply(pdr structPartialReply) error {
 	// minus one to exclude the root
 	if len(d.replies) >= int(d.Threshold-1) {
 		// Each Partial contains n shares/eis/fis - one from each node
+		d.Partials = make([]*Partial, len(d.Cs))
 		for i := 0; i < len(d.Cs); i++ {
-			d.Partials = append(d.Partials, &Partial{})
+			d.Partials[i] = &Partial{}
 		}
 		// Root node prepares its share by performing EG decryption
 		for i, c := range d.Cs {

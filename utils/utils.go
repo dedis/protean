@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"bufio"
 	"crypto/sha256"
 	"fmt"
 	"os"
@@ -13,7 +12,6 @@ import (
 	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/pairing"
-	"go.dedis.ch/kyber/v3/util/encoding"
 	"go.dedis.ch/kyber/v3/util/random"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/app"
@@ -30,23 +28,22 @@ type ElGamalPair struct {
 }
 
 // ElGamalEncrypt performs the ElGamal encryption algorithm.
-func ElGamalEncrypt(public kyber.Point, message []byte) *ElGamalPair {
+func ElGamalEncrypt(public kyber.Point, message []byte) ElGamalPair {
 	if len(message) > cothority.Suite.Point().EmbedLen() {
 		panic("message size is too long")
 	}
 	M := cothority.Suite.Point().Embed(message, random.New())
 
 	// ElGamal-encrypt the point to produce ciphertext (K,C).
-	egp := &ElGamalPair{}
+	egp := ElGamalPair{}
 	k := cothority.Suite.Scalar().Pick(random.New()) // ephemeral private key
-	S := cothority.Suite.Point().Mul(k, public)      // ephemeral DH shared secret
 	egp.K = cothority.Suite.Point().Mul(k, nil)      // ephemeral DH public key
+	S := cothority.Suite.Point().Mul(k, public)      // ephemeral DH shared secret
 	egp.C = S.Add(S, M)                              // message blinded with secret
 	return egp
 }
 
 // ElGamalDecrypt performs the ElGamal decryption algorithm.
-//func ElGamalDecrypt(private kyber.Scalar, egp *ElGamalPair) kyber.Point {
 func ElGamalDecrypt(private kyber.Scalar, egp ElGamalPair) kyber.Point {
 	S := cothority.Suite.Point().Mul(private, egp.K) // regenerate shared secret
 	return cothority.Suite.Point().Sub(egp.C, S)     // use to un-blind the message
@@ -96,33 +93,11 @@ func CreateGenesisBlock(s *skipchain.Service, scData *protean.ScInitData, roster
 	genesis.Roster = roster
 	genesis.MaximumHeight = scData.MHeight
 	genesis.BaseHeight = scData.BHeight
-	//genesis.Roster = scData.Roster
 	genesis.VerifierIDs = skipchain.VerificationStandard
 	reply, err := s.StoreSkipBlock(&skipchain.StoreSkipBlock{
 		NewBlock: genesis,
 	})
 	return reply, err
-}
-
-func GetServerKey(fname *string) (kyber.Point, error) {
-	var keys []kyber.Point
-	fh, err := os.Open(*fname)
-	defer fh.Close()
-	if err != nil {
-		log.Errorf("GetServerKey error: %v", err)
-		return nil, err
-	}
-
-	fs := bufio.NewScanner(fh)
-	for fs.Scan() {
-		tmp, err := encoding.StringHexToPoint(cothority.Suite, fs.Text())
-		if err != nil {
-			log.Errorf("GetServerKey error: %v", err)
-			return nil, err
-		}
-		keys = append(keys, tmp)
-	}
-	return keys[0], nil
 }
 
 func ReadRoster(path *string) (*onet.Roster, error) {
@@ -145,3 +120,24 @@ func ReadRoster(path *string) (*onet.Roster, error) {
 	}
 	return group.Roster, nil
 }
+
+//func GetServerKey(fname *string) (kyber.Point, error) {
+//var keys []kyber.Point
+//fh, err := os.Open(*fname)
+//defer fh.Close()
+//if err != nil {
+//log.Errorf("GetServerKey error: %v", err)
+//return nil, err
+//}
+
+//fs := bufio.NewScanner(fh)
+//for fs.Scan() {
+//tmp, err := encoding.StringHexToPoint(cothority.Suite, fs.Text())
+//if err != nil {
+//log.Errorf("GetServerKey error: %v", err)
+//return nil, err
+//}
+//keys = append(keys, tmp)
+//}
+//return keys[0], nil
+//}

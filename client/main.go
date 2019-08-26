@@ -715,9 +715,10 @@ func testThreshold(roster *onet.Roster) error {
 	if err != nil {
 		return fmt.Errorf("InitDKG error: %v", err)
 	}
-	var cs []*utils.ElGamalPair
-	for _, mesg := range mesgs {
-		cs = append(cs, utils.ElGamalEncrypt(dkgReply.X, mesg))
+	cs := make([]*utils.ElGamalPair, len(mesgs))
+	for i, mesg := range mesgs {
+		c := utils.ElGamalEncrypt(dkgReply.X, mesg)
+		cs[i] = &c
 	}
 
 	time.Sleep(5 * time.Second)

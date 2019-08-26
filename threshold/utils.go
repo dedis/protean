@@ -70,7 +70,9 @@ func GenerateMesgs(count int, m string, key kyber.Point) ([][]byte, []*utils.ElG
 	for i := 0; i < count; i++ {
 		s := fmt.Sprintf("%s%s%d%s", m, " -- ", i, "!")
 		mesgs[i] = []byte(s)
-		cs[i] = utils.ElGamalEncrypt(key, mesgs[i])
+		//cs[i] = utils.ElGamalEncrypt(key, mesgs[i])
+		c := utils.ElGamalEncrypt(key, mesgs[i])
+		cs[i] = &c
 	}
 	return mesgs, cs
 }

@@ -172,17 +172,21 @@ func CreateDarc(ownerID darc.Identity, name string) *darc.Darc {
 }
 
 func AddWriteRule(d *darc.Darc, writers ...darc.Signer) error {
-	var ids []string
-	for _, w := range writers {
-		ids = append(ids, w.Identity().String())
+	//var ids []string
+	ids := make([]string, len(writers))
+	for i, w := range writers {
+		//ids = append(ids, w.Identity().String())
+		ids[i] = w.Identity().String()
 	}
 	return d.Rules.AddRule(darc.Action("spawn:"+calypso.ContractWriteID), expression.InitOrExpr(ids...))
 }
 
 func AddReadRule(d *darc.Darc, readers ...darc.Signer) error {
-	var ids []string
-	for _, r := range readers {
-		ids = append(ids, r.Identity().String())
+	//var ids []string
+	ids := make([]string, len(readers))
+	for i, r := range readers {
+		//ids = append(ids, r.Identity().String())
+		ids[i] = r.Identity().String()
 	}
 	return d.Rules.AddRule(darc.Action("spawn:"+calypso.ContractReadID), expression.InitOrExpr(ids...))
 }

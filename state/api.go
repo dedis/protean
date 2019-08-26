@@ -21,9 +21,13 @@ func NewClient() *Client {
 }
 
 func (c *Client) UpdateState(contractID string, kv []*KV, instID byzcoin.InstanceID, signerCtr uint64, signer darc.Signer, wait int) (*UpdateStateReply, error) {
-	var args byzcoin.Arguments
-	for _, elt := range kv {
-		args = append(args, byzcoin.Argument{Name: elt.Key, Value: elt.Value})
+	//var args byzcoin.Arguments
+	//for _, elt := range kv {
+	//args = append(args, byzcoin.Argument{Name: elt.Key, Value: elt.Value})
+	//}
+	args := make(byzcoin.Arguments, len(kv))
+	for i, elt := range kv {
+		args[i] = byzcoin.Argument{Name: elt.Key, Value: elt.Value}
 	}
 	ctx := byzcoin.ClientTransaction{
 		Instructions: []byzcoin.Instruction{{
@@ -52,9 +56,13 @@ func (c *Client) UpdateState(contractID string, kv []*KV, instID byzcoin.Instanc
 
 // This is called by the organize/owner/admin of the application
 func (c *Client) CreateState(contractID string, kv []*KV, adminDarc darc.Darc, signerCtr uint64, signer darc.Signer, wait int) (*CreateStateReply, error) {
-	var args byzcoin.Arguments
-	for _, elt := range kv {
-		args = append(args, byzcoin.Argument{Name: elt.Key, Value: elt.Value})
+	//var args byzcoin.Arguments
+	//for _, elt := range kv {
+	//args = append(args, byzcoin.Argument{Name: elt.Key, Value: elt.Value})
+	//}
+	args := make(byzcoin.Arguments, len(kv))
+	for i, elt := range kv {
+		args[i] = byzcoin.Argument{Name: elt.Key, Value: elt.Value}
 	}
 	ctx := byzcoin.ClientTransaction{
 		Instructions: []byzcoin.Instruction{{

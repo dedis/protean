@@ -45,9 +45,10 @@ func init() {
 }
 
 func (s *Service) CreateUnits(req *CreateUnitsRequest) (*CreateUnitsReply, error) {
-	var dirInfo []*protean.UnitInfo
+	//var dirInfo []*protean.UnitInfo
+	dirInfo := make([]*protean.UnitInfo, len(req.Units))
 	sbd := make(map[string]*uv)
-	for _, unit := range req.Units {
+	for i, unit := range req.Units {
 		uid, err := generateUnitID(unit)
 		if err != nil {
 			log.Errorf("Error in generating unit IDs: %v", err)
@@ -62,7 +63,8 @@ func (s *Service) CreateUnits(req *CreateUnitsRequest) (*CreateUnitsReply, error
 		}
 		val.Txns = txnIDs
 		sbd[uid] = val
-		dirInfo = append(dirInfo, &protean.UnitInfo{UnitID: uid, UnitName: unit.UnitName, Txns: txnIDs})
+		//dirInfo = append(dirInfo, &protean.UnitInfo{UnitID: uid, UnitName: unit.UnitName, Txns: txnIDs})
+		dirInfo[i] = &protean.UnitInfo{UnitID: uid, UnitName: unit.UnitName, Txns: txnIDs}
 	}
 	enc, err := protobuf.Encode(&sbData{
 		Data: sbd,

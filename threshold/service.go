@@ -160,9 +160,13 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 		log.Errorf("Cannot find ID: %v", req.ID)
 		return nil, errors.New("No DKG entry found for the given ID")
 	}
-	var commits []kyber.Point
-	for _, c := range pp.Commits {
-		commits = append(commits, c.Clone())
+	//var commits []kyber.Point
+	//for _, c := range pp.Commits {
+	//commits = append(commits, c.Clone())
+	//}
+	commits := make([]kyber.Point, len(pp.Commits))
+	for i, c := range pp.Commits {
+		commits[i] = c.Clone()
 	}
 	bb := pp.B.Clone()
 	s.storage.Unlock()
@@ -200,9 +204,13 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 	log.Lvl3("Decryption protocol is done.")
 
 	if req.Server {
+		reply.Ps = make([]kyber.Point, len(decProto.Partials))
 		for i, partial := range decProto.Partials {
-			reply.Ps = append(reply.Ps, recoverCommit(numNodes, req.Cs[i], partial.Shares))
+			reply.Ps[i] = recoverCommit(numNodes, req.Cs[i], partial.Shares)
 		}
+		//for i, partial := range decProto.Partials {
+		//reply.Ps = append(reply.Ps, recoverCommit(numNodes, req.Cs[i], partial.Shares))
+		//}
 	} else {
 		reply.Partials = decProto.Partials
 	}
