@@ -28,9 +28,12 @@ var thresholdID onet.ServiceID
 const propagationTimeout = 20 * time.Second
 
 type storage struct {
-	Shared map[[32]byte]*dkgprotocol.SharedSecret
-	Polys  map[[32]byte]*pubPoly
-	DKS    map[[32]byte]*dkg.DistKeyShare
+	Shared map[DKGID]*dkgprotocol.SharedSecret
+	Polys  map[DKGID]*pubPoly
+	DKS    map[DKGID]*dkg.DistKeyShare
+	//Shared map[[32]byte]*dkgprotocol.SharedSecret
+	//Polys  map[[32]byte]*pubPoly
+	//DKS    map[[32]byte]*dkg.DistKeyShare
 	sync.Mutex
 }
 
@@ -178,9 +181,9 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 	}
 	decProto := pi.(*ThreshDecrypt)
 	decProto.Cs = req.Cs
-	decProto.Server = req.Server
 	decProto.Shared = shared
 	decProto.Poly = share.NewPubPoly(s.Suite(), bb, commits)
+	decProto.Server = req.Server
 	//encoded, err := hexToBytes(req.ID)
 	//if err != nil {
 	//log.Errorf("Could not convert string to byte array: %v", err)
@@ -357,13 +360,16 @@ func (s *Service) tryLoad() error {
 	s.storage = &storage{}
 	defer func() {
 		if len(s.storage.Shared) == 0 {
-			s.storage.Shared = make(map[[32]byte]*dkgprotocol.SharedSecret)
+			//s.storage.Shared = make(map[[32]byte]*dkgprotocol.SharedSecret)
+			s.storage.Shared = make(map[DKGID]*dkgprotocol.SharedSecret)
 		}
 		if len(s.storage.Polys) == 0 {
-			s.storage.Polys = make(map[[32]byte]*pubPoly)
+			//s.storage.Polys = make(map[[32]byte]*pubPoly)
+			s.storage.Polys = make(map[DKGID]*pubPoly)
 		}
 		if len(s.storage.DKS) == 0 {
-			s.storage.DKS = make(map[[32]byte]*dkg.DistKeyShare)
+			//s.storage.DKS = make(map[[32]byte]*dkg.DistKeyShare)
+			s.storage.DKS = make(map[DKGID]*dkg.DistKeyShare)
 		}
 	}()
 	msg, err := s.Load(storageKey)

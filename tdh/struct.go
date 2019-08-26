@@ -11,6 +11,8 @@ import (
 
 const TDHProtoName = "THDDecryptProto"
 
+type DKGID [32]byte
+
 type pubPoly struct {
 	B       kyber.Point
 	Commits []kyber.Point
@@ -37,7 +39,8 @@ type InitUnitReply struct {
 }
 
 type InitDKGRequest struct {
-	ID string
+	//ID string
+	ID DKGID
 }
 
 type InitDKGReply struct {
@@ -45,7 +48,8 @@ type InitDKGReply struct {
 }
 
 type DecryptRequest struct {
-	ID  string
+	//ID  string
+	ID  DKGID
 	Gen []byte
 	Ct  *Ciphertext
 	Xc  kyber.Point

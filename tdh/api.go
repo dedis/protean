@@ -1,7 +1,6 @@
 package tdh
 
 import (
-	"encoding/hex"
 	"time"
 
 	"github.com/dedis/protean"
@@ -35,9 +34,10 @@ func (c *Client) InitUnit(roster *onet.Roster, scData *protean.ScInitData, bStor
 }
 
 func (c *Client) InitDKG(id []byte) (*InitDKGReply, error) {
-	hexID := hex.EncodeToString(id)
+	//hexID := hex.EncodeToString(id)
 	req := &InitDKGRequest{
-		ID: hexID,
+		//ID: hexID,
+		ID: NewDKGID(id),
 	}
 	reply := &InitDKGReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)
@@ -46,9 +46,10 @@ func (c *Client) InitDKG(id []byte) (*InitDKGReply, error) {
 
 //func (c *Client) Decrypt(id []byte, gen []byte, cP kyber.Point, u kyber.Point, xc kyber.Point) (*DecryptReply, error) {
 func (c *Client) Decrypt(id []byte, gen []byte, ct *Ciphertext, xc kyber.Point) (*DecryptReply, error) {
-	hexID := hex.EncodeToString(id)
+	//hexID := hex.EncodeToString(id)
 	req := &DecryptRequest{
-		ID:  hexID,
+		//ID:  hexID,
+		ID:  NewDKGID(id),
 		Gen: gen,
 		Ct:  ct,
 		Xc:  xc,

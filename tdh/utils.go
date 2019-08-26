@@ -2,11 +2,15 @@ package tdh
 
 import (
 	"crypto/sha256"
+	"time"
 
+	"github.com/dedis/protean"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/suites"
+	"go.dedis.ch/kyber/v3/util/random"
 	"go.dedis.ch/kyber/v3/xof/keccak"
+	"go.dedis.ch/onet/v3"
 )
 
 //func (c *Client) Encrypt(suite suites.Suite, genData []byte, X kyber.Point, mesg []byte) *Ciphertext {
@@ -56,4 +60,43 @@ func RecoverPlaintext(reply *DecryptReply, xc kyber.Scalar) ([]byte, error) {
 		data, err = xHatInv.Data()
 	}
 	return data, err
+}
+
+func GenerateInitRequest(roster *onet.Roster) *InitUnitRequest {
+	scData := &protean.ScInitData{
+		MHeight: 2,
+		BHeight: 2,
+	}
+	uData := &protean.BaseStorage{
+		UInfo: &protean.UnitInfo{
+			UnitID:   "tdh",
+			UnitName: "tdhUnit",
+			Txns:     map[string]string{"a": "b", "c": "d"},
+		},
+	}
+	return &InitUnitRequest{
+		Roster:       roster,
+		ScData:       scData,
+		BaseStore:    uData,
+		BlkInterval:  10,
+		DurationType: time.Second,
+	}
+}
+
+//func GenerateMesgs(count int, m string, key kyber.Point) ([][]byte, []*utils.ElGamalPair) {
+//mesgs := make([][]byte, count)
+//cs := make([]*utils.ElGamalPair, count)
+//for i := 0; i < count; i++ {
+//s := fmt.Sprintf("%s%s%d%s", m, " -- ", i, "!")
+//mesgs[i] = []byte(s)
+//c := utils.ElGamalEncrypt(key, mesgs[i])
+//cs[i] = &c
+//}
+//return mesgs, cs
+//}
+
+func GenerateRandBytes() []byte {
+	slc := make([]byte, 32)
+	random.Bytes(slc, random.New())
+	return slc
 }
