@@ -17,8 +17,6 @@ import (
 	"go.dedis.ch/protobuf"
 )
 
-//var storageKey = []byte("storage")
-
 var pairingSuite = suites.MustFind("bn256.Adapter").(*pairing.SuiteBn256)
 var compilerID onet.ServiceID
 
@@ -27,7 +25,6 @@ const execPlanSubFtCosi = "execplan_sub_ftcosi"
 const execPlanFtCosi = "execplan_ftcosi"
 
 type Service struct {
-	//ctx        context.Context
 	*onet.ServiceProcessor
 	roster  *onet.Roster
 	genesis skipchain.SkipBlockID
@@ -41,63 +38,61 @@ func init() {
 	log.ErrFatal(err)
 	network.RegisterMessages(&InitUnitRequest{}, &InitUnitReply{},
 		&CreateUnitsRequest{}, &CreateUnitsReply{}, &ExecutionPlanRequest{},
-		&ExecutionPlanReply{}, &LogSkipchainRequest{}, &LogSkipchainReply{})
+		&ExecutionPlanReply{}, &StoreGenesisRequest{}, &StoreGenesisReply{})
+}
+
+func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
+	genesisReply, err := utils.CreateGenesisBlock(s.scService, req.ScData, req.Roster)
+	if err != nil {
+		log.Errorf("Cannot create skipchain genesis block: %v", err)
+		return nil, err
+	}
+	s.genesis = genesisReply.Latest.Hash
+	s.roster = req.Roster
+	return &InitUnitReply{Genesis: s.genesis}, nil
+}
+
+func (s *Service) StoreGenesis(req *StoreGenesisRequest) (*StoreGenesisReply, error) {
+	s.genesis = req.Genesis
+	return &StoreGenesisReply{}, nil
 }
 
 func (s *Service) CreateUnits(req *CreateUnitsRequest) (*CreateUnitsReply, error) {
-	//var dirInfo []*protean.UnitInfo
-	dirInfo := make([]*protean.UnitInfo, len(req.Units))
 	sbd := make(map[string]*uv)
-	for i, unit := range req.Units {
-		uid, err := generateUnitID(unit)
-		if err != nil {
-			log.Errorf("Error in generating unit IDs: %v", err)
-			return nil, err
-		}
-		txnIDs := generateTxnIDs(unit.Txns)
+	for _, unit := range req.Units {
+		uid := generateUnitID(unit)
+		txnMap := generateTxnMap(unit.Txns)
 		val := &uv{
-			R:  unit.Roster,
-			Ps: unit.Publics,
-			Nn: unit.NumNodes,
-			Nf: unit.NumFaulty,
+			N:    unit.Name,
+			R:    unit.Roster,
+			Ps:   unit.Publics,
+			Txns: txnMap,
 		}
-		val.Txns = txnIDs
 		sbd[uid] = val
-		//dirInfo = append(dirInfo, &protean.UnitInfo{UnitID: uid, UnitName: unit.UnitName, Txns: txnIDs})
-		dirInfo[i] = &protean.UnitInfo{UnitID: uid, UnitName: unit.UnitName, Txns: txnIDs}
 	}
-	enc, err := protobuf.Encode(&sbData{
-		Data: sbd,
-	})
+	enc, err := protobuf.Encode(&sbData{Data: sbd})
 	if err != nil {
 		log.Errorf("Protobuf encode error: %v", err)
 		return nil, err
 	}
-	err = utils.StoreBlock(s.scService, req.Genesis, enc)
+	err = utils.StoreBlock(s.scService, s.genesis, enc)
 	if err != nil {
 		log.Errorf("Cannot add block to skipchain: %v", err)
 		return nil, err
 	}
-	return &CreateUnitsReply{UnitDirectory: dirInfo}, nil
+	return &CreateUnitsReply{}, nil
 }
 
 func (s *Service) GenerateExecutionPlan(req *ExecutionPlanRequest) (*ExecutionPlanReply, error) {
-	log.Info("In GenerateExecutionPlan genesis is", req.Genesis)
-
 	//TODO: THE LEADER SHOULD PREPARE THE EXECUTION PLAN (WITH THE CRYPTO
 	//KEYS) AND SEND IT TO THE OTHER NODES. OTHERS VERIFY THAT IT'S
 	//CONSISTENT AND SENDS A SIGNATURE
 	db := s.scService.GetDB()
-	sbData, err := getBlockData(db, req.Genesis)
+	sbData, err := getBlockData(db, s.genesis)
 	if err != nil {
 		log.Errorf("Cannot get block data: %v", err)
 		return nil, err
 	}
-
-	for k, v := range sbData.Data {
-		log.Lvlf1("SBDATA: %s %d", k, v.Nn)
-	}
-
 	execPlan, err := prepareExecutionPlan(sbData, req)
 	if err != nil {
 		log.Errorf("Preparing the execution plan failed: %v", err)
@@ -159,7 +154,8 @@ func (s *Service) verifyExecutionPlan(msg []byte, data []byte) bool {
 	}
 	// Check that the units and transactions in the workflow are valid
 	db := s.scService.GetDB()
-	sbData, err := getBlockData(db, req.Genesis)
+	//sbData, err := getBlockData(db, req.Genesis)
+	sbData, err := getBlockData(db, s.genesis)
 	if err != nil {
 		log.Errorf("Cannot get block data: %v", err)
 		return valid
@@ -183,72 +179,32 @@ func (s *Service) verifyExecutionPlan(msg []byte, data []byte) bool {
 	return valid
 }
 
-func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
-	genesisReply, err := utils.CreateGenesisBlock(s.scService, req.ScData, req.Roster)
-	if err != nil {
-		log.Errorf("Cannot create skipchain genesis block: %v", err)
-		return nil, err
-	}
-	s.genesis = genesisReply.Latest.Hash
-	s.roster = req.Roster
-	return &InitUnitReply{Genesis: s.genesis}, nil
-}
-
-func (s *Service) LogSkipchain(req *LogSkipchainRequest) (*LogSkipchainReply, error) {
-	log.Info("In LogSkipchain genesis is", req.Genesis)
+func (s *Service) GetDirectoryData(req *DirectoryDataRequest) (*DirectoryDataReply, error) {
 	db := s.scService.GetDB()
-	sbData, err := getBlockData(db, req.Genesis)
+	sbData, err := getBlockData(db, s.genesis)
 	if err != nil {
 		log.Errorf("Cannot get block data: %v", err)
 		return nil, err
 	}
-	for k, v := range sbData.Data {
-		log.LLvlf1("Functional unit key: %s", k)
-		for _, txn := range v.Txns {
-			log.LLvlf1("Transaction ID: %s", txn)
+	idx := 0
+	dirInfo := make([]*protean.UnitInfo, len(sbData.Data))
+	for uid, uv := range sbData.Data {
+		txnMap := make(map[string]string)
+		for txnID, txnName := range uv.Txns {
+			txnMap[txnName] = txnID
 		}
-		log.Info("==========")
+		dirInfo[idx] = &protean.UnitInfo{UnitID: uid, UnitName: uv.N, Txns: txnMap}
+		idx++
 	}
-	return &LogSkipchainReply{}, nil
+	return &DirectoryDataReply{Data: dirInfo}, nil
 }
-
-//func (s *Service) save() error {
-//s.storage.Lock()
-//defer s.storage.Unlock()
-//err := s.Save(storageKey, s.storage)
-//if err != nil {
-//log.Error("Couldn't save data:", err)
-//return err
-//}
-//return nil
-//}
-
-//func (s *Service) tryLoad() error {
-//s.storage = &storage{}
-//msg, err := s.Load(storageKey)
-//if err != nil {
-//log.Error("Load failed:", err)
-//return err
-//}
-//if msg == nil {
-//return nil
-//}
-//var ok bool
-//s.storage, ok = msg.(*storage)
-//if !ok {
-//return fmt.Errorf("Data of wrong type")
-//}
-//return nil
-//}
 
 func newService(c *onet.Context) (onet.Service, error) {
 	s := &Service{
 		ServiceProcessor: onet.NewServiceProcessor(c),
 		scService:        c.Service(skipchain.ServiceName).(*skipchain.Service),
-		//storage:          &storage{},
-		//ctx:              context.Background(),
 	}
-	err := s.RegisterHandlers(s.InitUnit, s.CreateUnits, s.GenerateExecutionPlan, s.LogSkipchain)
+	err := s.RegisterHandlers(s.InitUnit, s.StoreGenesis, s.CreateUnits, s.GenerateExecutionPlan, s.GetDirectoryData)
 	if err != nil {
 		log.Errorf("Cannot register handlers: %v", err)
 		return nil, err

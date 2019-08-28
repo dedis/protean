@@ -1,19 +1,18 @@
-package main
+package utils
 
 import (
 	"bufio"
-	"fmt"
 	"os"
 	"strconv"
 	"strings"
 
 	"github.com/dedis/protean"
-	"github.com/dedis/protean/compiler"
+	"github.com/dedis/protean/sys"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
 )
 
-func createWorkflow(wfFilePtr *string, uData map[string]string, tData map[string]string) ([]*protean.WfNode, error) {
+func CreateWorkflow(wfFilePtr *string, uData map[string]string, tData map[string]string) ([]*protean.WfNode, error) {
 	var wf []*protean.WfNode
 	file, err := os.Open(*wfFilePtr)
 	defer file.Close()
@@ -48,45 +47,12 @@ func createWorkflow(wfFilePtr *string, uData map[string]string, tData map[string
 	return wf, nil
 }
 
-func generateDirectoryData(reply *compiler.CreateUnitsReply) (map[string]string, map[string]string) {
-	// Unit name -> uid
-	// Txn name  -> tid
-	unitMap := make(map[string]string)
-	txnMap := make(map[string]string)
-	for i := 0; i < len(reply.UnitDirectory); i++ {
-		fmt.Println("In utils:", reply.UnitDirectory[i].UnitName, reply.UnitDirectory[i].UnitID)
-		unitMap[reply.UnitDirectory[i].UnitName] = reply.UnitDirectory[i].UnitID
-		for k, v := range reply.UnitDirectory[i].Txns {
-			txnMap[v] = k
-		}
-
-	}
-	return unitMap, txnMap
+func Setup(roster *onet.Roster, uFilePtr *string, tFilePtr *string) ([]byte, map[string]string, map[string]string, error) {
+	return nil, nil, nil, nil
 }
 
-func setup(roster *onet.Roster, uFilePtr *string, tFilePtr *string) ([]byte, map[string]string, map[string]string, error) {
-	units, err := prepareUnits(roster, uFilePtr, tFilePtr)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	cl := compiler.NewClient()
-	defer cl.Close()
-	//iuReply, err := cl.InitUnit(&protean.ScInitData{Roster: roster, MHeight: 2, BHeight: 2})
-	iuReply, err := cl.InitUnit(roster, &protean.ScInitData{MHeight: 2, BHeight: 2})
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	reply, err := cl.CreateUnits(iuReply.Genesis, units)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	uMap, tMap := generateDirectoryData(reply)
-	return iuReply.Genesis, uMap, tMap, nil
-}
-
-func prepareUnits(roster *onet.Roster, uFilePtr *string, tFilePtr *string) ([]*compiler.FunctionalUnit, error) {
-	var units []*compiler.FunctionalUnit
+func PrepareUnits(roster *onet.Roster, uFilePtr *string, tFilePtr *string) ([]*sys.FunctionalUnit, error) {
+	var units []*sys.FunctionalUnit
 	file, err := os.Open(*uFilePtr)
 	if err != nil {
 		log.Fatal(err)
@@ -106,18 +72,16 @@ func prepareUnits(roster *onet.Roster, uFilePtr *string, tFilePtr *string) ([]*c
 			log.Errorf("Cannot convert num nodes: %v", err)
 			return nil, err
 		}
-		numFaulty, err := strconv.Atoi(tokens[3])
 		if err != nil {
 			log.Errorf("Cannot convert num faulty: %v", err)
 			return nil, err
 		}
-		fu := &compiler.FunctionalUnit{
-			UnitType:  uType,
-			UnitName:  tokens[1],
-			Roster:    roster,
-			Publics:   roster.Publics(),
-			NumNodes:  numNodes,
-			NumFaulty: numFaulty,
+		fu := &sys.FunctionalUnit{
+			Type:     uType,
+			Name:     tokens[1],
+			Roster:   roster,
+			Publics:  roster.Publics(),
+			NumNodes: numNodes,
 		}
 		units = append(units, fu)
 	}

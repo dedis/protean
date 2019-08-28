@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/dedis/protean"
+	clutil "github.com/dedis/protean/client/utils"
 	"github.com/dedis/protean/compiler"
 	"github.com/dedis/protean/dummy"
 	"github.com/dedis/protean/easyneff"
@@ -16,7 +17,6 @@ import (
 	"github.com/dedis/protean/tdh"
 	"github.com/dedis/protean/threshold"
 
-	//"github.com/dedis/protean/dummy"
 	"github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/calypso"
@@ -42,7 +42,6 @@ func runClient(roster *onet.Roster, genesis []byte, uData map[string]string, tDa
 	//return err
 	//}
 
-	compilerCl.LogSkipchain(genesis)
 	for k, v := range uData {
 		fmt.Printf("%s - %s\n", k, v)
 	}
@@ -54,18 +53,17 @@ func runClient(roster *onet.Roster, genesis []byte, uData map[string]string, tDa
 	fmt.Println("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
 
 	//wf, err := compiler.CreateWorkflow(wfFilePtr, uData, tData)
-	wf, err := createWorkflow(wfFilePtr, uData, tData)
+	wf, err := clutil.CreateWorkflow(wfFilePtr, uData, tData)
 	if err != nil {
 		return err
 	}
 
-	execPlanReply, err := compilerCl.GenerateExecutionPlan(genesis, wf)
+	execPlanReply, err := compilerCl.GenerateExecutionPlan(wf)
 	if err != nil {
 		return err
 	}
 
 	fmt.Println("Sig:", execPlanReply.Signature)
-	fmt.Println("Genesis:", execPlanReply.ExecPlan.Genesis)
 	fmt.Println("uid:", execPlanReply.ExecPlan.Workflow[0].UID)
 	fmt.Println(execPlanReply.ExecPlan.Workflow[1].UID)
 	fmt.Println(execPlanReply.ExecPlan.Workflow[2].UID)
@@ -465,7 +463,7 @@ func test(roster *onet.Roster) error {
 	return nil
 }
 
-func testPrivstore(roster *onet.Roster) error {
+func testPristore(roster *onet.Roster) error {
 	psCl := pristore.NewClient()
 	scData := &protean.ScInitData{
 		//Roster:  roster,
@@ -869,7 +867,7 @@ func main() {
 		os.Exit(1)
 	}
 	if *testPtr == false {
-		genesis, uData, tData, err := setup(roster, unitFilePtr, txnFilePtr)
+		genesis, uData, tData, err := clutil.Setup(roster, unitFilePtr, txnFilePtr)
 		if err != nil {
 			os.Exit(1)
 		}
@@ -881,7 +879,7 @@ func main() {
 		//err := testDummyUnit(roster)
 		//err := testStateUnit(roster)
 		//err := test(roster)
-		//err := testPrivstore(roster)
+		//err := testPristore(roster)
 		//err := testShuffle(roster)
 		//err := testTDH(roster)
 		//err := testThreshold(roster)

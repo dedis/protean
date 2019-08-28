@@ -43,7 +43,7 @@ func init() {
 		&SpawnDarcRequest{}, &SpawnDarcReply{}, &CreateStateRequest{},
 		&CreateStateReply{}, &GetProofRequest{}, &GetProofReply{},
 		&UpdateStateRequest{}, &UpdateStateReply{}, &InitByzcoinRequest{},
-		&InitByzcoinReply{}, &CopyRequest{}, &CopyReply{})
+		&InitByzcoinReply{}, &StoreRequest{}, &StoreReply{})
 }
 
 func (s *Service) UpdateState(req *UpdateStateRequest) (*UpdateStateReply, error) {
@@ -172,7 +172,7 @@ func (s *Service) GetProof(req *GetProofRequest) (*GetProofReply, error) {
 	return reply, nil
 }
 
-func (s *Service) CopyOver(req *CopyRequest) (*CopyReply, error) {
+func (s *Service) StoreGenesis(req *StoreRequest) (*StoreReply, error) {
 	s.genesis = req.Genesis
 	return nil, nil
 }
@@ -203,7 +203,7 @@ func newService(c *onet.Context) (onet.Service, error) {
 		byzService:       c.Service(byzcoin.ServiceName).(*byzcoin.Service),
 		scService:        c.Service(skipchain.ServiceName).(*skipchain.Service),
 	}
-	err := s.RegisterHandlers(s.InitUnit, s.InitByzcoin, s.SpawnDarc, s.CreateState, s.UpdateState, s.GetProof, s.CopyOver)
+	err := s.RegisterHandlers(s.InitUnit, s.InitByzcoin, s.SpawnDarc, s.CreateState, s.UpdateState, s.GetProof, s.StoreGenesis)
 	if err != nil {
 		log.Errorf("Cannot register handlers: %v", err)
 		return nil, err

@@ -104,8 +104,8 @@ type InitByzcoinRequest struct {
 
 type InitByzcoinReply struct{}
 
-type CopyRequest struct {
+type StoreRequest struct {
 	Genesis skipchain.SkipBlockID
 }
 
-type CopyReply struct{}
+type StoreReply struct{}

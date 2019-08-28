@@ -11,6 +11,7 @@ import (
 	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
+	"go.dedis.ch/onet/v3/network"
 )
 
 type Client struct {
@@ -134,16 +135,11 @@ func (c *Client) InitByzcoin(interval time.Duration, typeDur time.Duration) (*In
 	return reply, err
 }
 
-func (c *Client) CopyOver(genesis skipchain.SkipBlockID) error {
-	req := &CopyRequest{
+func (c *Client) StoreGenesis(who *network.ServerIdentity, genesis skipchain.SkipBlockID) error {
+	req := &StoreRequest{
 		Genesis: genesis,
 	}
-	reply := &CopyReply{}
-	for _, who := range c.roster.List {
-		err := c.SendProtobuf(who, req, reply)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+	reply := &StoreReply{}
+	err := c.SendProtobuf(who, req, reply)
+	return err
 }

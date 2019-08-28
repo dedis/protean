@@ -6,7 +6,6 @@ import (
 )
 
 type ScInitData struct {
-	//Roster  *onet.Roster
 	MHeight int
 	BHeight int
 }
@@ -33,8 +32,6 @@ type Identity struct {
 }
 
 type ExecutionPlan struct {
-	//TODO: Get this out of here. It is a temporary hack - or is it?
-	Genesis  []byte
 	Workflow []*WfNode
 	Publics  map[string]*Identity
 }

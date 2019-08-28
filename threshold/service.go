@@ -22,7 +22,7 @@ import (
 )
 
 var storageKey = []byte("storage")
-var ServiceName = "ThresholdService"
+var ServiceName = "ThreshCryptoService"
 var thresholdID onet.ServiceID
 
 const propagationTimeout = 20 * time.Second

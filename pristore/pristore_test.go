@@ -26,7 +26,7 @@ func TestPristore_Multiple(t *testing.T) {
 	hosts, roster, _ := local.GenTree(n, true)
 	defer local.CloseAll()
 
-	services := local.GetServices(hosts, privStoreID)
+	services := local.GetServices(hosts, priStoreID)
 	root := services[0].(*Service)
 	initReq := generateInitRequest(roster)
 	initReply, err := root.InitUnit(initReq)

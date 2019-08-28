@@ -2,8 +2,11 @@ package compiler
 
 import (
 	"github.com/dedis/protean"
+	"github.com/dedis/protean/sys"
 	"go.dedis.ch/cothority/v3"
+	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/onet/v3"
+	"go.dedis.ch/onet/v3/network"
 )
 
 type Client struct {
@@ -26,20 +29,26 @@ func (c *Client) InitUnit(roster *onet.Roster, scData *protean.ScInitData) (*Ini
 	return reply, err
 }
 
-func (c *Client) CreateUnits(genesis []byte, units []*FunctionalUnit) (*CreateUnitsReply, error) {
-	//TODO: Check values in struct?
-	req := &CreateUnitsRequest{
+func (c *Client) StoreGenesis(who *network.ServerIdentity, genesis skipchain.SkipBlockID) error {
+	req := &StoreGenesisRequest{
 		Genesis: genesis,
-		Units:   units,
+	}
+	reply := &StoreGenesisReply{}
+	err := c.SendProtobuf(who, req, reply)
+	return err
+}
+
+func (c *Client) CreateUnits(units []*sys.FunctionalUnit) (*CreateUnitsReply, error) {
+	req := &CreateUnitsRequest{
+		Units: units,
 	}
 	reply := &CreateUnitsReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)
 	return reply, err
 }
 
-func (c *Client) GenerateExecutionPlan(genesis []byte, wf []*protean.WfNode) (*ExecutionPlanReply, error) {
+func (c *Client) GenerateExecutionPlan(wf []*protean.WfNode) (*ExecutionPlanReply, error) {
 	req := &ExecutionPlanRequest{
-		Genesis:  genesis,
 		Workflow: wf,
 	}
 	reply := &ExecutionPlanReply{}
@@ -47,11 +56,9 @@ func (c *Client) GenerateExecutionPlan(genesis []byte, wf []*protean.WfNode) (*E
 	return reply, err
 }
 
-func (c *Client) LogSkipchain(genesis []byte) error {
-	req := &LogSkipchainRequest{
-		Genesis: genesis,
-	}
-	reply := &LogSkipchainReply{}
+func (c *Client) GetDirectoryData() (*DirectoryDataReply, error) {
+	req := &DirectoryDataRequest{}
+	reply := &DirectoryDataReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)
-	return err
+	return reply, err
 }

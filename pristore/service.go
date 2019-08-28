@@ -13,8 +13,8 @@ import (
 	"go.dedis.ch/protobuf"
 )
 
-var ServiceName = "PrivStoreService"
-var privStoreID onet.ServiceID
+var ServiceName = "PriStoreService"
+var priStoreID onet.ServiceID
 
 type Service struct {
 	*onet.ServiceProcessor
@@ -33,7 +33,7 @@ type Service struct {
 
 func init() {
 	var err error
-	privStoreID, err = onet.RegisterNewService(ServiceName, newService)
+	priStoreID, err = onet.RegisterNewService(ServiceName, newService)
 	log.ErrFatal(err)
 	network.RegisterMessages(&InitUnitRequest{}, &InitUnitReply{},
 		&AuthorizeRequest{}, &AuthorizeReply{}, &CreateLTSRequest{},

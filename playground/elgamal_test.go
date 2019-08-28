@@ -68,7 +68,8 @@ func prepareMessages(X kyber.Point) ([][]byte, []*utils.ElGamalPair) {
 	mesgs = append(mesgs, []byte("Dave Weckl"))
 	var cs []*utils.ElGamalPair
 	for _, mesg := range mesgs {
-		cs = append(cs, utils.ElGamalEncrypt(X, mesg))
+		c := utils.ElGamalEncrypt(X, mesg)
+		cs = append(cs, &c)
 	}
 	return mesgs, cs
 }

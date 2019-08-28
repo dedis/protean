@@ -5,9 +5,9 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strconv"
-	"strings"
 
 	"github.com/dedis/protean"
+	"github.com/dedis/protean/sys"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/onet/v3/log"
@@ -16,23 +16,18 @@ import (
 )
 
 func prepareExecutionPlan(data *sbData, req *ExecutionPlanRequest) (*protean.ExecutionPlan, error) {
-	//publics := make(map[string][]kyber.Point)
 	publics := make(map[string]*protean.Identity)
 	for _, wfn := range req.Workflow {
 		log.Info("workflow node:", wfn.UID, wfn.TID)
 		if uv, ok := data.Data[wfn.UID]; ok {
 			if _, ok := publics[wfn.UID]; !ok {
-				//publics[wfn.UID] = uv.Ps
 				publics[wfn.UID] = &protean.Identity{Keys: uv.Ps}
 			}
 		} else {
-			//log.Errorf("Functional unit does not exist")
 			return nil, fmt.Errorf("Functional unit does not exist")
 		}
 	}
-	//TODO: Revert to EP w/o genesis
-	//return &ExecutionPlan{Workflow: req.Workflow, Publics: publics}, nil
-	return &protean.ExecutionPlan{Genesis: req.Genesis, Workflow: req.Workflow, Publics: publics}, nil
+	return &protean.ExecutionPlan{Workflow: req.Workflow, Publics: publics}, nil
 }
 
 func verifyDag(wf []*protean.WfNode) bool {
@@ -121,32 +116,19 @@ func (req ExecutionPlanRequest) Hash() []byte {
 	return h.Sum(nil)
 }
 
-func joinStrings(strs ...string) (string, error) {
-	var sb strings.Builder
-	for _, str := range strs {
-		_, err := sb.WriteString(str)
-		if err != nil {
-			return "", err
-		}
+func generateUnitID(fu *sys.FunctionalUnit) string {
+	h := sha256.New()
+	h.Write([]byte(strconv.Itoa(fu.Type)))
+	h.Write([]byte(fu.Roster.ID.String()))
+	h.Write([]byte(fu.Name))
+	for _, t := range fu.Txns {
+		h.Write([]byte(t))
 	}
-	return sb.String(), nil
+	tmp := h.Sum(nil)
+	return hex.EncodeToString(tmp)
 }
 
-func generateUnitID(fu *FunctionalUnit) (string, error) {
-	var uid string
-	typeStr := strconv.Itoa(fu.UnitType)
-	uuidStr := fu.Roster.ID.String()
-	log.Info("UUID STR IS:", uuidStr)
-	uidStr, err := joinStrings(typeStr, fu.UnitName, uuidStr)
-	if err != nil {
-		//log.Errorf("Error while generating the unit key: %v", err)
-		return uid, err
-	}
-	tmp := sha256.Sum256([]byte(uidStr))
-	return hex.EncodeToString(tmp[:]), nil
-}
-
-func generateTxnIDs(tList []string) map[string]string {
+func generateTxnMap(tList []string) map[string]string {
 	txns := make(map[string]string)
 	for _, txnName := range tList {
 		tmp := sha256.Sum256([]byte(txnName))
@@ -154,23 +136,3 @@ func generateTxnIDs(tList []string) map[string]string {
 	}
 	return txns
 }
-
-//func checkUnitKeys(db *bolt.DB, bucketName []byte, unitIDs ...string) error {
-//err := db.View(func(tx *bolt.Tx) error {
-//for _, id := range unitIDs {
-//log.LLvl3("Hex key is", id)
-//key, err := hex.DecodeString(id)
-//if err != nil {
-//log.Errorf("checkUnitKeys error:%v", err)
-//return err
-//}
-//log.LLvl3("Checking key(byte):", key)
-//val := tx.Bucket(bucketName).Get(key)
-//if val == nil {
-//return fmt.Errorf("Unit key does not exist")
-//}
-//}
-//return nil
-//})
-//return err
-//}
