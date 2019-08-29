@@ -19,15 +19,17 @@ func NewClient() *Client {
 	return &Client{Client: onet.NewClient(cothority.Suite, ServiceName)}
 }
 
-//func (c *Client) InitUnit(roster *onet.Roster, scData *protean.ScInitData, bStore *protean.BaseStorage, interval time.Duration, typeDur time.Duration) (*InitUnitReply, error) {
-func (c *Client) InitUnit(roster *onet.Roster, scData *sys.ScInitData, bStore *sys.BaseStorage, interval time.Duration, typeDur time.Duration) (*InitUnitReply, error) {
+//func (c *Client) InitUnit(roster *onet.Roster, scData *sys.ScInitData, bStore *sys.BaseStorage, interval time.Duration, typeDur time.Duration) (*InitUnitReply, error) {
+func (c *Client) InitUnit(roster *onet.Roster, scCfg *sys.ScConfig, bStore *sys.BaseStorage, interval time.Duration, typeDur time.Duration) (*InitUnitReply, error) {
 	c.roster = roster
 	req := &InitUnitRequest{
-		Roster:       roster,
-		ScData:       scData,
-		BaseStore:    bStore,
-		BlkInterval:  interval,
-		DurationType: typeDur,
+		Cfg: &sys.UnitConfig{
+			Roster:       roster,
+			ScCfg:        scCfg,
+			BaseStore:    bStore,
+			BlkInterval:  interval,
+			DurationType: typeDur,
+		},
 	}
 	reply := &InitUnitReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)
@@ -35,9 +37,7 @@ func (c *Client) InitUnit(roster *onet.Roster, scData *sys.ScInitData, bStore *s
 }
 
 func (c *Client) InitDKG(id []byte) (*InitDKGReply, error) {
-	//hexID := hex.EncodeToString(id)
 	req := &InitDKGRequest{
-		//ID: hexID,
 		ID: NewDKGID(id),
 	}
 	reply := &InitDKGReply{}
@@ -45,17 +45,12 @@ func (c *Client) InitDKG(id []byte) (*InitDKGReply, error) {
 	return reply, err
 }
 
-//func (c *Client) Decrypt(id []byte, gen []byte, cP kyber.Point, u kyber.Point, xc kyber.Point) (*DecryptReply, error) {
 func (c *Client) Decrypt(id []byte, gen []byte, ct *Ciphertext, xc kyber.Point) (*DecryptReply, error) {
-	//hexID := hex.EncodeToString(id)
 	req := &DecryptRequest{
-		//ID:  hexID,
 		ID:  NewDKGID(id),
 		Gen: gen,
 		Ct:  ct,
 		Xc:  xc,
-		//C:   cP,
-		//U:   u,
 	}
 	reply := &DecryptReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)

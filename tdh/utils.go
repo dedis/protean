@@ -63,14 +63,11 @@ func RecoverPlaintext(reply *DecryptReply, xc kyber.Scalar) ([]byte, error) {
 }
 
 func GenerateInitRequest(roster *onet.Roster) *InitUnitRequest {
-	//scData := &protean.ScInitData{
-	scData := &sys.ScInitData{
+	scCfg := &sys.ScConfig{
 		MHeight: 2,
 		BHeight: 2,
 	}
-	//uData := &protean.BaseStorage{
 	uData := &sys.BaseStorage{
-		//UInfo: &protean.UnitInfo{
 		UInfo: &sys.UnitInfo{
 			UnitID:   "tdh",
 			UnitName: "tdhUnit",
@@ -78,11 +75,13 @@ func GenerateInitRequest(roster *onet.Roster) *InitUnitRequest {
 		},
 	}
 	return &InitUnitRequest{
-		Roster:       roster,
-		ScData:       scData,
-		BaseStore:    uData,
-		BlkInterval:  10,
-		DurationType: time.Second,
+		Cfg: &sys.UnitConfig{
+			Roster:       roster,
+			ScCfg:        scCfg,
+			BaseStore:    uData,
+			BlkInterval:  10,
+			DurationType: time.Second,
+		},
 	}
 }
 

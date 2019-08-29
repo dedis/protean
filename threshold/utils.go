@@ -44,14 +44,11 @@ func VerifyDecProof(sh kyber.Point, ei kyber.Scalar, fi kyber.Scalar, u kyber.Po
 }
 
 func GenerateInitRequest(roster *onet.Roster) *InitUnitRequest {
-	//scData := &protean.ScInitData{
-	scData := &sys.ScInitData{
+	scCfg := &sys.ScConfig{
 		MHeight: 2,
 		BHeight: 2,
 	}
-	//uData := &protean.BaseStorage{
 	uData := &sys.BaseStorage{
-		//UInfo: &protean.UnitInfo{
 		UInfo: &sys.UnitInfo{
 			UnitID:   "threshold",
 			UnitName: "thresholdUnit",
@@ -59,11 +56,13 @@ func GenerateInitRequest(roster *onet.Roster) *InitUnitRequest {
 		},
 	}
 	return &InitUnitRequest{
-		Roster:       roster,
-		ScData:       scData,
-		BaseStore:    uData,
-		BlkInterval:  10,
-		DurationType: time.Second,
+		Cfg: &sys.UnitConfig{
+			Roster:       roster,
+			ScCfg:        scCfg,
+			BaseStore:    uData,
+			BlkInterval:  10,
+			DurationType: time.Second,
+		},
 	}
 }
 

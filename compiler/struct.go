@@ -10,7 +10,8 @@ import (
 
 type InitUnitRequest struct {
 	Roster *onet.Roster
-	ScData *sys.ScInitData
+	//ScData *sys.ScInitData
+	ScCfg *sys.ScConfig
 }
 
 type InitUnitReply struct {

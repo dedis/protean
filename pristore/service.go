@@ -44,16 +44,17 @@ func init() {
 
 func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 	// Creating the skipchain here
-	log.Infof("Starting InitUnit")
-	genesisReply, err := utils.CreateGenesisBlock(s.scService, req.ScData, req.Roster)
+	cfg := req.Cfg
+	genesisReply, err := utils.CreateGenesisBlock(s.scService, cfg.ScCfg, cfg.Roster)
 	if err != nil {
 		return nil, err
 	}
 	s.genesis = genesisReply.Latest.Hash
-	s.roster = req.Roster
+	s.roster = cfg.Roster
 	///////////////////////
 	// Now adding a block with the unit information
-	enc, err := protobuf.Encode(req.BaseStore)
+	//enc, err := protobuf.Encode(req.BaseStore)
+	enc, err := protobuf.Encode(cfg.BaseStore)
 	if err != nil {
 		log.Errorf("Error in protobuf encoding: %v", err)
 		return nil, err
@@ -71,7 +72,7 @@ func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 		log.Errorf("Cannot create the default genesis message for Byzcoin: %v", err)
 		return nil, err
 	}
-	s.gMsg.BlockInterval = req.BlkInterval * req.DurationType
+	s.gMsg.BlockInterval = cfg.BlkInterval * cfg.DurationType
 	resp, err := s.byzService.CreateGenesisBlock(s.gMsg)
 	if err != nil {
 		log.Errorf("Cannot create the genesis block for Byzcoin: %v", err)

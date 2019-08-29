@@ -5,17 +5,15 @@ import (
 
 	"github.com/dedis/protean/sys"
 	"go.dedis.ch/kyber/v3"
-	"go.dedis.ch/onet/v3"
 )
 
 type InitUnitRequest struct {
-	Roster *onet.Roster
-	//ScData       *protean.ScInitData
-	//BaseStore    *protean.BaseStorage
-	ScData       *sys.ScInitData
-	BaseStore    *sys.BaseStorage
-	BlkInterval  time.Duration
-	DurationType time.Duration
+	//Roster *onet.Roster
+	//ScData       *sys.ScInitData
+	//BaseStore    *sys.BaseStorage
+	//BlkInterval  time.Duration
+	//DurationType time.Duration
+	Cfg *sys.UnitConfig
 	// Timeout waiting for final signature - originally 2 seconds
 	Timeout time.Duration
 }

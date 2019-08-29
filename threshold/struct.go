@@ -1,8 +1,6 @@
 package threshold
 
 import (
-	"time"
-
 	"github.com/dedis/protean/sys"
 	"github.com/dedis/protean/utils"
 	"go.dedis.ch/kyber/v3"
@@ -15,13 +13,12 @@ const ThreshProtoName = "ThreshDecryptProto"
 type DKGID [32]byte
 
 type InitUnitRequest struct {
-	Roster *onet.Roster
-	//ScData       *protean.ScInitData
-	//BaseStore    *protean.BaseStorage
-	ScData       *sys.ScInitData
-	BaseStore    *sys.BaseStorage
-	BlkInterval  time.Duration
-	DurationType time.Duration
+	//Roster *onet.Roster
+	//ScData       *sys.ScInitData
+	//BaseStore    *sys.BaseStorage
+	//BlkInterval  time.Duration
+	//DurationType time.Duration
+	Cfg *sys.UnitConfig
 }
 
 type InitUnitReply struct {

@@ -17,12 +17,13 @@ func NewClient() *Client {
 	return &Client{Client: onet.NewClient(cothority.Suite, ServiceName)}
 }
 
-//func (c *Client) InitUnit(roster *onet.Roster, scData *protean.ScInitData) (*InitUnitReply, error) {
-func (c *Client) InitUnit(roster *onet.Roster, scData *sys.ScInitData) (*InitUnitReply, error) {
+//func (c *Client) InitUnit(roster *onet.Roster, scData *sys.ScInitData) (*InitUnitReply, error) {
+func (c *Client) InitUnit(roster *onet.Roster, scCfg *sys.ScConfig) (*InitUnitReply, error) {
 	c.roster = roster
 	req := &InitUnitRequest{
 		Roster: roster,
-		ScData: scData,
+		//ScData: scData,
+		ScCfg: scCfg,
 	}
 	reply := &InitUnitReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)

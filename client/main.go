@@ -7,13 +7,12 @@ import (
 	"os"
 	"time"
 
-	"github.com/dedis/protean"
 	clutil "github.com/dedis/protean/client/utils"
-	"github.com/dedis/protean/compiler"
 	"github.com/dedis/protean/dummy"
 	"github.com/dedis/protean/easyneff"
 	"github.com/dedis/protean/pristore"
 	"github.com/dedis/protean/state"
+	"github.com/dedis/protean/sys"
 	"github.com/dedis/protean/tdh"
 	"github.com/dedis/protean/threshold"
 
@@ -31,16 +30,7 @@ import (
 )
 
 func runClient(roster *onet.Roster, genesis []byte, uData map[string]string, tData map[string]string, wfFilePtr *string) error {
-	compilerCl := compiler.NewClient()
-	//creatScReply, err := compilerCl.CreateSkipchain(roster, 2, 2)
-	//if err != nil {
-	//return err
-	//}
-	//fmt.Println("CreateSkipchainReply:", creatScReply.Sb.Hash)
-	//unitReply, err := compilerCl.CreateUnits(roster, unitRequest)
-	//if err != nil {
-	//return err
-	//}
+	//compilerCl := compiler.NewClient()
 
 	for k, v := range uData {
 		fmt.Printf("%s - %s\n", k, v)
@@ -52,28 +42,27 @@ func runClient(roster *onet.Roster, genesis []byte, uData map[string]string, tDa
 
 	fmt.Println("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
 
-	//wf, err := compiler.CreateWorkflow(wfFilePtr, uData, tData)
-	wf, err := clutil.PrepareWorkflow(wfFilePtr, uData, tData)
-	if err != nil {
-		return err
-	}
+	//wf, err := clutil.PrepareWorkflow(wfFilePtr, uData, tData)
+	//if err != nil {
+	//return err
+	//}
 
-	execPlanReply, err := compilerCl.GenerateExecutionPlan(wf)
-	if err != nil {
-		return err
-	}
+	//execPlanReply, err := compilerCl.GenerateExecutionPlan(wf)
+	//if err != nil {
+	//return err
+	//}
 
-	fmt.Println("Sig:", execPlanReply.Signature)
-	fmt.Println("uid:", execPlanReply.ExecPlan.Workflow[0].UID)
-	fmt.Println(execPlanReply.ExecPlan.Workflow[1].UID)
-	fmt.Println(execPlanReply.ExecPlan.Workflow[2].UID)
+	//fmt.Println("Sig:", execPlanReply.Signature)
+	//fmt.Println("uid:", execPlanReply.ExecPlan.Workflow[0].UID)
+	//fmt.Println(execPlanReply.ExecPlan.Workflow[1].UID)
+	//fmt.Println(execPlanReply.ExecPlan.Workflow[2].UID)
 
-	err = utils.VerifySignature(execPlanReply.ExecPlan, execPlanReply.Signature, roster.ServicePublics(compiler.ServiceName))
-	if err == nil {
-		fmt.Println("Signature verification: SUCCESS")
-	} else {
-		fmt.Println("Signature verification: FAILED")
-	}
+	//err = utils.VerifySignature(execPlanReply.ExecPlan, execPlanReply.Signature, roster.ServicePublics(compiler.ServiceName))
+	//if err == nil {
+	//fmt.Println("Signature verification: SUCCESS")
+	//} else {
+	//fmt.Println("Signature verification: FAILED")
+	//}
 
 	//for _, w := range wf {
 	//fmt.Println(w.Index)
@@ -118,13 +107,13 @@ func runClient(roster *onet.Roster, genesis []byte, uData map[string]string, tDa
 
 func testStateUnit(roster *onet.Roster) error {
 	stCl := state.NewClient()
-	scData := &protean.ScInitData{
+	scCfg := &sys.ScConfig{
 		//Roster:  roster,
 		MHeight: 2,
 		BHeight: 2,
 	}
-	uData := &protean.BaseStorage{
-		UInfo: &protean.UnitInfo{
+	uData := &sys.BaseStorage{
+		UInfo: &sys.UnitInfo{
 			UnitID:   "state",
 			UnitName: "stateUnit",
 			Txns:     map[string]string{"a": "b", "c": "d"},
@@ -132,7 +121,7 @@ func testStateUnit(roster *onet.Roster) error {
 		CompKeys: roster.ServicePublics(state.ServiceName),
 	}
 
-	_, err := stCl.InitUnit(roster, scData, uData, 30, time.Second)
+	_, err := stCl.InitUnit(roster, scCfg, uData, 30, time.Second)
 	if err != nil {
 		fmt.Println("Cannot initialize state unit")
 		return err
@@ -228,13 +217,13 @@ func testStateUnit(roster *onet.Roster) error {
 
 func testDummyUnit(roster *onet.Roster) error {
 	dumCl := dummy.NewClient()
-	scData := &protean.ScInitData{
+	scCfg := &sys.ScConfig{
 		//Roster:  roster,
 		MHeight: 2,
 		BHeight: 2,
 	}
-	uData := &protean.BaseStorage{
-		UInfo: &protean.UnitInfo{
+	uData := &sys.BaseStorage{
+		UInfo: &sys.UnitInfo{
 			UnitID:   "dummy",
 			UnitName: "dummyUnit",
 			Txns:     map[string]string{"a": "b", "c": "d"},
@@ -242,7 +231,7 @@ func testDummyUnit(roster *onet.Roster) error {
 		CompKeys: roster.ServicePublics(dummy.ServiceName),
 	}
 
-	_, err := dumCl.InitUnit(roster, scData, uData, 10, time.Second)
+	_, err := dumCl.InitUnit(roster, scCfg, uData, 10, time.Second)
 	if err != nil {
 		fmt.Println("Cannot initialize state unit")
 		return err
@@ -465,13 +454,13 @@ func test(roster *onet.Roster) error {
 
 func testPristore(roster *onet.Roster) error {
 	psCl := pristore.NewClient()
-	scData := &protean.ScInitData{
+	scCfg := &sys.ScConfig{
 		//Roster:  roster,
 		MHeight: 2,
 		BHeight: 2,
 	}
-	uData := &protean.BaseStorage{
-		UInfo: &protean.UnitInfo{
+	uData := &sys.BaseStorage{
+		UInfo: &sys.UnitInfo{
 			UnitID:   "pristore",
 			UnitName: "pristoreUnit",
 			Txns:     map[string]string{"a": "b", "c": "d"},
@@ -479,7 +468,7 @@ func testPristore(roster *onet.Roster) error {
 		CompKeys: roster.ServicePublics(pristore.ServiceName),
 	}
 
-	reply, err := psCl.InitUnit(roster, scData, uData, 15, time.Second)
+	reply, err := psCl.InitUnit(roster, scCfg, uData, 15, time.Second)
 	if err != nil {
 		return fmt.Errorf("InitUnit error: %v", err)
 	}
@@ -563,13 +552,13 @@ func testPristore(roster *onet.Roster) error {
 
 func testShuffle(roster *onet.Roster) error {
 	neffCl := easyneff.NewClient()
-	scData := &protean.ScInitData{
+	scCfg := &sys.ScConfig{
 		//Roster:  roster,
 		MHeight: 2,
 		BHeight: 2,
 	}
-	uData := &protean.BaseStorage{
-		UInfo: &protean.UnitInfo{
+	uData := &sys.BaseStorage{
+		UInfo: &sys.UnitInfo{
 			UnitID:   "shuffle",
 			UnitName: "shuffleUnit",
 			Txns:     map[string]string{"a": "b", "c": "d"},
@@ -577,7 +566,7 @@ func testShuffle(roster *onet.Roster) error {
 		CompKeys: roster.ServicePublics(easyneff.ServiceName),
 	}
 
-	_, err := neffCl.InitUnit(roster, scData, uData, 10, time.Second)
+	_, err := neffCl.InitUnit(roster, scCfg, uData, 10, time.Second)
 	if err != nil {
 		return fmt.Errorf("InitUnit error: %v", err)
 	}
@@ -598,12 +587,12 @@ func testShuffle(roster *onet.Roster) error {
 
 func testTDH(roster *onet.Roster) error {
 	tdhCl := tdh.NewClient()
-	scData := &protean.ScInitData{
+	scCfg := &sys.ScConfig{
 		MHeight: 2,
 		BHeight: 2,
 	}
-	uData := &protean.BaseStorage{
-		UInfo: &protean.UnitInfo{
+	uData := &sys.BaseStorage{
+		UInfo: &sys.UnitInfo{
 			UnitID:   "tdh",
 			UnitName: "tdhUnit",
 			Txns:     map[string]string{"a": "b", "c": "d"},
@@ -623,7 +612,7 @@ func testTDH(roster *onet.Roster) error {
 	//fmt.Println("Signature:", sig)
 	//fmt.Println("Length:", len(sig))
 
-	_, err = tdhCl.InitUnit(roster, scData, uData, 10, time.Second)
+	_, err = tdhCl.InitUnit(roster, scCfg, uData, 10, time.Second)
 	if err != nil {
 		return fmt.Errorf("InitUnit error: %v", err)
 	}
@@ -679,12 +668,12 @@ func testTDH(roster *onet.Roster) error {
 
 func testThreshold(roster *onet.Roster) error {
 	thresholdCl := threshold.NewClient()
-	scData := &protean.ScInitData{
+	scCfg := &sys.ScConfig{
 		MHeight: 2,
 		BHeight: 2,
 	}
-	uData := &protean.BaseStorage{
-		UInfo: &protean.UnitInfo{
+	uData := &sys.BaseStorage{
+		UInfo: &sys.UnitInfo{
 			UnitID:   "threshold",
 			UnitName: "thresholdUnit",
 			Txns:     map[string]string{"a": "b", "c": "d"},
@@ -705,7 +694,7 @@ func testThreshold(roster *onet.Roster) error {
 		return fmt.Errorf("Sign failed: %v", err)
 	}
 
-	_, err = thresholdCl.InitUnit(roster, scData, uData, 10, time.Second)
+	_, err = thresholdCl.InitUnit(roster, scCfg, uData, 10, time.Second)
 	if err != nil {
 		return fmt.Errorf("InitUnit error: %v", err)
 	}
@@ -774,12 +763,12 @@ func generateReq(n int, msg []byte) ([]utils.ElGamalPair, kyber.Point, kyber.Poi
 
 func testFail(roster *onet.Roster) error {
 	psCl := pristore.NewClient()
-	scData := &protean.ScInitData{
+	scCfg := &sys.ScConfig{
 		MHeight: 2,
 		BHeight: 2,
 	}
-	uData := &protean.BaseStorage{
-		UInfo: &protean.UnitInfo{
+	uData := &sys.BaseStorage{
+		UInfo: &sys.UnitInfo{
 			UnitID:   "pristore",
 			UnitName: "pristoreUnit",
 			Txns:     map[string]string{"a": "b", "c": "d"},
@@ -787,7 +776,7 @@ func testFail(roster *onet.Roster) error {
 		CompKeys: roster.ServicePublics(pristore.ServiceName),
 	}
 
-	reply, err := psCl.InitUnit(roster, scData, uData, 15, time.Second)
+	reply, err := psCl.InitUnit(roster, scCfg, uData, 15, time.Second)
 	if err != nil {
 		return fmt.Errorf("InitUnit error: %v", err)
 	}

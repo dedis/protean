@@ -1,22 +1,13 @@
 package easyneff
 
 import (
-	"time"
-
 	"github.com/dedis/protean/sys"
 	"github.com/dedis/protean/utils"
 	"go.dedis.ch/kyber/v3"
-	"go.dedis.ch/onet/v3"
 )
 
 type InitUnitRequest struct {
-	Roster *onet.Roster
-	//ScData       *protean.ScInitData
-	//BaseStore    *protean.BaseStorage
-	ScData       *sys.ScInitData
-	BaseStore    *sys.BaseStorage
-	BlkInterval  time.Duration
-	DurationType time.Duration
+	Cfg *sys.UnitConfig
 }
 
 type InitUnitReply struct {

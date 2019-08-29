@@ -38,17 +38,19 @@ type EasyNeff struct {
 }
 
 func (s *EasyNeff) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
+	cfg := req.Cfg
 	/// Creating the skipchain here
-	genesisReply, err := utils.CreateGenesisBlock(s.scService, req.ScData, req.Roster)
+	//genesisReply, err := utils.CreateGenesisBlock(s.scService, req.ScData, req.Roster)
+	genesisReply, err := utils.CreateGenesisBlock(s.scService, req.Cfg.ScCfg, cfg.Roster)
 	if err != nil {
 		log.Errorf("Cannot create the skipchain genesis block: %v", err)
 		return nil, err
 	}
 	s.genesis = genesisReply.Latest.Hash
-	s.roster = req.Roster
+	s.roster = cfg.Roster
 	///////////////////////
 	// Now adding a block with the unit information
-	enc, err := protobuf.Encode(req.BaseStore)
+	enc, err := protobuf.Encode(cfg.BaseStore)
 	if err != nil {
 		log.Errorf("Error in protobuf encoding: %v", err)
 		return nil, err

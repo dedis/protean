@@ -55,14 +55,6 @@ func TestCompiler_Basic(t *testing.T) {
 			fmt.Println(id, "--->", name)
 		}
 	}
-	//for _, d := range reply.Data {
-	//fmt.Println("Unit Name:", d.UnitName)
-	//fmt.Println("Unit ID:", d.UnitID)
-	//fmt.Println(">> Transactions <<")
-	//for k, v := range d.Txns {
-	//fmt.Println(k, "-->", v)
-	//}
-	//}
 }
 
 func Test_PrepareWf(t *testing.T) {

@@ -1,10 +1,25 @@
 package sys
 
 import (
+	"time"
+
 	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/onet/v3"
 )
+
+type UnitConfig struct {
+	Roster       *onet.Roster
+	ScCfg        *ScConfig
+	BaseStore    *BaseStorage
+	BlkInterval  time.Duration
+	DurationType time.Duration
+}
+
+type ScConfig struct {
+	MHeight int
+	BHeight int
+}
 
 type UnitJSON struct {
 	Type     int      `json:"type"`
@@ -33,11 +48,6 @@ type WfNode struct {
 	UID  string
 	TID  string
 	Deps []int
-}
-
-type ScInitData struct {
-	MHeight int
-	BHeight int
 }
 
 type UnitInfo struct {

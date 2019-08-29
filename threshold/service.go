@@ -31,9 +31,6 @@ type storage struct {
 	Shared map[DKGID]*dkgprotocol.SharedSecret
 	Polys  map[DKGID]*pubPoly
 	DKS    map[DKGID]*dkg.DistKeyShare
-	//Shared map[[32]byte]*dkgprotocol.SharedSecret
-	//Polys  map[[32]byte]*pubPoly
-	//DKS    map[[32]byte]*dkg.DistKeyShare
 	sync.Mutex
 }
 
@@ -64,16 +61,17 @@ func init() {
 
 func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 	// Creating the skipchain here
+	cfg := req.Cfg
 	log.Infof("Starting InitUnit")
-	genesisReply, err := utils.CreateGenesisBlock(s.scService, req.ScData, req.Roster)
+	genesisReply, err := utils.CreateGenesisBlock(s.scService, cfg.ScCfg, cfg.Roster)
 	if err != nil {
 		return nil, err
 	}
 	s.genesis = genesisReply.Latest.Hash
-	s.roster = req.Roster
+	s.roster = cfg.Roster
 	///////////////////////
 	// Now adding a block with the unit information
-	enc, err := protobuf.Encode(req.BaseStore)
+	enc, err := protobuf.Encode(cfg.BaseStore)
 	if err != nil {
 		log.Errorf("Error in protobuf encoding: %v", err)
 		return nil, err
