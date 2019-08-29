@@ -187,19 +187,20 @@ func (s *Service) GetDirectoryInfo(req *DirectoryInfoRequest) (*DirectoryInfoRep
 		log.Errorf("Cannot get block data: %v", err)
 		return nil, err
 	}
-	idx := 0
-	//dirInfo := make([]*protean.UnitInfo, len(sbData.Data))
-	dirInfo := make([]*sys.UnitInfo, len(sbData.Data))
+	//idx := 0
+	//dirInfo := make([]*sys.UnitInfo, len(sbData.Data))
+	dir := make(map[string]*sys.UnitInfo)
 	for uid, uv := range sbData.Data {
 		txnMap := make(map[string]string)
 		for txnID, txnName := range uv.Txns {
 			txnMap[txnName] = txnID
 		}
-		//dirInfo[idx] = &protean.UnitInfo{UnitID: uid, UnitName: uv.N, Txns: txnMap}
-		dirInfo[idx] = &sys.UnitInfo{UnitID: uid, UnitName: uv.N, Txns: txnMap}
-		idx++
+		//dirInfo[idx] = &sys.UnitInfo{UnitID: uid, UnitName: uv.N, Txns: txnMap}
+		dir[uv.N] = &sys.UnitInfo{UnitID: uid, Txns: txnMap}
+		//idx++
 	}
-	return &DirectoryInfoReply{Data: dirInfo}, nil
+	//return &DirectoryInfoReply{Data: dirInfo}, nil
+	return &DirectoryInfoReply{Directory: dir}, nil
 }
 
 func newService(c *onet.Context) (onet.Service, error) {

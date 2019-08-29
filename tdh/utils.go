@@ -4,7 +4,7 @@ import (
 	"crypto/sha256"
 	"time"
 
-	"github.com/dedis/protean"
+	"github.com/dedis/protean/sys"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/suites"
@@ -63,12 +63,15 @@ func RecoverPlaintext(reply *DecryptReply, xc kyber.Scalar) ([]byte, error) {
 }
 
 func GenerateInitRequest(roster *onet.Roster) *InitUnitRequest {
-	scData := &protean.ScInitData{
+	//scData := &protean.ScInitData{
+	scData := &sys.ScInitData{
 		MHeight: 2,
 		BHeight: 2,
 	}
-	uData := &protean.BaseStorage{
-		UInfo: &protean.UnitInfo{
+	//uData := &protean.BaseStorage{
+	uData := &sys.BaseStorage{
+		//UInfo: &protean.UnitInfo{
+		UInfo: &sys.UnitInfo{
 			UnitID:   "tdh",
 			UnitName: "tdhUnit",
 			Txns:     map[string]string{"a": "b", "c": "d"},

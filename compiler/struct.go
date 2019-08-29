@@ -35,7 +35,8 @@ type ExecutionPlanReply struct {
 type DirectoryInfoRequest struct{}
 
 type DirectoryInfoReply struct {
-	Data []*sys.UnitInfo
+	//Data []*sys.UnitInfo
+	Directory map[string]*sys.UnitInfo
 }
 
 type StoreGenesisRequest struct {

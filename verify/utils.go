@@ -4,8 +4,7 @@ import (
 	"crypto/sha256"
 	"strings"
 
-	"github.com/dedis/protean"
-
+	"github.com/dedis/protean/sys"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/onet/v3/log"
@@ -13,8 +12,10 @@ import (
 	"go.dedis.ch/protobuf"
 )
 
-func getBaseStorage(blk *skipchain.SkipBlock) (*protean.BaseStorage, error) {
-	data := &protean.BaseStorage{}
+//func getBaseStorage(blk *skipchain.SkipBlock) (*protean.BaseStorage, error) {
+//data := &protean.BaseStorage{}
+func getBaseStorage(blk *skipchain.SkipBlock) (*sys.BaseStorage, error) {
+	data := &sys.BaseStorage{}
 	err := protobuf.DecodeWithConstructors(blk.Data, data, network.DefaultConstructors(cothority.Suite))
 	if err != nil {
 		log.Errorf("Protobuf decode failed: %v", err)

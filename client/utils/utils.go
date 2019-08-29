@@ -13,7 +13,8 @@ import (
 	"go.dedis.ch/onet/v3/log"
 )
 
-func PrepareWorkflow(wFilePtr *string, dirInfo []*sys.UnitInfo) ([]*sys.WfNode, error) {
+//func PrepareWorkflow(wFilePtr *string, dirInfo []*sys.UnitInfo) ([]*sys.WfNode, error) {
+func PrepareWorkflow(wFilePtr *string, dirInfo map[string]*sys.UnitInfo) ([]*sys.WfNode, error) {
 	var tmpWf []sys.WfJSON
 	fh, err := os.Open(*wFilePtr)
 	if err != nil {
@@ -35,13 +36,21 @@ func PrepareWorkflow(wFilePtr *string, dirInfo []*sys.UnitInfo) ([]*sys.WfNode, 
 	wf := make([]*sys.WfNode, sz)
 	for i := 0; i < sz; i++ {
 		tmp := tmpWf[i]
-		for _, u := range dirInfo {
-			if strings.Compare(tmp.UnitName, u.UnitName) == 0 {
-				wf[i] = &sys.WfNode{
-					UID:  u.UnitID,
-					TID:  u.Txns[tmp.TxnName],
-					Deps: tmp.Deps,
-				}
+		//for _, u := range dirInfo {
+		//if strings.Compare(tmp.UnitName, u.UnitName) == 0 {
+		//wf[i] = &sys.WfNode{
+		//UID:  u.UnitID,
+		//TID:  u.Txns[tmp.TxnName],
+		//Deps: tmp.Deps,
+		//}
+		//}
+		//}
+		unitInfo, ok := dirInfo[tmp.UnitName]
+		if ok {
+			wf[i] = &sys.WfNode{
+				UID:  unitInfo.UnitID,
+				TID:  unitInfo.Txns[tmp.TxnName],
+				Deps: tmp.Deps,
 			}
 		}
 	}

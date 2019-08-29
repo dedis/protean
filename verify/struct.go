@@ -7,7 +7,7 @@ with the `*onet.TreeNode` embedded. The latter is used in the handler-function
 so that it can find out who sent the message.
 */
 import (
-	"github.com/dedis/protean"
+	"github.com/dedis/protean/sys"
 	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/kyber/v3/pairing"
@@ -22,8 +22,9 @@ var suite = pairing.NewSuiteBn256()
 //type VerifyExecPlan func(vs *Verify) bool
 
 type Verify struct {
-	Index   int
-	Plan    *protean.ExecutionPlan
+	Index int
+	//Plan    *protean.ExecutionPlan
+	Plan    *sys.ExecutionPlan
 	Block   *skipchain.SkipBlock
 	PlanSig protocol.BlsSignature
 	SigMap  map[int]protocol.BlsSignature

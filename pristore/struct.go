@@ -3,7 +3,7 @@ package pristore
 import (
 	"time"
 
-	protean "github.com/dedis/protean"
+	"github.com/dedis/protean/sys"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/calypso"
 	"go.dedis.ch/cothority/v3/darc"
@@ -20,9 +20,11 @@ type WriteData struct {
 }
 
 type InitUnitRequest struct {
-	Roster       *onet.Roster
-	ScData       *protean.ScInitData
-	BaseStore    *protean.BaseStorage
+	Roster *onet.Roster
+	//ScData       *protean.ScInitData
+	//BaseStore    *protean.BaseStorage
+	ScData       *sys.ScInitData
+	BaseStore    *sys.BaseStorage
 	BlkInterval  time.Duration
 	DurationType time.Duration
 }

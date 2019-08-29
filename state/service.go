@@ -3,7 +3,7 @@ package state
 import (
 	"fmt"
 
-	"github.com/dedis/protean"
+	"github.com/dedis/protean/sys"
 	"github.com/dedis/protean/utils"
 	"github.com/dedis/protean/verify"
 	"go.dedis.ch/cothority/v3/blscosi"
@@ -227,7 +227,8 @@ func (s *Service) GetProof(req *GetProofRequest) (*GetProofReply, error) {
 	return reply, nil
 }
 
-func (s *Service) verifyExecutionPlan(blk *skipchain.SkipBlock, execData *protean.ExecutionData) bool {
+//func (s *Service) verifyExecutionPlan(blk *skipchain.SkipBlock, execData *protean.ExecutionData) bool {
+func (s *Service) verifyExecutionPlan(blk *skipchain.SkipBlock, execData *sys.ExecutionData) bool {
 	tree := s.roster.GenerateNaryTreeWithRoot(len(s.roster.List), s.ServerIdentity())
 	pi, err := s.CreateProtocol(verify.Name, tree)
 	if err != nil {

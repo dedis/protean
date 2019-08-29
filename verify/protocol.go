@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dedis/protean"
+	"github.com/dedis/protean/sys"
 	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/onet/v3"
@@ -23,9 +23,10 @@ func init() {
 
 type VP struct {
 	*onet.TreeNodeInstance
-	Index          int
-	Block          *skipchain.SkipBlock
-	ExecPlan       *protean.ExecutionPlan
+	Index int
+	Block *skipchain.SkipBlock
+	//ExecPlan       *protean.ExecutionPlan
+	ExecPlan       *sys.ExecutionPlan
 	PlanSig        protocol.BlsSignature
 	SigMap         map[int]protocol.BlsSignature
 	FaultThreshold int

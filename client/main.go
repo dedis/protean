@@ -53,7 +53,7 @@ func runClient(roster *onet.Roster, genesis []byte, uData map[string]string, tDa
 	fmt.Println("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
 
 	//wf, err := compiler.CreateWorkflow(wfFilePtr, uData, tData)
-	wf, err := clutil.CreateWorkflow(wfFilePtr, uData, tData)
+	wf, err := clutil.PrepareWorkflow(wfFilePtr, uData, tData)
 	if err != nil {
 		return err
 	}

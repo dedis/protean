@@ -47,14 +47,22 @@ func TestCompiler_Basic(t *testing.T) {
 	require.NoError(t, err)
 	reply, err := root.GetDirectoryInfo(&DirectoryInfoRequest{})
 	require.NoError(t, err)
-	for _, d := range reply.Data {
-		fmt.Println("Unit Name:", d.UnitName)
-		fmt.Println("Unit ID:", d.UnitID)
+	for k, v := range reply.Directory {
+		fmt.Println("Unit name:", k)
+		fmt.Println("Unit ID:", v.UnitID)
 		fmt.Println(">> Transactions <<")
-		for k, v := range d.Txns {
-			fmt.Println(k, "-->", v)
+		for id, name := range v.Txns {
+			fmt.Println(id, "--->", name)
 		}
 	}
+	//for _, d := range reply.Data {
+	//fmt.Println("Unit Name:", d.UnitName)
+	//fmt.Println("Unit ID:", d.UnitID)
+	//fmt.Println(">> Transactions <<")
+	//for k, v := range d.Txns {
+	//fmt.Println(k, "-->", v)
+	//}
+	//}
 }
 
 func Test_PrepareWf(t *testing.T) {
@@ -75,7 +83,7 @@ func Test_PrepareWf(t *testing.T) {
 	require.NoError(t, err)
 	reply, err := root.GetDirectoryInfo(&DirectoryInfoRequest{})
 	require.NoError(t, err)
-	wf, err := cliutils.PrepareWorkflow(&wname, reply.Data)
+	wf, err := cliutils.PrepareWorkflow(&wname, reply.Directory)
 	require.NoError(t, err)
 	for _, w := range wf {
 		fmt.Println(w.UID, w.TID)

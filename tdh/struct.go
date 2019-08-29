@@ -3,7 +3,7 @@ package tdh
 import (
 	"time"
 
-	protean "github.com/dedis/protean"
+	"github.com/dedis/protean/sys"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/share"
 	"go.dedis.ch/onet/v3"
@@ -27,9 +27,11 @@ type Ciphertext struct {
 }
 
 type InitUnitRequest struct {
-	Roster       *onet.Roster
-	ScData       *protean.ScInitData
-	BaseStore    *protean.BaseStorage
+	Roster *onet.Roster
+	//ScData       *protean.ScInitData
+	//BaseStore    *protean.BaseStorage
+	ScData       *sys.ScInitData
+	BaseStore    *sys.BaseStorage
 	BlkInterval  time.Duration
 	DurationType time.Duration
 }
