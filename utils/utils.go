@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/dedis/protean"
+	"github.com/dedis/protean/sys"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/blscosi"
 	"go.dedis.ch/cothority/v3/blscosi/protocol"
@@ -87,7 +87,8 @@ func StoreBlock(s *skipchain.Service, genesis skipchain.SkipBlockID, data []byte
 	return err
 }
 
-func CreateGenesisBlock(s *skipchain.Service, scData *protean.ScInitData, roster *onet.Roster) (*skipchain.StoreSkipBlockReply, error) {
+//func CreateGenesisBlock(s *skipchain.Service, scData *protean.ScInitData, roster *onet.Roster) (*skipchain.StoreSkipBlockReply, error) {
+func CreateGenesisBlock(s *skipchain.Service, scData *sys.ScInitData, roster *onet.Roster) (*skipchain.StoreSkipBlockReply, error) {
 	log.Infof("[CreateGenesisBlock] Service: %s", s.ServiceID())
 	genesis := skipchain.NewSkipBlock()
 	genesis.Roster = roster

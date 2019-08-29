@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dedis/protean/sys"
 	"github.com/stretchr/testify/require"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/kyber/v3/sign/bls"
@@ -22,24 +23,64 @@ func TestService(t *testing.T) {
 
 	services := local.GetServices(hosts, serviceID)
 	root := services[0].(*EasyRand)
-	_, err := root.InitDKG(&InitDKGReq{roster})
+
+	initReq := generateInitRequest(roster)
+	_, err := root.InitUnit(initReq)
+	dkgReply, err := root.InitDKG(&InitDKGRequest{Timeout: 5})
 	require.NoError(t, err)
 
 	// wait for DKG to finish on all
 	time.Sleep(time.Second / 2)
 
 	// round 0 (genesis)
-	resp, err := root.Randomness(&RandomnessReq{roster})
+	resp, err := root.Randomness(&RandomnessRequest{})
 	require.NoError(t, err)
 	require.NotNil(t, resp)
-	require.NoError(t, bls.Verify(suite, root.pubPoly.Commit(), []byte(genesisMsg), resp.Sig))
+	//require.NoError(t, bls.Verify(suite, root.pubPoly.Commit(), root.getRoundBlock(0), resp.Sig))
+	//require.NoError(t, bls.Verify(suite, root.pubPoly.Commit(), resp.Prev, resp.Sig))
+	require.NoError(t, bls.Verify(suite, dkgReply.Public, resp.Prev, resp.Sig))
 
 	// future rounds
+	var resps []*RandomnessReply
 	for i := 0; i < 3; i++ {
 		prev := createNextMsg(root.blocks)
-		resp, err := root.Randomness(&RandomnessReq{roster})
+		resp, err := root.Randomness(&RandomnessRequest{})
 		require.NoError(t, err)
 		require.NotNil(t, resp)
-		require.NoError(t, bls.Verify(suite, root.pubPoly.Commit(), prev, resp.Sig))
+		require.NoError(t, bls.Verify(suite, dkgReply.Public, prev, resp.Sig))
+		resps = append(resps, resp)
+	}
+
+	for _, resp := range resps {
+		//prev := root.getRoundBlock(resp.Round)
+		//err := bls.Verify(suite, root.pubPoly.Commit(), prev, resp.Sig)
+		err := bls.Verify(suite, dkgReply.Public, resp.Prev, resp.Sig)
+		require.NoError(t, err)
+	}
+
+}
+
+func generateInitRequest(roster *onet.Roster) *InitUnitRequest {
+	//scData := &protean.ScInitData{
+	scData := &sys.ScInitData{
+		MHeight: 2,
+		BHeight: 2,
+	}
+	//uData := &protean.BaseStorage{
+	uData := &sys.BaseStorage{
+		//UInfo: &protean.UnitInfo{
+		UInfo: &sys.UnitInfo{
+			UnitID:   "shuffle",
+			UnitName: "shuffleUnit",
+			Txns:     map[string]string{"a": "b", "c": "d"},
+		},
+	}
+	return &InitUnitRequest{
+		Roster:       roster,
+		ScData:       scData,
+		BaseStore:    uData,
+		BlkInterval:  10,
+		DurationType: time.Second,
+		Timeout:      2,
 	}
 }

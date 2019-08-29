@@ -5,7 +5,7 @@ import (
 	"crypto/sha256"
 	"math"
 
-	"github.com/dedis/protean"
+	"github.com/dedis/protean/sys"
 	"github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/cothority/v3/skipchain"
@@ -140,7 +140,8 @@ func (s *Service) GenerateExecutionPlan(req *ExecutionPlanRequest) (*ExecutionPl
 
 func (s *Service) verifyExecutionPlan(msg []byte, data []byte) bool {
 	valid := false
-	var req protean.ExecutionPlan
+	//var req protean.ExecutionPlan
+	var req sys.ExecutionPlan
 	if err := protobuf.Decode(data, &req); err != nil {
 		log.Errorf("%s Protobuf decode error: %v:", s.ServerIdentity(), err)
 		return valid
@@ -179,7 +180,7 @@ func (s *Service) verifyExecutionPlan(msg []byte, data []byte) bool {
 	return valid
 }
 
-func (s *Service) GetDirectoryData(req *DirectoryDataRequest) (*DirectoryDataReply, error) {
+func (s *Service) GetDirectoryInfo(req *DirectoryInfoRequest) (*DirectoryInfoReply, error) {
 	db := s.scService.GetDB()
 	sbData, err := getBlockData(db, s.genesis)
 	if err != nil {
@@ -187,16 +188,18 @@ func (s *Service) GetDirectoryData(req *DirectoryDataRequest) (*DirectoryDataRep
 		return nil, err
 	}
 	idx := 0
-	dirInfo := make([]*protean.UnitInfo, len(sbData.Data))
+	//dirInfo := make([]*protean.UnitInfo, len(sbData.Data))
+	dirInfo := make([]*sys.UnitInfo, len(sbData.Data))
 	for uid, uv := range sbData.Data {
 		txnMap := make(map[string]string)
 		for txnID, txnName := range uv.Txns {
 			txnMap[txnName] = txnID
 		}
-		dirInfo[idx] = &protean.UnitInfo{UnitID: uid, UnitName: uv.N, Txns: txnMap}
+		//dirInfo[idx] = &protean.UnitInfo{UnitID: uid, UnitName: uv.N, Txns: txnMap}
+		dirInfo[idx] = &sys.UnitInfo{UnitID: uid, UnitName: uv.N, Txns: txnMap}
 		idx++
 	}
-	return &DirectoryDataReply{Data: dirInfo}, nil
+	return &DirectoryInfoReply{Data: dirInfo}, nil
 }
 
 func newService(c *onet.Context) (onet.Service, error) {
@@ -204,7 +207,7 @@ func newService(c *onet.Context) (onet.Service, error) {
 		ServiceProcessor: onet.NewServiceProcessor(c),
 		scService:        c.Service(skipchain.ServiceName).(*skipchain.Service),
 	}
-	err := s.RegisterHandlers(s.InitUnit, s.StoreGenesis, s.CreateUnits, s.GenerateExecutionPlan, s.GetDirectoryData)
+	err := s.RegisterHandlers(s.InitUnit, s.StoreGenesis, s.CreateUnits, s.GenerateExecutionPlan, s.GetDirectoryInfo)
 	if err != nil {
 		log.Errorf("Cannot register handlers: %v", err)
 		return nil, err

@@ -11,19 +11,21 @@ import (
 	"go.dedis.ch/onet/v3"
 )
 
-var fname string
+var uname string
+var wname string
 
 func init() {
-	flag.StringVar(&fname, "file", "", "JSON file")
+	flag.StringVar(&uname, "unit", "", "JSON file")
+	flag.StringVar(&wname, "wflow", "", "JSON file")
 }
 
-func TestSys(t *testing.T) {
+func Test_PrepareUnit(t *testing.T) {
 	n := 7
 	local := onet.NewTCPTest(cothority.Suite)
 	_, roster, _ := local.GenTree(n, true)
 	defer local.CloseAll()
 
-	units, err := sys.PrepareUnits(roster, &fname)
+	units, err := sys.PrepareUnits(roster, &uname)
 	require.Nil(t, err)
 	for _, u := range units {
 		fmt.Println(u.Type, u.Name, u.Txns, u.NumNodes, u.Publics)

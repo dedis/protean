@@ -3,7 +3,7 @@ package threshold
 import (
 	"time"
 
-	"github.com/dedis/protean"
+	"github.com/dedis/protean/sys"
 	"github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/kyber/v3"
@@ -22,7 +22,8 @@ func NewClient() *Client {
 	return &Client{Client: onet.NewClient(cothority.Suite, ServiceName)}
 }
 
-func (c *Client) InitUnit(roster *onet.Roster, scData *protean.ScInitData, bStore *protean.BaseStorage, interval time.Duration, typeDur time.Duration) (*InitUnitReply, error) {
+//func (c *Client) InitUnit(roster *onet.Roster, scData *protean.ScInitData, bStore *protean.BaseStorage, interval time.Duration, typeDur time.Duration) (*InitUnitReply, error) {
+func (c *Client) InitUnit(roster *onet.Roster, scData *sys.ScInitData, bStore *sys.BaseStorage, interval time.Duration, typeDur time.Duration) (*InitUnitReply, error) {
 	c.roster = roster
 	req := &InitUnitRequest{
 		Roster:       roster,

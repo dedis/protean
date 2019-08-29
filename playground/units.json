@@ -1,38 +1,38 @@
 [ 
         {
-                "Name": "State",
-                "Type": 0,
-                "NumNodes": 7,
-                "Txns" : ["SpawnDarc", "CreateState", "UpdateState", "GetProof"]
+                "name": "State",
+                "type": 0,
+                "numnodes": 7,
+                "txns" : ["SpawnDarc", "CreateState", "UpdateState", "GetProof"]
         },
         {
-                "Name": "PriStore",
-                "Type": 1,
-                "NumNodes": 7,
-                "Txns" : ["SpawnDarc", "CreateLTS", "AddWrite", "AddRead", "GetProof", "Decrypt"]
+                "name": "PriStore",
+                "type": 1,
+                "numnodes": 7,
+                "txns" : ["SpawnDarc", "CreateLTS", "AddWrite", "AddRead", "GetProof", "Decrypt"]
         },
         {
-                "Name": "ThreshCrypto",
-                "Type": 2,
-                "NumNodes": 7,
-                "Txns" : ["InitDKG", "Decrypt"]
+                "name": "ThreshCrypto",
+                "type": 2,
+                "numnodes": 7,
+                "txns" : ["InitDKG", "Decrypt"]
         },
         {
-                "Name": "TDH",
-                "Type": 2,
-                "NumNodes": 7,
-                "Txns" : ["InitDKG", "Decrypt"]
+                "name": "TDH",
+                "type": 2,
+                "numnodes": 7,
+                "txns" : ["InitDKG", "Decrypt"]
         },
         {
-                "Name": "EasyNeff",
-                "Type": 3,
-                "NumNodes": 7,
-                "Txns" : ["Shuffle"]
+                "name": "EasyNeff",
+                "type": 3,
+                "numnodes": 7,
+                "txns" : ["Shuffle"]
         },
         {
-                "Name": "EasyRand",
-                "Type": 4,
-                "NumNodes": 7,
-                "Txns" : ["Randomness"]
+                "name": "EasyRand",
+                "type": 4,
+                "numnodes": 7,
+                "txns" : ["Randomness"]
         }
 ]

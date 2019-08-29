@@ -15,7 +15,8 @@ import (
 //to determine where a new roster starts. (Potentially use onet.NewRoster)
 //func PrepareUnits(roster *onet.Roster, uFilePtr *string, tFilePtr *string) ([]*FunctionalUnit, error) {
 func PrepareUnits(roster *onet.Roster, uFilePtr *string) ([]*FunctionalUnit, error) {
-	var fus []FunctionalUnit
+	//var fus []FunctionalUnit
+	var fus []UnitJSON
 	fh, err := os.Open(*uFilePtr)
 	if err != nil {
 		log.Errorf("Cannot open file %s: %v", *uFilePtr, err)
@@ -35,13 +36,20 @@ func PrepareUnits(roster *onet.Roster, uFilePtr *string) ([]*FunctionalUnit, err
 	sz := len(fus)
 	units := make([]*FunctionalUnit, sz)
 	for i := 0; i < sz; i++ {
-		fus[i].Roster = roster
-		fus[i].Publics = roster.Publics()
+		tmp := fus[i]
+		units[i] = &FunctionalUnit{
+			Type:     tmp.Type,
+			Name:     tmp.Name,
+			NumNodes: tmp.NumNodes,
+			Txns:     tmp.Txns,
+			Roster:   roster,
+			Publics:  roster.Publics(),
+		}
 		//TODO: Revert to ServicePublics() once you have the suitable
 		//roster.toml file generated
 		//sn := fus[i].Name + "Service"
 		//fus[i].Publics = roster.ServicePublics(sn)
-		units[i] = &fus[i]
+		//units[i] = &fus[i]
 	}
 	return units, nil
 }

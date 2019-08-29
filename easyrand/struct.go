@@ -3,14 +3,17 @@ package easyrand
 import (
 	"time"
 
-	"github.com/dedis/protean"
+	"github.com/dedis/protean/sys"
+	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/onet/v3"
 )
 
 type InitUnitRequest struct {
-	Roster       *onet.Roster
-	ScData       *protean.ScInitData
-	BaseStore    *protean.BaseStorage
+	Roster *onet.Roster
+	//ScData       *protean.ScInitData
+	//BaseStore    *protean.BaseStorage
+	ScData       *sys.ScInitData
+	BaseStore    *sys.BaseStorage
 	BlkInterval  time.Duration
 	DurationType time.Duration
 	// Timeout waiting for final signature - originally 2 seconds
@@ -28,14 +31,15 @@ type InitDKGRequest struct {
 
 // InitDKGReply is the response of DKG.
 type InitDKGReply struct {
+	Public kyber.Point
 }
 
 // RandomnessRequest is a request to get the public randomness.
-type RandomnessRequest struct {
-}
+type RandomnessRequest struct{}
 
 // RandomnessReply is the returned public randomness.
 type RandomnessReply struct {
 	Round uint64
+	Prev  []byte
 	Sig   []byte
 }

@@ -109,7 +109,8 @@ func (s *EasyRand) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
 		log.Errorf("DKG did not finish")
 		return nil, errors.New("dkg did not finish")
 	}
-	return &InitDKGReply{}, nil
+	//return &InitDKGReply{}, nil
+	return &InitDKGReply{Public: s.pubPoly.Commit()}, nil
 }
 
 // Randomness returns the public randomness.
@@ -130,12 +131,28 @@ func (s *EasyRand) Randomness(req *RandomnessRequest) (*RandomnessReply, error) 
 	select {
 	case sig := <-signPi.FinalSignature:
 		s.blocks = append(s.blocks, sig)
-		return &RandomnessReply{uint64(len(s.blocks) - 1), sig}, nil
+		round := uint64(len(s.blocks) - 1)
+		prev := s.getRoundBlock(round)
+		//return &RandomnessReply{uint64(len(s.blocks) - 1), sig}, nil
+		return &RandomnessReply{Round: round, Sig: sig, Prev: prev}, nil
 	// s.timeout was originally 2 seconds
 	case <-time.After(s.timeout * time.Second):
 		log.Errorf("Timed out waiting for the final signature")
 		return nil, errors.New("timeout waiting for final signature")
 	}
+}
+
+func (s *EasyRand) getRoundBlock(round uint64) []byte {
+	if round > uint64(len(s.blocks)) {
+		return nil
+	}
+	if round == 0 {
+		return []byte(genesisMsg)
+	}
+	rBuf := make([]byte, 8)
+	binary.LittleEndian.PutUint64(rBuf, uint64(round))
+	buf := append(rBuf, s.blocks[round-1]...)
+	return buf
 }
 
 // NewProtocol is a callback for creating protocols on non-root nodes.

@@ -2,47 +2,48 @@ package utils
 
 import (
 	"bufio"
+	"encoding/json"
+	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
 
-	"github.com/dedis/protean"
 	"github.com/dedis/protean/sys"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
 )
 
-func CreateWorkflow(wfFilePtr *string, uData map[string]string, tData map[string]string) ([]*protean.WfNode, error) {
-	var wf []*protean.WfNode
-	file, err := os.Open(*wfFilePtr)
-	defer file.Close()
+func PrepareWorkflow(wFilePtr *string, dirInfo []*sys.UnitInfo) ([]*sys.WfNode, error) {
+	var tmpWf []sys.WfJSON
+	fh, err := os.Open(*wFilePtr)
 	if err != nil {
-		log.Fatal(err)
+		log.Errorf("Cannot open file %s: %v", *wFilePtr, err)
 		return nil, err
 	}
-	idx := 0
-	fs := bufio.NewScanner(file)
-	for fs.Scan() {
-		var deps []int
-		line := fs.Text()
-		tokens := strings.Split(line, ":")
-		if tokens[3] != "" {
-			depStr := strings.Split(tokens[3], ",")
-			for _, d := range depStr {
-				dep, err := strconv.Atoi(d)
-				if err != nil {
-					log.Errorf("CreateWorkflow error:%v", err)
-					return nil, err
+	defer fh.Close()
+	buf, err := ioutil.ReadAll(fh)
+	if err != nil {
+		log.Errorf("Error reading file %s: %v", *wFilePtr, err)
+		return nil, err
+	}
+	err = json.Unmarshal(buf, &tmpWf)
+	if err != nil {
+		log.Errorf("Cannot unmarshal json value: %v", err)
+		return nil, err
+	}
+	sz := len(tmpWf)
+	wf := make([]*sys.WfNode, sz)
+	for i := 0; i < sz; i++ {
+		tmp := tmpWf[i]
+		for _, u := range dirInfo {
+			if strings.Compare(tmp.UnitName, u.UnitName) == 0 {
+				wf[i] = &sys.WfNode{
+					UID:  u.UnitID,
+					TID:  u.Txns[tmp.TxnName],
+					Deps: tmp.Deps,
 				}
-				deps = append(deps, dep)
 			}
 		}
-		wf = append(wf, &protean.WfNode{
-			//Index: idx,
-			UID:  uData[tokens[1]],
-			TID:  tData[tokens[2]],
-			Deps: deps})
-		idx++
 	}
 	return wf, nil
 }

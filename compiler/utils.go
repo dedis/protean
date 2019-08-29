@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/dedis/protean"
 	"github.com/dedis/protean/sys"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/skipchain"
@@ -15,22 +14,27 @@ import (
 	"go.dedis.ch/protobuf"
 )
 
-func prepareExecutionPlan(data *sbData, req *ExecutionPlanRequest) (*protean.ExecutionPlan, error) {
-	publics := make(map[string]*protean.Identity)
+//func prepareExecutionPlan(data *sbData, req *ExecutionPlanRequest) (*protean.ExecutionPlan, error) {
+func prepareExecutionPlan(data *sbData, req *ExecutionPlanRequest) (*sys.ExecutionPlan, error) {
+	//publics := make(map[string]*protean.Identity)
+	publics := make(map[string]*sys.Identity)
 	for _, wfn := range req.Workflow {
 		log.Info("workflow node:", wfn.UID, wfn.TID)
 		if uv, ok := data.Data[wfn.UID]; ok {
 			if _, ok := publics[wfn.UID]; !ok {
-				publics[wfn.UID] = &protean.Identity{Keys: uv.Ps}
+				//publics[wfn.UID] = &protean.Identity{Keys: uv.Ps}
+				publics[wfn.UID] = &sys.Identity{Keys: uv.Ps}
 			}
 		} else {
 			return nil, fmt.Errorf("Functional unit does not exist")
 		}
 	}
-	return &protean.ExecutionPlan{Workflow: req.Workflow, Publics: publics}, nil
+	//return &protean.ExecutionPlan{Workflow: req.Workflow, Publics: publics}, nil
+	return &sys.ExecutionPlan{Workflow: req.Workflow, Publics: publics}, nil
 }
 
-func verifyDag(wf []*protean.WfNode) bool {
+//func verifyDag(wf []*protean.WfNode) bool {
+func verifyDag(wf []*sys.WfNode) bool {
 	var edges []*edge
 	nodes := make(map[int]bool)
 	for idx, wfn := range wf {

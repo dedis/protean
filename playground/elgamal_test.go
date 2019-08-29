@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dedis/protean"
+	"github.com/dedis/protean/sys"
 	"github.com/dedis/protean/threshold"
 	"github.com/dedis/protean/utils"
 	"github.com/stretchr/testify/require"
@@ -74,13 +74,15 @@ func prepareMessages(X kyber.Point) ([][]byte, []*utils.ElGamalPair) {
 	return mesgs, cs
 }
 
-func prepareUnitData(roster *onet.Roster) (*protean.ScInitData, *protean.BaseStorage) {
-	scData := &protean.ScInitData{
+//func prepareUnitData(roster *onet.Roster) (*protean.ScInitData, *protean.BaseStorage) {
+func prepareUnitData(roster *onet.Roster) (*sys.ScInitData, *sys.BaseStorage) {
+	//scData := &protean.ScInitData{
+	scData := &sys.ScInitData{
 		MHeight: 2,
 		BHeight: 2,
 	}
-	uData := &protean.BaseStorage{
-		UInfo: &protean.UnitInfo{
+	uData := &sys.BaseStorage{
+		UInfo: &sys.UnitInfo{
 			UnitID:   "threshold",
 			UnitName: "thresholdUnit",
 			Txns:     map[string]string{"a": "b", "c": "d"},

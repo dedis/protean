@@ -1,7 +1,6 @@
 package compiler
 
 import (
-	"github.com/dedis/protean"
 	"github.com/dedis/protean/sys"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/skipchain"
@@ -18,7 +17,8 @@ func NewClient() *Client {
 	return &Client{Client: onet.NewClient(cothority.Suite, ServiceName)}
 }
 
-func (c *Client) InitUnit(roster *onet.Roster, scData *protean.ScInitData) (*InitUnitReply, error) {
+//func (c *Client) InitUnit(roster *onet.Roster, scData *protean.ScInitData) (*InitUnitReply, error) {
+func (c *Client) InitUnit(roster *onet.Roster, scData *sys.ScInitData) (*InitUnitReply, error) {
 	c.roster = roster
 	req := &InitUnitRequest{
 		Roster: roster,
@@ -47,7 +47,8 @@ func (c *Client) CreateUnits(units []*sys.FunctionalUnit) (*CreateUnitsReply, er
 	return reply, err
 }
 
-func (c *Client) GenerateExecutionPlan(wf []*protean.WfNode) (*ExecutionPlanReply, error) {
+//func (c *Client) GenerateExecutionPlan(wf []*protean.WfNode) (*ExecutionPlanReply, error) {
+func (c *Client) GenerateExecutionPlan(wf []*sys.WfNode) (*ExecutionPlanReply, error) {
 	req := &ExecutionPlanRequest{
 		Workflow: wf,
 	}
@@ -56,9 +57,9 @@ func (c *Client) GenerateExecutionPlan(wf []*protean.WfNode) (*ExecutionPlanRepl
 	return reply, err
 }
 
-func (c *Client) GetDirectoryData() (*DirectoryDataReply, error) {
-	req := &DirectoryDataRequest{}
-	reply := &DirectoryDataReply{}
+func (c *Client) GetDirectoryInfo() (*DirectoryInfoReply, error) {
+	req := &DirectoryInfoRequest{}
+	reply := &DirectoryInfoReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)
 	return reply, err
 }

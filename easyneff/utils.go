@@ -3,7 +3,7 @@ package easyneff
 import (
 	"time"
 
-	"github.com/dedis/protean"
+	"github.com/dedis/protean/sys"
 	"github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/kyber/v3"
@@ -12,12 +12,15 @@ import (
 )
 
 func GenerateInitRequest(roster *onet.Roster) *InitUnitRequest {
-	scData := &protean.ScInitData{
+	//scData := &protean.ScInitData{
+	scData := &sys.ScInitData{
 		MHeight: 2,
 		BHeight: 2,
 	}
-	uData := &protean.BaseStorage{
-		UInfo: &protean.UnitInfo{
+	//uData := &protean.BaseStorage{
+	uData := &sys.BaseStorage{
+		//UInfo: &protean.UnitInfo{
+		UInfo: &sys.UnitInfo{
 			UnitID:   "shuffle",
 			UnitName: "shuffleUnit",
 			Txns:     map[string]string{"a": "b", "c": "d"},

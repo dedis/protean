@@ -1,7 +1,6 @@
 package compiler
 
 import (
-	"github.com/dedis/protean"
 	"github.com/dedis/protean/sys"
 	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/cothority/v3/skipchain"
@@ -9,20 +8,9 @@ import (
 	"go.dedis.ch/onet/v3"
 )
 
-//type FunctionalUnit struct {
-//UnitType  int
-//UnitName  string
-//Roster    *onet.Roster
-//Publics   []kyber.Point
-//NumNodes  int
-//NumFaulty int
-//Txns      []string
-////Txns       []*Transaction
-//}
-
 type InitUnitRequest struct {
 	Roster *onet.Roster
-	ScData *protean.ScInitData
+	ScData *sys.ScInitData
 }
 
 type InitUnitReply struct {
@@ -36,18 +24,18 @@ type CreateUnitsRequest struct {
 type CreateUnitsReply struct{}
 
 type ExecutionPlanRequest struct {
-	Workflow []*protean.WfNode
+	Workflow []*sys.WfNode
 }
 
 type ExecutionPlanReply struct {
-	ExecPlan  *protean.ExecutionPlan
+	ExecPlan  *sys.ExecutionPlan
 	Signature protocol.BlsSignature
 }
 
-type DirectoryDataRequest struct{}
+type DirectoryInfoRequest struct{}
 
-type DirectoryDataReply struct {
-	Data []*protean.UnitInfo
+type DirectoryInfoReply struct {
+	Data []*sys.UnitInfo
 }
 
 type StoreGenesisRequest struct {

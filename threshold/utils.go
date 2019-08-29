@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dedis/protean"
+	"github.com/dedis/protean/sys"
 	"github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/kyber/v3"
@@ -44,12 +44,15 @@ func VerifyDecProof(sh kyber.Point, ei kyber.Scalar, fi kyber.Scalar, u kyber.Po
 }
 
 func GenerateInitRequest(roster *onet.Roster) *InitUnitRequest {
-	scData := &protean.ScInitData{
+	//scData := &protean.ScInitData{
+	scData := &sys.ScInitData{
 		MHeight: 2,
 		BHeight: 2,
 	}
-	uData := &protean.BaseStorage{
-		UInfo: &protean.UnitInfo{
+	//uData := &protean.BaseStorage{
+	uData := &sys.BaseStorage{
+		//UInfo: &protean.UnitInfo{
+		UInfo: &sys.UnitInfo{
 			UnitID:   "threshold",
 			UnitName: "thresholdUnit",
 			Txns:     map[string]string{"a": "b", "c": "d"},
