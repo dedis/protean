@@ -56,14 +56,14 @@ type syncChan struct {
 
 // NewSignProtocol initialises the structure for use in one round.
 func NewSignProtocol(n *onet.TreeNodeInstance, vf func([]byte) error, sk *share.PriShare, pk *share.PubPoly, suite pairing.Suite) (onet.ProtocolInstance, error) {
-	total := len(n.Roster().List)
+	numNodes := len(n.Roster().List)
 	t := &SignProtocol{
 		TreeNodeInstance: n,
 		verify:           vf,
 		sk:               sk,
 		pk:               pk,
 		suite:            suite,
-		threshold:        total - (total-1)/3,
+		threshold:        numNodes - (numNodes-1)/3,
 		FinalSignature:   make(chan []byte, 1),
 	}
 	if err := t.RegisterChannels(&t.initChan, &t.sigChan, &t.syncChan); err != nil {

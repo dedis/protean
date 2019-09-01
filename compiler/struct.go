@@ -10,8 +10,7 @@ import (
 
 type InitUnitRequest struct {
 	Roster *onet.Roster
-	//ScData *sys.ScInitData
-	ScCfg *sys.ScConfig
+	ScCfg  *sys.ScConfig
 }
 
 type InitUnitReply struct {
@@ -25,7 +24,8 @@ type CreateUnitsRequest struct {
 type CreateUnitsReply struct{}
 
 type ExecutionPlanRequest struct {
-	Workflow []*sys.WfNode
+	Workflow *sys.Workflow
+	SigMap   map[string][]byte
 }
 
 type ExecutionPlanReply struct {
@@ -36,7 +36,6 @@ type ExecutionPlanReply struct {
 type DirectoryInfoRequest struct{}
 
 type DirectoryInfoReply struct {
-	//Data []*sys.UnitInfo
 	Directory map[string]*sys.UnitInfo
 }
 
@@ -45,6 +44,11 @@ type StoreGenesisRequest struct {
 }
 
 type StoreGenesisReply struct{}
+
+type epData struct {
+	Ep *sys.ExecutionPlan
+	Sm map[string][]byte
+}
 
 type sbData struct {
 	Data map[string]*uv

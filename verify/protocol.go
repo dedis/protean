@@ -40,9 +40,11 @@ type VP struct {
 var _ onet.ProtocolInstance = (*VP)(nil)
 
 func NewVerifyExecutionPlan(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
+	numNodes := len(n.Roster().List)
 	vp := &VP{
 		TreeNodeInstance: n,
 		Verified:         make(chan bool, 1),
+		FaultThreshold:   numNodes - (numNodes-1)/3,
 	}
 	for _, handler := range []interface{}{vp.verifyExecPlan, vp.verifyExecPlanReply} {
 		if err := vp.RegisterHandler(handler); err != nil {

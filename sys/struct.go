@@ -50,6 +50,16 @@ type WfNode struct {
 	Deps []int
 }
 
+type Workflow struct {
+	Nodes []*WfNode
+	// AuthPublics stores the public keys of the users who can execute this
+	// workflow. Keys are the public keys in string format.
+	AuthPublics map[string]kyber.Point
+	// If true, this workflow can only be executed if all the authenticated
+	// users provide a signature
+	All bool
+}
+
 type UnitInfo struct {
 	UnitID   string
 	UnitName string
@@ -57,17 +67,17 @@ type UnitInfo struct {
 }
 
 type BaseStorage struct {
-	UInfo    *UnitInfo
-	CompKeys []kyber.Point
+	UInfo       *UnitInfo
+	CompPublics []kyber.Point
 }
 
-type Identity struct {
+type UnitIdentity struct {
 	Keys []kyber.Point
 }
 
 type ExecutionPlan struct {
-	Workflow []*WfNode
-	Publics  map[string]*Identity
+	Workflow *Workflow
+	Publics  map[string]*UnitIdentity
 }
 
 type ExecutionData struct {
@@ -75,4 +85,11 @@ type ExecutionData struct {
 	ExecPlan *ExecutionPlan
 	PlanSig  protocol.BlsSignature
 	SigMap   map[int]protocol.BlsSignature
+}
+
+type SerializedEP struct {
+	Nodes       []*WfNode
+	AuthPublics []byte
+	All         bool
+	Publics     []byte
 }

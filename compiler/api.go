@@ -1,6 +1,8 @@
 package compiler
 
 import (
+	"fmt"
+
 	"github.com/dedis/protean/sys"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/skipchain"
@@ -48,10 +50,21 @@ func (c *Client) CreateUnits(units []*sys.FunctionalUnit) (*CreateUnitsReply, er
 	return reply, err
 }
 
-//func (c *Client) GenerateExecutionPlan(wf []*protean.WfNode) (*ExecutionPlanReply, error) {
-func (c *Client) GenerateExecutionPlan(wf []*sys.WfNode) (*ExecutionPlanReply, error) {
+func (c *Client) GenerateExecutionPlan(wf *sys.Workflow, keyStrs []string, sigs [][]byte) (*ExecutionPlanReply, error) {
+	sigMap := make(map[string][]byte)
+	if len(keyStrs) != len(sigs) {
+		return nil, fmt.Errorf("Number of keys and sigs do not match")
+	}
+	if len(keyStrs) == 0 {
+		sigMap = nil
+	} else {
+		for i, key := range keyStrs {
+			sigMap[key] = sigs[i]
+		}
+	}
 	req := &ExecutionPlanRequest{
 		Workflow: wf,
+		SigMap:   sigMap,
 	}
 	reply := &ExecutionPlanReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)

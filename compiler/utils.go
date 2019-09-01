@@ -9,41 +9,77 @@ import (
 	"github.com/dedis/protean/sys"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/skipchain"
+	"go.dedis.ch/kyber/v3/sign/schnorr"
 	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/onet/v3/network"
 	"go.dedis.ch/protobuf"
 )
 
-//func prepareExecutionPlan(data *sbData, req *ExecutionPlanRequest) (*protean.ExecutionPlan, error) {
 func prepareExecutionPlan(data *sbData, req *ExecutionPlanRequest) (*sys.ExecutionPlan, error) {
-	//publics := make(map[string]*protean.Identity)
-	publics := make(map[string]*sys.Identity)
-	for _, wfn := range req.Workflow {
-		log.Info("workflow node:", wfn.UID, wfn.TID)
+	err := verifyAuthentication(req.Workflow, req.SigMap)
+	if err != nil {
+		return nil, err
+	}
+	publics := make(map[string]*sys.UnitIdentity)
+	for _, wfn := range req.Workflow.Nodes {
 		if uv, ok := data.Data[wfn.UID]; ok {
-			if _, ok := publics[wfn.UID]; !ok {
-				//publics[wfn.UID] = &protean.Identity{Keys: uv.Ps}
-				publics[wfn.UID] = &sys.Identity{Keys: uv.Ps}
-			}
+			publics[wfn.UID] = &sys.UnitIdentity{Keys: uv.Ps}
 		} else {
 			return nil, fmt.Errorf("Functional unit does not exist")
 		}
 	}
-	//return &protean.ExecutionPlan{Workflow: req.Workflow, Publics: publics}, nil
 	return &sys.ExecutionPlan{Workflow: req.Workflow, Publics: publics}, nil
 }
 
-//func verifyDag(wf []*protean.WfNode) bool {
-func verifyDag(wf []*sys.WfNode) bool {
+func verifyAuthentication(wf *sys.Workflow, sigMap map[string][]byte) error {
+	if len(sigMap) == 0 {
+		log.LLvlf1("Workflow does not have authorized users")
+		return nil
+	}
+	msg, err := protobuf.Encode(wf)
+	if err != nil {
+		return err
+	}
+	if wf.All {
+		for id, authPub := range wf.AuthPublics {
+			sig, ok := sigMap[id]
+			if !ok {
+				return fmt.Errorf("Missing signature from %v", id)
+			}
+			err := schnorr.Verify(cothority.Suite, authPub, msg, sig)
+			if err != nil {
+				return fmt.Errorf("Cannot verify signature from %v", id)
+			}
+		}
+	} else {
+		success := false
+		for id, sig := range sigMap {
+			pk, ok := wf.AuthPublics[id]
+			if !ok {
+				return fmt.Errorf("Cannot find %v in authenticated users", id)
+			}
+			err := schnorr.Verify(cothority.Suite, pk, msg, sig)
+			if err == nil {
+				success = true
+				break
+			}
+		}
+		if !success {
+			return fmt.Errorf("Cannot verify a signature against the given authenticated users")
+		}
+	}
+	return nil
+}
+
+func verifyDag(wfNodes []*sys.WfNode) error {
 	var edges []*edge
 	nodes := make(map[int]bool)
-	for idx, wfn := range wf {
+	for idx, wfn := range wfNodes {
 		nodes[idx] = true
 		for _, p := range wfn.Deps {
 			edges = append(edges, &edge{parent: p, child: idx, removed: false})
 		}
 	}
-
 	var sorted []int
 	idx := 0
 	noIncoming := findNoIncoming(nodes, edges)
@@ -61,15 +97,13 @@ func verifyDag(wf []*sys.WfNode) bool {
 		}
 		idx++
 	}
-
 	for _, edge := range edges {
 		if edge.removed == false {
-			log.Errorf("Error: Graph has a cycle")
-			return false
+			return fmt.Errorf("Workflow has a circular dependency")
 		}
 	}
-	log.Info("TOPOLOGICAL SORT:", sorted)
-	return true
+	//log.Info("TOPOLOGICAL SORT:", sorted)
+	return nil
 }
 
 func hasIncomingEdge(node int, edges []*edge) bool {
@@ -97,23 +131,17 @@ func findNoIncoming(nodes map[int]bool, edges []*edge) []int {
 func getBlockData(db *skipchain.SkipBlockDB, genesis []byte) (*sbData, error) {
 	latest, err := db.GetLatest(db.GetByID(genesis))
 	if err != nil {
-		//log.Errorf("Cannot get the latest block: %v", err)
 		return nil, err
 	}
 	data := &sbData{}
 	err = protobuf.DecodeWithConstructors(latest.Data, data, network.DefaultConstructors(cothority.Suite))
-	//if err != nil {
-	//log.Errorf("Protobuf error decoding with constructors: %v", err)
-	//return nil, err
-	//}
-	//return data, nil
 	return data, err
 
 }
 
 func (req ExecutionPlanRequest) Hash() []byte {
 	h := sha256.New()
-	for _, wfn := range req.Workflow {
+	for _, wfn := range req.Workflow.Nodes {
 		h.Write([]byte(wfn.UID))
 		h.Write([]byte(wfn.TID))
 	}

@@ -9,12 +9,12 @@ import (
 	"strings"
 
 	"github.com/dedis/protean/sys"
+	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
 )
 
-//func PrepareWorkflow(wFilePtr *string, dirInfo []*sys.UnitInfo) ([]*sys.WfNode, error) {
-func PrepareWorkflow(wFilePtr *string, dirInfo map[string]*sys.UnitInfo) ([]*sys.WfNode, error) {
+func PrepareWorkflow(wFilePtr *string, dirInfo map[string]*sys.UnitInfo, publics []kyber.Point, all bool) (*sys.Workflow, error) {
 	var tmpWf []sys.WfJSON
 	fh, err := os.Open(*wFilePtr)
 	if err != nil {
@@ -33,28 +33,27 @@ func PrepareWorkflow(wFilePtr *string, dirInfo map[string]*sys.UnitInfo) ([]*sys
 		return nil, err
 	}
 	sz := len(tmpWf)
-	wf := make([]*sys.WfNode, sz)
+	wfNodes := make([]*sys.WfNode, sz)
 	for i := 0; i < sz; i++ {
 		tmp := tmpWf[i]
-		//for _, u := range dirInfo {
-		//if strings.Compare(tmp.UnitName, u.UnitName) == 0 {
-		//wf[i] = &sys.WfNode{
-		//UID:  u.UnitID,
-		//TID:  u.Txns[tmp.TxnName],
-		//Deps: tmp.Deps,
-		//}
-		//}
-		//}
 		unitInfo, ok := dirInfo[tmp.UnitName]
 		if ok {
-			wf[i] = &sys.WfNode{
+			wfNodes[i] = &sys.WfNode{
 				UID:  unitInfo.UnitID,
 				TID:  unitInfo.Txns[tmp.TxnName],
 				Deps: tmp.Deps,
 			}
 		}
 	}
-	return wf, nil
+
+	var authPublics map[string]kyber.Point
+	if publics != nil {
+		authPublics = make(map[string]kyber.Point)
+		for _, pk := range publics {
+			authPublics[pk.String()] = pk
+		}
+	}
+	return &sys.Workflow{Nodes: wfNodes, AuthPublics: authPublics, All: all}, nil
 }
 
 func Setup(roster *onet.Roster, uFilePtr *string, tFilePtr *string) ([]byte, map[string]string, map[string]string, error) {

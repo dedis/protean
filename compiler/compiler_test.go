@@ -30,18 +30,15 @@ func TestCompiler_Basic(t *testing.T) {
 	local := onet.NewTCPTest(cothority.Suite)
 	hosts, roster, _ := local.GenTree(n, true)
 	defer local.CloseAll()
-
-	units, err := sys.PrepareUnits(roster, &uname)
-	require.Nil(t, err)
-	for _, u := range units {
-		fmt.Println(u.Type, u.Name, u.Txns, u.NumNodes, u.Publics)
-		fmt.Println("+++++")
-	}
-
 	services := local.GetServices(hosts, compilerID)
 	root := services[0].(*Service)
 
-	_, err = root.InitUnit(&InitUnitRequest{Roster: roster, ScData: &sys.ScInitData{MHeight: 2, BHeight: 2}})
+	units, err := sys.PrepareUnits(roster, &uname)
+	require.Nil(t, err)
+
+	initReply, err := root.InitUnit(&InitUnitRequest{Roster: roster, ScCfg: &sys.ScConfig{MHeight: 2, BHeight: 2}})
+	require.NoError(t, err)
+	_, err = root.StoreGenesis(&StoreGenesisRequest{Genesis: initReply.Genesis})
 	require.NoError(t, err)
 	_, err = root.CreateUnits(&CreateUnitsRequest{Units: units})
 	require.NoError(t, err)
@@ -62,23 +59,67 @@ func Test_PrepareWf(t *testing.T) {
 	local := onet.NewTCPTest(cothority.Suite)
 	hosts, roster, _ := local.GenTree(n, true)
 	defer local.CloseAll()
+	services := local.GetServices(hosts, compilerID)
+	root := services[0].(*Service)
 
 	units, err := sys.PrepareUnits(roster, &uname)
 	require.Nil(t, err)
 
-	services := local.GetServices(hosts, compilerID)
-	root := services[0].(*Service)
-
-	_, err = root.InitUnit(&InitUnitRequest{Roster: roster, ScData: &sys.ScInitData{MHeight: 2, BHeight: 2}})
+	initReply, err := root.InitUnit(&InitUnitRequest{Roster: roster, ScCfg: &sys.ScConfig{MHeight: 2, BHeight: 2}})
+	require.NoError(t, err)
+	_, err = root.StoreGenesis(&StoreGenesisRequest{Genesis: initReply.Genesis})
 	require.NoError(t, err)
 	_, err = root.CreateUnits(&CreateUnitsRequest{Units: units})
 	require.NoError(t, err)
 	reply, err := root.GetDirectoryInfo(&DirectoryInfoRequest{})
 	require.NoError(t, err)
-	wf, err := cliutils.PrepareWorkflow(&wname, reply.Directory)
+	wf, err := cliutils.PrepareWorkflow(&wname, reply.Directory, nil, false)
 	require.NoError(t, err)
-	for _, w := range wf {
+	for _, w := range wf.Nodes {
 		fmt.Println(w.UID, w.TID)
 		fmt.Println("Deps:", w.Deps)
 	}
+}
+
+func Test_GenerateEPNoAuth(t *testing.T) {
+	n := 7
+	local := onet.NewTCPTest(cothority.Suite)
+	hosts, roster, _ := local.GenTree(n, true)
+	defer local.CloseAll()
+	services := local.GetServices(hosts, compilerID)
+
+	nodes := make([]*Service, len(services))
+	for i := 0; i < len(services); i++ {
+		nodes[i] = services[i].(*Service)
+	}
+	root := services[0].(*Service)
+
+	units, err := sys.PrepareUnits(roster, &uname)
+	require.Nil(t, err)
+
+	initReply, err := root.InitUnit(&InitUnitRequest{Roster: roster, ScCfg: &sys.ScConfig{MHeight: 2, BHeight: 2}})
+	require.NoError(t, err)
+	for _, n := range nodes {
+		_, err = n.StoreGenesis(&StoreGenesisRequest{Genesis: initReply.Genesis})
+		require.NoError(t, err)
+	}
+	_, err = root.CreateUnits(&CreateUnitsRequest{Units: units})
+	require.NoError(t, err)
+	reply, err := root.GetDirectoryInfo(&DirectoryInfoRequest{})
+	require.NoError(t, err)
+	//fmt.Println(">>>>>>>>>>>>> DIRECTORY INFO <<<<<<<<<<<<<<<<")
+	//for k, v := range reply.Directory {
+	//fmt.Println("Unit name:", k, "--", "UID:", v.UnitID)
+	//}
+	wf, err := cliutils.PrepareWorkflow(&wname, reply.Directory, nil, false)
+	//fmt.Println(">>>>>>>>>>>>> WORKFLOW INFO <<<<<<<<<<<<<<<")
+	//for _, wfn := range wf.Nodes {
+	//fmt.Println(wfn.UID, "with dependencies", wfn.Deps)
+	//}
+	require.NoError(t, err)
+	require.Nil(t, wf.AuthPublics)
+	planReply, err := root.GenerateExecutionPlan(&ExecutionPlanRequest{Workflow: wf, SigMap: nil})
+	require.NoError(t, err)
+	require.NotNil(t, planReply.ExecPlan.Publics)
+	require.NotNil(t, planReply.Signature)
 }

@@ -242,7 +242,6 @@ func (s *Service) verifyExecutionPlan(blk *skipchain.SkipBlock, execData *sys.Ex
 	verifyProto.ExecPlan = execData.ExecPlan
 	verifyProto.PlanSig = execData.PlanSig
 	verifyProto.SigMap = execData.SigMap
-	//verifyProto.FaultThreshold = req.FaultThreshold
 	err = verifyProto.Start()
 	if err != nil {
 		log.Errorf("Cannot start protocol: %v", err)

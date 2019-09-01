@@ -2,6 +2,7 @@ package sys
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 
@@ -15,7 +16,6 @@ import (
 //to determine where a new roster starts. (Potentially use onet.NewRoster)
 //func PrepareUnits(roster *onet.Roster, uFilePtr *string, tFilePtr *string) ([]*FunctionalUnit, error) {
 func PrepareUnits(roster *onet.Roster, uFilePtr *string) ([]*FunctionalUnit, error) {
-	//var fus []FunctionalUnit
 	var fus []UnitJSON
 	fh, err := os.Open(*uFilePtr)
 	if err != nil {
@@ -45,6 +45,7 @@ func PrepareUnits(roster *onet.Roster, uFilePtr *string) ([]*FunctionalUnit, err
 			Roster:   roster,
 			Publics:  roster.Publics(),
 		}
+		fmt.Println("In PrepareUnits publics size is:", len(units[i].Publics))
 		//TODO: Revert to ServicePublics() once you have the suitable
 		//roster.toml file generated
 		//sn := fus[i].Name + "Service"

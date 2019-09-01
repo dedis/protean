@@ -99,12 +99,6 @@ func (s *Service) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
 		return nil, err
 	}
 	setupDKG := pi.(*dkgprotocol.Setup)
-	//encoded, err := hexToBytes(req.ID)
-	//if err != nil {
-	//log.Errorf("Could not convert string to byte array: %v", err)
-	//return nil, err
-	//}
-	//err = setupDKG.SetConfig(&onet.GenericConfig{Data: encoded})
 	err = setupDKG.SetConfig(&onet.GenericConfig{Data: req.ID[:]})
 	if err != nil {
 		log.Errorf("Could not set config: %v", err)
@@ -145,8 +139,8 @@ func (s *Service) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
 
 func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 	reply := &DecryptReply{}
-	nodes := len(s.roster.List)
-	threshold := nodes - (nodes-1)/3
+	numNodes := len(s.roster.List)
+	threshold := numNodes - (numNodes-1)/3
 
 	s.storage.Lock()
 	shared, ok := s.storage.Shared[req.ID]
@@ -170,7 +164,7 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 	bb := pp.B.Clone()
 	s.storage.Unlock()
 
-	tree := s.roster.GenerateNaryTreeWithRoot(nodes, s.ServerIdentity())
+	tree := s.roster.GenerateNaryTreeWithRoot(numNodes, s.ServerIdentity())
 	pi, err := s.CreateProtocol(TDHProtoName, tree)
 	if err != nil {
 		return nil, errors.New("failed to create decrypt protocol: " + err.Error())
@@ -181,12 +175,6 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 	decProto.Gen = req.Gen
 	decProto.Shared = shared
 	decProto.Poly = share.NewPubPoly(s.Suite(), bb, commits)
-	//encoded, err := hexToBytes(req.ID)
-	//if err != nil {
-	//log.Errorf("Could not convert string to byte array: %v", err)
-	//return nil, err
-	//}
-	//err = decProto.SetConfig(&onet.GenericConfig{Data: encoded})
 	err = decProto.SetConfig(&onet.GenericConfig{Data: req.ID[:]})
 	if err != nil {
 		log.Errorf("Could not set config: %v", err)
@@ -202,7 +190,7 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 		return nil, errors.New("Decryption got refused")
 	}
 	log.Lvl3("Decryption protocol is done.")
-	reply.XhatEnc, err = share.RecoverCommit(cothority.Suite, decProto.Uis, threshold, nodes)
+	reply.XhatEnc, err = share.RecoverCommit(cothority.Suite, decProto.Uis, threshold, numNodes)
 	if err != nil {
 		return nil, errors.New("Failed to recover commit: " + err.Error())
 	}
@@ -270,14 +258,12 @@ func (s *Service) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConfi
 	log.Lvl3(s.ServerIdentity(), tn.ProtocolName(), conf)
 	switch tn.ProtocolName() {
 	case dkgprotocol.Name:
-		//id := hex.EncodeToString(conf.Data)
 		pi, err := dkgprotocol.NewSetup(tn)
 		if err != nil {
 			return nil, err
 		}
 		setupDKG := pi.(*dkgprotocol.Setup)
 		setupDKG.KeyPair = s.getKeyPair()
-		//go func(id string) {
 		go func(idSlice []byte) {
 			<-setupDKG.Finished
 			shared, dks, err := setupDKG.SharedSecret()
@@ -295,11 +281,9 @@ func (s *Service) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConfi
 			if err != nil {
 				log.Error(err)
 			}
-			//}(id)
 		}(conf.Data)
 		return pi, nil
 	case TDHProtoName:
-		//id := hex.EncodeToString(conf.Data)
 		id := NewDKGID(conf.Data)
 		s.storage.Lock()
 		shared, ok := s.storage.Shared[id]

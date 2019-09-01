@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"os"
+	"sort"
 
 	"github.com/dedis/protean/sys"
 	"go.dedis.ch/cothority/v3"
@@ -59,7 +60,7 @@ func BlsCosiSign(s *blscosi.Service, r *onet.Roster, data []byte) (network.Messa
 	return resp, err
 }
 
-func VerifySignature(s interface{}, sig protocol.BlsSignature, publics []kyber.Point) error {
+func VerifyBLSSignature(s interface{}, sig protocol.BlsSignature, publics []kyber.Point) error {
 	data, err := protobuf.Encode(s)
 	if err != nil {
 		return err
@@ -69,8 +70,63 @@ func VerifySignature(s interface{}, sig protocol.BlsSignature, publics []kyber.P
 	return sig.Verify(ps, h.Sum(nil), publics)
 }
 
+func ComputeEPHash(ep *sys.ExecutionPlan) ([]byte, error) {
+	authBytes := SerializeAuthKeys(ep.Workflow.AuthPublics)
+	pubBytes := SerializeUnitKeys(ep.Publics)
+	serialEp := &sys.SerializedEP{
+		Nodes:       ep.Workflow.Nodes,
+		AuthPublics: authBytes,
+		All:         ep.Workflow.All,
+		Publics:     pubBytes,
+	}
+	buf, err := protobuf.Encode(serialEp)
+	if err != nil {
+		return nil, err
+	}
+	h := sha256.New()
+	h.Write(buf)
+	return h.Sum(nil), nil
+}
+
+func SerializeUnitKeys(keyMap map[string]*sys.UnitIdentity) []byte {
+	sz := len(keyMap)
+	sortedKeys := make([]string, sz)
+	idx := 0
+	for k, _ := range keyMap {
+		sortedKeys[idx] = k
+		idx++
+	}
+	sort.Strings(sortedKeys)
+	h := sha256.New()
+	for i := 0; i < sz; i++ {
+		key := sortedKeys[i]
+		unitKeys := keyMap[key].Keys
+		h.Write([]byte(key))
+		for i := 0; i < len(unitKeys); i++ {
+			h.Write([]byte(unitKeys[i].String()))
+		}
+	}
+	return h.Sum(nil)
+}
+
+func SerializeAuthKeys(keyMap map[string]kyber.Point) []byte {
+	sortedKeys := make([]string, len(keyMap))
+	idx := 0
+	for k, _ := range keyMap {
+		sortedKeys[idx] = k
+		idx++
+	}
+	sort.Strings(sortedKeys)
+	h := sha256.New()
+	for _, key := range sortedKeys {
+		authKey := keyMap[key]
+		h.Write([]byte(key))
+		h.Write([]byte(authKey.String()))
+	}
+	return h.Sum(nil)
+}
+
 func StoreBlock(s *skipchain.Service, genesis skipchain.SkipBlockID, data []byte) error {
-	log.Infof("In StoreBlock service id is: %s", s.ServiceID())
 	db := s.GetDB()
 	latest, err := db.GetLatest(db.GetByID(genesis))
 	if err != nil {
@@ -87,9 +143,7 @@ func StoreBlock(s *skipchain.Service, genesis skipchain.SkipBlockID, data []byte
 	return err
 }
 
-//func CreateGenesisBlock(s *skipchain.Service, scData *sys.ScInitData, roster *onet.Roster) (*skipchain.StoreSkipBlockReply, error) {
 func CreateGenesisBlock(s *skipchain.Service, scCfg *sys.ScConfig, roster *onet.Roster) (*skipchain.StoreSkipBlockReply, error) {
-	log.Infof("[CreateGenesisBlock] Service: %s", s.ServiceID())
 	genesis := skipchain.NewSkipBlock()
 	genesis.Roster = roster
 	genesis.MaximumHeight = scCfg.MHeight

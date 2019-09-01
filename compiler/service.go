@@ -2,7 +2,6 @@ package compiler
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"math"
 
 	"github.com/dedis/protean/sys"
@@ -41,9 +40,7 @@ func init() {
 		&ExecutionPlanReply{}, &StoreGenesisRequest{}, &StoreGenesisReply{})
 }
 
-//func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
-	//genesisReply, err := utils.CreateGenesisBlock(s.scService, req.ScData, req.Roster)
 	genesisReply, err := utils.CreateGenesisBlock(s.scService, req.ScCfg, req.Roster)
 	if err != nil {
 		log.Errorf("Cannot create skipchain genesis block: %v", err)
@@ -71,6 +68,7 @@ func (s *Service) CreateUnits(req *CreateUnitsRequest) (*CreateUnitsReply, error
 			Txns: txnMap,
 		}
 		sbd[uid] = val
+		log.Infof("Unit: %s - UID: %s", val.N, uid)
 	}
 	enc, err := protobuf.Encode(&sbData{Data: sbd})
 	if err != nil {
@@ -101,85 +99,90 @@ func (s *Service) GenerateExecutionPlan(req *ExecutionPlanRequest) (*ExecutionPl
 		return nil, err
 	}
 
-	n := len(s.roster.List)
-	tree := s.roster.GenerateNaryTreeWithRoot(n, s.ServerIdentity())
+	numNodes := len(s.roster.List)
+	tree := s.roster.GenerateNaryTreeWithRoot(numNodes, s.ServerIdentity())
 	pi, err := s.CreateProtocol(execPlanFtCosi, tree)
 	if err != nil {
 		log.Errorf("CreateProtocol failed: %v", err)
 		return nil, err
 	}
-	payload, err := protobuf.Encode(execPlan)
+	msgBuf, err := utils.ComputeEPHash(execPlan)
 	if err != nil {
-		log.Errorf("Protobuf encode failed: %v", err)
+		log.Errorf("Error computing the hash of the execution plan: %v", err)
 		return nil, err
 	}
-	h := sha256.New()
-	h.Write(payload)
-
+	dataBuf, err := protobuf.Encode(&epData{Ep: execPlan, Sm: req.SigMap})
+	if err != nil {
+		return nil, err
+	}
 	cosiProto := pi.(*protocol.BlsCosi)
-	cosiProto.Msg = h.Sum(nil)
-	cosiProto.Data = payload
+	cosiProto.Msg = msgBuf
+	cosiProto.Data = dataBuf
 	cosiProto.CreateProtocol = s.CreateProtocol
-	cosiProto.Threshold = n - n/3
-	err = cosiProto.SetNbrSubTree(int(math.Pow(float64(n), 1.0/3.0)))
+	cosiProto.Threshold = numNodes - (numNodes-1)/3
+	err = cosiProto.SetNbrSubTree(int(math.Pow(float64(numNodes), 1.0/3.0)))
 	if err != nil {
 		log.Errorf("SetNbrSubTree failed: %v", err)
 		return nil, err
 	}
 
-	log.Info("Before proto start:", s.ServerIdentity())
-	if err := cosiProto.Start(); err != nil {
+	err = cosiProto.Start()
+	if err != nil {
 		log.Errorf("Starting the cosi protocol failed: %v", err)
 		return nil, err
 	}
-	log.Info("After proto start:", s.ServerIdentity())
 	reply := &ExecutionPlanReply{}
 	reply.ExecPlan = execPlan
 	reply.Signature = <-cosiProto.FinalSignature
-	log.Info("Signature ready:", reply.Signature)
 	return reply, nil
 }
 
 func (s *Service) verifyExecutionPlan(msg []byte, data []byte) bool {
-	valid := false
-	//var req protean.ExecutionPlan
-	var req sys.ExecutionPlan
-	if err := protobuf.Decode(data, &req); err != nil {
-		log.Errorf("%s Protobuf decode error: %v:", s.ServerIdentity(), err)
-		return valid
+	var epd epData
+	err := protobuf.Decode(data, &epd)
+	if err != nil {
+		log.Errorf("%s protobuf decode error: %v:", s.ServerIdentity(), err)
+		return false
 	}
-	h := sha256.New()
-	h.Write(data)
-	digest := h.Sum(nil)
+	execPlan := epd.Ep
+	digest, err := utils.ComputeEPHash(execPlan)
+	if err != nil {
+		log.Errorf("%s cannot compute the hash of the execution plan: %v:", s.ServerIdentity(), err)
+		return false
+	}
 	if !bytes.Equal(msg, digest) {
-		log.Errorf("%s: digest does not verify", s.ServerIdentity())
-		return valid
+		log.Errorf("%s digest does not verify", s.ServerIdentity())
+		return false
 	}
-	// Check that the units and transactions in the workflow are valid
 	db := s.scService.GetDB()
-	//sbData, err := getBlockData(db, req.Genesis)
 	sbData, err := getBlockData(db, s.genesis)
 	if err != nil {
 		log.Errorf("Cannot get block data: %v", err)
-		return valid
+		return false
 	}
-	for _, wfn := range req.Workflow {
+	for _, wfn := range execPlan.Workflow.Nodes {
 		// val is uv
 		if val, ok := sbData.Data[wfn.UID]; ok {
-			if _, ok := val.Txns[wfn.TID]; ok {
-				log.LLvlf1("All good for %s - %s", wfn.UID, wfn.TID)
-			} else {
+			if _, ok := val.Txns[wfn.TID]; !ok {
 				log.Errorf("%s is not a valid transaction", wfn.TID)
-				return valid
+				return false
 			}
 		} else {
 			log.Errorf("%s is not a valid functional unit", wfn.UID)
-			return valid
+			return false
 		}
 	}
-	valid = verifyDag(req.Workflow)
-	// TODO: Check more stuff
-	return valid
+	err = verifyDag(execPlan.Workflow.Nodes)
+	if err != nil {
+		log.Errorf("Verify execution plan error: %v", err)
+		return false
+	}
+	err = verifyAuthentication(execPlan.Workflow, epd.Sm)
+	if err != nil {
+		log.Errorf("Verify execution plan error: %v", err)
+		return false
+	}
+	return true
 }
 
 func (s *Service) GetDirectoryInfo(req *DirectoryInfoRequest) (*DirectoryInfoReply, error) {
@@ -189,19 +192,14 @@ func (s *Service) GetDirectoryInfo(req *DirectoryInfoRequest) (*DirectoryInfoRep
 		log.Errorf("Cannot get block data: %v", err)
 		return nil, err
 	}
-	//idx := 0
-	//dirInfo := make([]*sys.UnitInfo, len(sbData.Data))
 	dir := make(map[string]*sys.UnitInfo)
 	for uid, uv := range sbData.Data {
 		txnMap := make(map[string]string)
 		for txnID, txnName := range uv.Txns {
 			txnMap[txnName] = txnID
 		}
-		//dirInfo[idx] = &sys.UnitInfo{UnitID: uid, UnitName: uv.N, Txns: txnMap}
 		dir[uv.N] = &sys.UnitInfo{UnitID: uid, Txns: txnMap}
-		//idx++
 	}
-	//return &DirectoryInfoReply{Data: dirInfo}, nil
 	return &DirectoryInfoReply{Directory: dir}, nil
 }
 
