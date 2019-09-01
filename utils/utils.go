@@ -70,14 +70,32 @@ func VerifyBLSSignature(s interface{}, sig protocol.BlsSignature, publics []kybe
 	return sig.Verify(ps, h.Sum(nil), publics)
 }
 
+func ComputeWFHash(wf *sys.Workflow) ([]byte, error) {
+	authBytes := SerializeAuthKeys(wf.AuthPublics)
+	serialWf := &sys.SerializedWf{
+		Nodes:       wf.Nodes,
+		AuthPublics: authBytes,
+		All:         wf.All,
+	}
+	buf, err := protobuf.Encode(serialWf)
+	if err != nil {
+		return nil, err
+	}
+	h := sha256.New()
+	h.Write(buf)
+	return h.Sum(nil), err
+}
+
 func ComputeEPHash(ep *sys.ExecutionPlan) ([]byte, error) {
 	authBytes := SerializeAuthKeys(ep.Workflow.AuthPublics)
 	pubBytes := SerializeUnitKeys(ep.Publics)
-	serialEp := &sys.SerializedEP{
-		Nodes:       ep.Workflow.Nodes,
-		AuthPublics: authBytes,
-		All:         ep.Workflow.All,
-		Publics:     pubBytes,
+	serialEp := &sys.SerializedEp{
+		Swf: &sys.SerializedWf{
+			Nodes:       ep.Workflow.Nodes,
+			AuthPublics: authBytes,
+			All:         ep.Workflow.All,
+		},
+		Publics: pubBytes,
 	}
 	buf, err := protobuf.Encode(serialEp)
 	if err != nil {

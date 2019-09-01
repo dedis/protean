@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/dedis/protean/sys"
+	"github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/kyber/v3/sign/schnorr"
@@ -36,7 +37,11 @@ func verifyAuthentication(wf *sys.Workflow, sigMap map[string][]byte) error {
 		log.LLvlf1("Workflow does not have authorized users")
 		return nil
 	}
-	msg, err := protobuf.Encode(wf)
+	//msg, err := protobuf.Encode(wf)
+	//if err != nil {
+	//return err
+	//}
+	digest, err := utils.ComputeWFHash(wf)
 	if err != nil {
 		return err
 	}
@@ -46,7 +51,8 @@ func verifyAuthentication(wf *sys.Workflow, sigMap map[string][]byte) error {
 			if !ok {
 				return fmt.Errorf("Missing signature from %v", id)
 			}
-			err := schnorr.Verify(cothority.Suite, authPub, msg, sig)
+			//err := schnorr.Verify(cothority.Suite, authPub, msg, sig)
+			err := schnorr.Verify(cothority.Suite, authPub, digest, sig)
 			if err != nil {
 				return fmt.Errorf("Cannot verify signature from %v", id)
 			}
@@ -58,7 +64,8 @@ func verifyAuthentication(wf *sys.Workflow, sigMap map[string][]byte) error {
 			if !ok {
 				return fmt.Errorf("Cannot find %v in authenticated users", id)
 			}
-			err := schnorr.Verify(cothority.Suite, pk, msg, sig)
+			//err := schnorr.Verify(cothority.Suite, pk, msg, sig)
+			err := schnorr.Verify(cothority.Suite, pk, digest, sig)
 			if err == nil {
 				success = true
 				break

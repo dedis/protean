@@ -87,9 +87,16 @@ type ExecutionData struct {
 	SigMap   map[int]protocol.BlsSignature
 }
 
-type SerializedEP struct {
+type SerializedWf struct {
 	Nodes       []*WfNode
 	AuthPublics []byte
 	All         bool
-	Publics     []byte
+}
+
+type SerializedEp struct {
+	//Nodes       []*WfNode
+	//AuthPublics []byte
+	//All         bool
+	Swf     *SerializedWf
+	Publics []byte
 }

@@ -4,8 +4,11 @@ import (
 	"fmt"
 
 	"github.com/dedis/protean/sys"
+	"github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/skipchain"
+	"go.dedis.ch/kyber/v3"
+	"go.dedis.ch/kyber/v3/sign/schnorr"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/network"
 )
@@ -76,4 +79,16 @@ func (c *Client) GetDirectoryInfo() (*DirectoryInfoReply, error) {
 	reply := &DirectoryInfoReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)
 	return reply, err
+}
+
+func SignWorkflow(wf *sys.Workflow, sk kyber.Scalar) ([]byte, error) {
+	digest, err := utils.ComputeWFHash(wf)
+	if err != nil {
+		return nil, fmt.Errorf("Sign workflow failed with protobuf error: %v", err)
+	}
+	sig, err := schnorr.Sign(cothority.Suite, sk, digest)
+	if err != nil {
+		return nil, fmt.Errorf("Cannot sign the workflow: %v", err)
+	}
+	return sig, nil
 }
