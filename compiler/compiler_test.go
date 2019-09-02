@@ -7,9 +7,11 @@ import (
 
 	cliutils "github.com/dedis/protean/client/utils"
 	"github.com/dedis/protean/sys"
+	"github.com/dedis/protean/utils"
 	"github.com/stretchr/testify/require"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/kyber/v3"
+	"go.dedis.ch/kyber/v3/pairing"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
 )
@@ -33,6 +35,7 @@ func TestCompiler_Basic(t *testing.T) {
 	defer local.CloseAll()
 	services := local.GetServices(hosts, compilerID)
 	root := services[0].(*Service)
+	fmt.Println(">>>>>> Root node is:", root.ServerIdentity(), "<<<<<<")
 
 	units, err := sys.PrepareUnits(roster, &uname)
 	require.Nil(t, err)
@@ -45,14 +48,15 @@ func TestCompiler_Basic(t *testing.T) {
 	require.NoError(t, err)
 	reply, err := root.GetDirectoryInfo(&DirectoryInfoRequest{})
 	require.NoError(t, err)
-	for k, v := range reply.Directory {
-		fmt.Println("Unit name:", k)
-		fmt.Println("Unit ID:", v.UnitID)
-		fmt.Println(">> Transactions <<")
-		for id, name := range v.Txns {
-			fmt.Println(id, "--->", name)
-		}
-	}
+	require.NotNil(t, reply)
+	//for k, v := range reply.Directory {
+	//fmt.Println("Unit name:", k)
+	//fmt.Println("Unit ID:", v.UnitID)
+	//fmt.Println(">> Transactions <<")
+	//for id, name := range v.Txns {
+	//fmt.Println(id, "--->", name)
+	//}
+	//}
 }
 
 func Test_PrepareWf(t *testing.T) {
@@ -62,6 +66,7 @@ func Test_PrepareWf(t *testing.T) {
 	defer local.CloseAll()
 	services := local.GetServices(hosts, compilerID)
 	root := services[0].(*Service)
+	fmt.Println(">>>>>> Root node is:", root.ServerIdentity(), "<<<<<<")
 
 	units, err := sys.PrepareUnits(roster, &uname)
 	require.Nil(t, err)
@@ -76,10 +81,11 @@ func Test_PrepareWf(t *testing.T) {
 	require.NoError(t, err)
 	wf, err := cliutils.PrepareWorkflow(&wname, reply.Directory, nil, false)
 	require.NoError(t, err)
-	for _, w := range wf.Nodes {
-		fmt.Println(w.UID, w.TID)
-		fmt.Println("Deps:", w.Deps)
-	}
+	require.True(t, len(wf.Nodes) > 0)
+	//for _, w := range wf.Nodes {
+	//fmt.Println(w.UID, w.TID)
+	//fmt.Println("Deps:", w.Deps)
+	//}
 }
 
 func Test_GenerateEPNoAuth(t *testing.T) {
@@ -94,6 +100,7 @@ func Test_GenerateEPNoAuth(t *testing.T) {
 		nodes[i] = services[i].(*Service)
 	}
 	root := services[0].(*Service)
+	fmt.Println(">>>>>> Root node is:", root.ServerIdentity(), "<<<<<<")
 
 	units, err := sys.PrepareUnits(roster, &uname)
 	require.Nil(t, err)
@@ -115,6 +122,11 @@ func Test_GenerateEPNoAuth(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, planReply.ExecPlan.Publics)
 	require.NotNil(t, planReply.Signature)
+
+	suite := pairing.NewSuiteBn256()
+	epHash, err := utils.ComputeEPHash(planReply.ExecPlan)
+	require.Nil(t, err)
+	require.NoError(t, planReply.Signature.Verify(suite, epHash, roster.ServicePublics(ServiceName)))
 }
 
 func Test_GenerateEPWithAuth_All(t *testing.T) {
@@ -129,6 +141,7 @@ func Test_GenerateEPWithAuth_All(t *testing.T) {
 		nodes[i] = services[i].(*Service)
 	}
 	root := services[0].(*Service)
+	fmt.Println(">>>>>> Root node is:", root.ServerIdentity(), "<<<<<<")
 
 	units, err := sys.PrepareUnits(roster, &uname)
 	require.Nil(t, err)
@@ -166,6 +179,11 @@ func Test_GenerateEPWithAuth_All(t *testing.T) {
 	require.NotNil(t, planReply.ExecPlan.Publics)
 	require.NotNil(t, planReply.Signature)
 
+	suite := pairing.NewSuiteBn256()
+	epHash, err := utils.ComputeEPHash(planReply.ExecPlan)
+	require.Nil(t, err)
+	require.NoError(t, planReply.Signature.Verify(suite, epHash, roster.ServicePublics(ServiceName)))
+
 }
 func Test_GenerateEPWithAuth_NoAll(t *testing.T) {
 	n := 7
@@ -179,6 +197,7 @@ func Test_GenerateEPWithAuth_NoAll(t *testing.T) {
 		nodes[i] = services[i].(*Service)
 	}
 	root := services[0].(*Service)
+	fmt.Println(">>>>>> Root node is:", root.ServerIdentity(), "<<<<<<")
 
 	units, err := sys.PrepareUnits(roster, &uname)
 	require.Nil(t, err)
@@ -208,6 +227,7 @@ func Test_GenerateEPWithAuth_NoAll(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, wf.AuthPublics)
 
+	suite := pairing.NewSuiteBn256()
 	for i := 0; i < sz; i++ {
 		singleSm, err := generateSigmap(wf, authPks[i:i+1], authSks[i:i+1])
 		require.NoError(t, err)
@@ -215,6 +235,10 @@ func Test_GenerateEPWithAuth_NoAll(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, planReply.ExecPlan.Publics)
 		require.NotNil(t, planReply.Signature)
+
+		epHash, err := utils.ComputeEPHash(planReply.ExecPlan)
+		require.Nil(t, err)
+		require.NoError(t, planReply.Signature.Verify(suite, epHash, roster.ServicePublics(ServiceName)))
 	}
 
 }

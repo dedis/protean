@@ -7,14 +7,10 @@ import (
 	"go.dedis.ch/kyber/v3"
 )
 
+const RAND = "Randomness"
+
 type InitUnitRequest struct {
-	//Roster *onet.Roster
-	//ScData       *sys.ScInitData
-	//BaseStore    *sys.BaseStorage
-	//BlkInterval  time.Duration
-	//DurationType time.Duration
-	Cfg *sys.UnitConfig
-	// Timeout waiting for final signature - originally 2 seconds
+	Cfg     *sys.UnitConfig
 	Timeout time.Duration
 }
 

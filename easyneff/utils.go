@@ -17,11 +17,9 @@ func GenerateInitRequest(roster *onet.Roster) *InitUnitRequest {
 		BHeight: 2,
 	}
 	uData := &sys.BaseStorage{
-		UInfo: &sys.UnitInfo{
-			UnitID:   "shuffle",
-			UnitName: "shuffleUnit",
-			Txns:     map[string]string{"a": "b", "c": "d"},
-		},
+		UnitID:   "shuffle",
+		UnitName: "shuffleUnit",
+		Txns:     map[string]string{"a": "b", "c": "d"},
 	}
 	return &InitUnitRequest{
 		Cfg: &sys.UnitConfig{

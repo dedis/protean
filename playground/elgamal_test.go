@@ -74,22 +74,18 @@ func prepareMessages(X kyber.Point) ([][]byte, []*utils.ElGamalPair) {
 	return mesgs, cs
 }
 
-//func prepareUnitData(roster *onet.Roster) (*protean.ScInitData, *protean.BaseStorage) {
-func prepareUnitData(roster *onet.Roster) (*sys.ScInitData, *sys.BaseStorage) {
-	//scData := &protean.ScInitData{
-	scData := &sys.ScInitData{
+func prepareUnitData(roster *onet.Roster) (*sys.ScConfig, *sys.BaseStorage) {
+	scCfg := &sys.ScConfig{
 		MHeight: 2,
 		BHeight: 2,
 	}
-	uData := &sys.BaseStorage{
-		UInfo: &sys.UnitInfo{
-			UnitID:   "threshold",
-			UnitName: "thresholdUnit",
-			Txns:     map[string]string{"a": "b", "c": "d"},
-		},
-		CompKeys: roster.ServicePublics(threshold.ServiceName),
+	baseStore := &sys.BaseStorage{
+		UnitID:      "threshold",
+		UnitName:    "thresholdUnit",
+		Txns:        map[string]string{"a": "b", "c": "d"},
+		CompPublics: roster.ServicePublics(threshold.ServiceName),
 	}
-	return scData, uData
+	return scCfg, baseStore
 }
 
 // egTest is used here to provide some simple test structure for different

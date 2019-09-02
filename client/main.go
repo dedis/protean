@@ -113,12 +113,10 @@ func testStateUnit(roster *onet.Roster) error {
 		BHeight: 2,
 	}
 	uData := &sys.BaseStorage{
-		UInfo: &sys.UnitInfo{
-			UnitID:   "state",
-			UnitName: "stateUnit",
-			Txns:     map[string]string{"a": "b", "c": "d"},
-		},
-		CompKeys: roster.ServicePublics(state.ServiceName),
+		UnitID:      "state",
+		UnitName:    "stateUnit",
+		Txns:        map[string]string{"a": "b", "c": "d"},
+		CompPublics: roster.ServicePublics(state.ServiceName),
 	}
 
 	_, err := stCl.InitUnit(roster, scCfg, uData, 30, time.Second)
@@ -223,12 +221,10 @@ func testDummyUnit(roster *onet.Roster) error {
 		BHeight: 2,
 	}
 	uData := &sys.BaseStorage{
-		UInfo: &sys.UnitInfo{
-			UnitID:   "dummy",
-			UnitName: "dummyUnit",
-			Txns:     map[string]string{"a": "b", "c": "d"},
-		},
-		CompKeys: roster.ServicePublics(dummy.ServiceName),
+		UnitID:      "dummy",
+		UnitName:    "dummyUnit",
+		Txns:        map[string]string{"a": "b", "c": "d"},
+		CompPublics: roster.ServicePublics(dummy.ServiceName),
 	}
 
 	_, err := dumCl.InitUnit(roster, scCfg, uData, 10, time.Second)
@@ -460,12 +456,10 @@ func testPristore(roster *onet.Roster) error {
 		BHeight: 2,
 	}
 	uData := &sys.BaseStorage{
-		UInfo: &sys.UnitInfo{
-			UnitID:   "pristore",
-			UnitName: "pristoreUnit",
-			Txns:     map[string]string{"a": "b", "c": "d"},
-		},
-		CompKeys: roster.ServicePublics(pristore.ServiceName),
+		UnitID:      "pristore",
+		UnitName:    "pristoreUnit",
+		Txns:        map[string]string{"a": "b", "c": "d"},
+		CompPublics: roster.ServicePublics(pristore.ServiceName),
 	}
 
 	reply, err := psCl.InitUnit(roster, scCfg, uData, 15, time.Second)
@@ -558,12 +552,10 @@ func testShuffle(roster *onet.Roster) error {
 		BHeight: 2,
 	}
 	uData := &sys.BaseStorage{
-		UInfo: &sys.UnitInfo{
-			UnitID:   "shuffle",
-			UnitName: "shuffleUnit",
-			Txns:     map[string]string{"a": "b", "c": "d"},
-		},
-		CompKeys: roster.ServicePublics(easyneff.ServiceName),
+		UnitID:      "shuffle",
+		UnitName:    "shuffleUnit",
+		Txns:        map[string]string{"a": "b", "c": "d"},
+		CompPublics: roster.ServicePublics(easyneff.ServiceName),
 	}
 
 	_, err := neffCl.InitUnit(roster, scCfg, uData, 10, time.Second)
@@ -592,12 +584,10 @@ func testTDH(roster *onet.Roster) error {
 		BHeight: 2,
 	}
 	uData := &sys.BaseStorage{
-		UInfo: &sys.UnitInfo{
-			UnitID:   "tdh",
-			UnitName: "tdhUnit",
-			Txns:     map[string]string{"a": "b", "c": "d"},
-		},
-		CompKeys: roster.ServicePublics(tdh.ServiceName),
+		UnitID:      "tdh",
+		UnitName:    "tdhUnit",
+		Txns:        map[string]string{"a": "b", "c": "d"},
+		CompPublics: roster.ServicePublics(tdh.ServiceName),
 	}
 
 	gen := make([]byte, 32)
@@ -673,12 +663,10 @@ func testThreshold(roster *onet.Roster) error {
 		BHeight: 2,
 	}
 	uData := &sys.BaseStorage{
-		UInfo: &sys.UnitInfo{
-			UnitID:   "threshold",
-			UnitName: "thresholdUnit",
-			Txns:     map[string]string{"a": "b", "c": "d"},
-		},
-		CompKeys: roster.ServicePublics(threshold.ServiceName),
+		UnitID:      "threshold",
+		UnitName:    "thresholdUnit",
+		Txns:        map[string]string{"a": "b", "c": "d"},
+		CompPublics: roster.ServicePublics(threshold.ServiceName),
 	}
 
 	keyPair := darc.NewSignerEd25519(nil, nil)
@@ -768,12 +756,10 @@ func testFail(roster *onet.Roster) error {
 		BHeight: 2,
 	}
 	uData := &sys.BaseStorage{
-		UInfo: &sys.UnitInfo{
-			UnitID:   "pristore",
-			UnitName: "pristoreUnit",
-			Txns:     map[string]string{"a": "b", "c": "d"},
-		},
-		CompKeys: roster.ServicePublics(pristore.ServiceName),
+		UnitID:      "pristore",
+		UnitName:    "pristoreUnit",
+		Txns:        map[string]string{"a": "b", "c": "d"},
+		CompPublics: roster.ServicePublics(pristore.ServiceName),
 	}
 
 	reply, err := psCl.InitUnit(roster, scCfg, uData, 15, time.Second)

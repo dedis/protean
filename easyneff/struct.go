@@ -6,6 +6,8 @@ import (
 	"go.dedis.ch/kyber/v3"
 )
 
+const SH = "Shuffle"
+
 type InitUnitRequest struct {
 	Cfg *sys.UnitConfig
 }

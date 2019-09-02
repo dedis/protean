@@ -45,9 +45,10 @@ type StoreGenesisRequest struct {
 
 type StoreGenesisReply struct{}
 
-type epData struct {
-	Ep *sys.ExecutionPlan
-	Sm map[string][]byte
+type verifyEpData struct {
+	Root string
+	Ep   *sys.ExecutionPlan
+	Sm   map[string][]byte
 }
 
 type sbData struct {

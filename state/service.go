@@ -11,8 +11,6 @@ import (
 	"go.dedis.ch/cothority/v3/darc"
 	"go.dedis.ch/cothority/v3/skipchain"
 
-	//"go.dedis.ch/kyber/v3/pairing"
-	//"go.dedis.ch/kyber/v3/suites"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/onet/v3/network"
@@ -60,7 +58,7 @@ func (s *Service) UpdateState(req *UpdateStateRequest) (*UpdateStateReply, error
 		log.Errorf("Cannot get the latest block: %v", err)
 		return nil, err
 	}
-	verified := s.verifyExecutionPlan(blk, req.ExecData)
+	verified := s.verifyExecutionPlan(UPD, blk, req.ExecData)
 	if !verified {
 		log.Errorf("Cannot verify execution plan")
 		return nil, fmt.Errorf("Cannot verify the execution plan")
@@ -102,7 +100,7 @@ func (s *Service) CreateState(req *CreateStateRequest) (*CreateStateReply, error
 		log.Errorf("Cannot get the latest block: %v", err)
 		return nil, err
 	}
-	verified := s.verifyExecutionPlan(blk, req.ExecData)
+	verified := s.verifyExecutionPlan(CREAT, blk, req.ExecData)
 	if !verified {
 		log.Errorf("Cannot verify execution plan")
 		return nil, fmt.Errorf("Cannot verify execution plan")
@@ -228,8 +226,8 @@ func (s *Service) GetProof(req *GetProofRequest) (*GetProofReply, error) {
 	return reply, nil
 }
 
-//func (s *Service) verifyExecutionPlan(blk *skipchain.SkipBlock, execData *protean.ExecutionData) bool {
-func (s *Service) verifyExecutionPlan(blk *skipchain.SkipBlock, execData *sys.ExecutionData) bool {
+//func (s *Service) verifyExecutionPlan(blk *skipchain.SkipBlock, execData *sys.ExecutionData) bool {
+func (s *Service) verifyExecutionPlan(txnName string, blk *skipchain.SkipBlock, execData *sys.ExecutionData) bool {
 	tree := s.roster.GenerateNaryTreeWithRoot(len(s.roster.List), s.ServerIdentity())
 	pi, err := s.CreateProtocol(verify.Name, tree)
 	if err != nil {
@@ -237,11 +235,13 @@ func (s *Service) verifyExecutionPlan(blk *skipchain.SkipBlock, execData *sys.Ex
 		return false
 	}
 	verifyProto := pi.(*verify.VP)
-	verifyProto.Block = blk
 	verifyProto.Index = execData.Index
+	verifyProto.TxnName = txnName
+	verifyProto.Block = blk
 	verifyProto.ExecPlan = execData.ExecPlan
-	verifyProto.PlanSig = execData.PlanSig
-	verifyProto.SigMap = execData.SigMap
+	verifyProto.ClientSigs = execData.ClientSigs
+	verifyProto.CompilerSig = execData.CompilerSig
+	verifyProto.UnitSigs = execData.UnitSigs
 	err = verifyProto.Start()
 	if err != nil {
 		log.Errorf("Cannot start protocol: %v", err)

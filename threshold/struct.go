@@ -9,15 +9,12 @@ import (
 )
 
 const ThreshProtoName = "ThreshDecryptProto"
+const DKG = "InitDKG"
+const DEC = "Decrypt"
 
 type DKGID [32]byte
 
 type InitUnitRequest struct {
-	//Roster *onet.Roster
-	//ScData       *sys.ScInitData
-	//BaseStore    *sys.BaseStorage
-	//BlkInterval  time.Duration
-	//DurationType time.Duration
 	Cfg *sys.UnitConfig
 }
 

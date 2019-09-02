@@ -3,6 +3,7 @@ package compiler
 import (
 	"bytes"
 	"math"
+	"strings"
 
 	"github.com/dedis/protean/sys"
 	"github.com/dedis/protean/utils"
@@ -68,7 +69,7 @@ func (s *Service) CreateUnits(req *CreateUnitsRequest) (*CreateUnitsReply, error
 			Txns: txnMap,
 		}
 		sbd[uid] = val
-		log.Infof("Unit: %s - UID: %s", val.N, uid)
+		//log.Infof("Unit: %s - UID: %s", val.N, uid)
 	}
 	enc, err := protobuf.Encode(&sbData{Data: sbd})
 	if err != nil {
@@ -84,16 +85,27 @@ func (s *Service) CreateUnits(req *CreateUnitsRequest) (*CreateUnitsReply, error
 }
 
 func (s *Service) GenerateExecutionPlan(req *ExecutionPlanRequest) (*ExecutionPlanReply, error) {
-	//TODO: THE LEADER SHOULD PREPARE THE EXECUTION PLAN (WITH THE CRYPTO
-	//KEYS) AND SEND IT TO THE OTHER NODES. OTHERS VERIFY THAT IT'S
-	//CONSISTENT AND SENDS A SIGNATURE
 	db := s.scService.GetDB()
 	sbData, err := getBlockData(db, s.genesis)
 	if err != nil {
 		log.Errorf("Cannot get block data: %v", err)
 		return nil, err
 	}
-	execPlan, err := prepareExecutionPlan(sbData, req)
+	// We first check this to make sure we don't waste time preparing the
+	// execution plan
+	wfHash, err := utils.ComputeWFHash(req.Workflow)
+	if err != nil {
+		log.Errorf("Error computing the hash of workflow: %v", err)
+		return nil, err
+	}
+	//err = verifyAuthentication(req.Workflow, req.SigMap)
+	err = sys.VerifyAuthentication(wfHash, req.Workflow, req.SigMap)
+	if err != nil {
+		log.Errorf("Cannot verify that the request comes from an authorized user: %v", err)
+		return nil, err
+	}
+	//execPlan, err := prepareExecutionPlan(sbData, req)
+	execPlan, err := prepareExecutionPlan(sbData, req.Workflow)
 	if err != nil {
 		log.Errorf("Preparing the execution plan failed: %v", err)
 		return nil, err
@@ -111,7 +123,8 @@ func (s *Service) GenerateExecutionPlan(req *ExecutionPlanRequest) (*ExecutionPl
 		log.Errorf("Error computing the hash of the execution plan: %v", err)
 		return nil, err
 	}
-	dataBuf, err := protobuf.Encode(&epData{Ep: execPlan, Sm: req.SigMap})
+	//dataBuf, err := protobuf.Encode(&epData{Ep: execPlan, Sm: req.SigMap})
+	dataBuf, err := protobuf.Encode(&verifyEpData{Root: s.ServerIdentity().String(), Ep: execPlan, Sm: req.SigMap})
 	if err != nil {
 		return nil, err
 	}
@@ -138,49 +151,61 @@ func (s *Service) GenerateExecutionPlan(req *ExecutionPlanRequest) (*ExecutionPl
 }
 
 func (s *Service) verifyExecutionPlan(msg []byte, data []byte) bool {
-	var epd epData
+	log.LLvlf1("%s in verifyExecutionPlan", s.ServerIdentity())
+	//var epd epData
+	var epd verifyEpData
 	err := protobuf.Decode(data, &epd)
 	if err != nil {
 		log.Errorf("%s protobuf decode error: %v:", s.ServerIdentity(), err)
 		return false
 	}
-	execPlan := epd.Ep
-	digest, err := utils.ComputeEPHash(execPlan)
-	if err != nil {
-		log.Errorf("%s cannot compute the hash of the execution plan: %v:", s.ServerIdentity(), err)
-		return false
-	}
-	if !bytes.Equal(msg, digest) {
-		log.Errorf("%s digest does not verify", s.ServerIdentity())
-		return false
-	}
-	db := s.scService.GetDB()
-	sbData, err := getBlockData(db, s.genesis)
-	if err != nil {
-		log.Errorf("Cannot get block data: %v", err)
-		return false
-	}
-	for _, wfn := range execPlan.Workflow.Nodes {
-		// val is uv
-		if val, ok := sbData.Data[wfn.UID]; ok {
-			if _, ok := val.Txns[wfn.TID]; !ok {
-				log.Errorf("%s is not a valid transaction", wfn.TID)
-				return false
-			}
-		} else {
-			log.Errorf("%s is not a valid functional unit", wfn.UID)
+	if strings.Compare(epd.Root, s.ServerIdentity().String()) != 0 {
+		execPlan := epd.Ep
+		epHash, err := utils.ComputeEPHash(execPlan)
+		if err != nil {
+			log.Errorf("%s cannot compute the hash of the execution plan: %v:", s.ServerIdentity(), err)
 			return false
 		}
-	}
-	err = verifyDag(execPlan.Workflow.Nodes)
-	if err != nil {
-		log.Errorf("Verify execution plan error: %v", err)
-		return false
-	}
-	err = verifyAuthentication(execPlan.Workflow, epd.Sm)
-	if err != nil {
-		log.Errorf("Verify execution plan error: %v", err)
-		return false
+		if !bytes.Equal(msg, epHash) {
+			log.Errorf("%s execution plan hash does not match", s.ServerIdentity())
+			return false
+		}
+		db := s.scService.GetDB()
+		sbData, err := getBlockData(db, s.genesis)
+		if err != nil {
+			log.Errorf("Cannot get block data: %v", err)
+			return false
+		}
+		for _, wfn := range execPlan.Workflow.Nodes {
+			// val is uv
+			if val, ok := sbData.Data[wfn.UID]; ok {
+				if _, ok := val.Txns[wfn.TID]; !ok {
+					log.Errorf("%s is not a valid transaction", wfn.TID)
+					return false
+				}
+			} else {
+				log.Errorf("%s is not a valid functional unit", wfn.UID)
+				return false
+			}
+		}
+		err = verifyDag(execPlan.Workflow.Nodes)
+		if err != nil {
+			log.Errorf("Verify execution plan error: %v", err)
+			return false
+		}
+		wfHash, err := utils.ComputeWFHash(execPlan.Workflow)
+		if err != nil {
+			log.Errorf("Error computing the hash of workflow: %v", err)
+			return false
+		}
+		//err = verifyAuthentication(execPlan.Workflow, epd.Sm)
+		err = sys.VerifyAuthentication(wfHash, execPlan.Workflow, epd.Sm)
+		if err != nil {
+			log.Errorf("Verify execution plan error: %v", err)
+			return false
+		}
+	} else {
+		log.LLvlf1("At %s - I'm the root node so I skip verification", s.ServerIdentity())
 	}
 	return true
 }
@@ -198,7 +223,7 @@ func (s *Service) GetDirectoryInfo(req *DirectoryInfoRequest) (*DirectoryInfoRep
 		for txnID, txnName := range uv.Txns {
 			txnMap[txnName] = txnID
 		}
-		dir[uv.N] = &sys.UnitInfo{UnitID: uid, Txns: txnMap}
+		dir[uv.N] = &sys.UnitInfo{Roster: uv.R, UnitID: uid, Txns: txnMap}
 	}
 	return &DirectoryInfoReply{Directory: dir}, nil
 }

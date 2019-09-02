@@ -82,11 +82,11 @@ func (c *Client) GetDirectoryInfo() (*DirectoryInfoReply, error) {
 }
 
 func SignWorkflow(wf *sys.Workflow, sk kyber.Scalar) ([]byte, error) {
-	digest, err := utils.ComputeWFHash(wf)
+	wfHash, err := utils.ComputeWFHash(wf)
 	if err != nil {
 		return nil, fmt.Errorf("Sign workflow failed with protobuf error: %v", err)
 	}
-	sig, err := schnorr.Sign(cothority.Suite, sk, digest)
+	sig, err := schnorr.Sign(cothority.Suite, sk, wfHash)
 	if err != nil {
 		return nil, fmt.Errorf("Cannot sign the workflow: %v", err)
 	}

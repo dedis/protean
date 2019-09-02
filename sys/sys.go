@@ -6,6 +6,8 @@ import (
 	"io/ioutil"
 	"os"
 
+	"go.dedis.ch/cothority/v3"
+	"go.dedis.ch/kyber/v3/sign/schnorr"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
 )
@@ -14,7 +16,6 @@ import (
 //Each line in the units.txt file should specify the number of nodes in that
 //unit. Then we can parse a single roster file, using the node count information
 //to determine where a new roster starts. (Potentially use onet.NewRoster)
-//func PrepareUnits(roster *onet.Roster, uFilePtr *string, tFilePtr *string) ([]*FunctionalUnit, error) {
 func PrepareUnits(roster *onet.Roster, uFilePtr *string) ([]*FunctionalUnit, error) {
 	var fus []UnitJSON
 	fh, err := os.Open(*uFilePtr)
@@ -45,7 +46,6 @@ func PrepareUnits(roster *onet.Roster, uFilePtr *string) ([]*FunctionalUnit, err
 			Roster:   roster,
 			Publics:  roster.Publics(),
 		}
-		fmt.Println("In PrepareUnits publics size is:", len(units[i].Publics))
 		//TODO: Revert to ServicePublics() once you have the suitable
 		//roster.toml file generated
 		//sn := fus[i].Name + "Service"
@@ -53,4 +53,40 @@ func PrepareUnits(roster *onet.Roster, uFilePtr *string) ([]*FunctionalUnit, err
 		//units[i] = &fus[i]
 	}
 	return units, nil
+}
+
+func VerifyAuthentication(mesg []byte, wf *Workflow, sigMap map[string][]byte) error {
+	if len(sigMap) == 0 {
+		log.LLvlf1("Workflow does not have authorized users")
+		return nil
+	}
+	if wf.All {
+		for id, authPub := range wf.AuthPublics {
+			sig, ok := sigMap[id]
+			if !ok {
+				return fmt.Errorf("Missing signature from %v", id)
+			}
+			err := schnorr.Verify(cothority.Suite, authPub, mesg, sig)
+			if err != nil {
+				return fmt.Errorf("Cannot verify signature from %v", id)
+			}
+		}
+	} else {
+		success := false
+		for id, sig := range sigMap {
+			pk, ok := wf.AuthPublics[id]
+			if !ok {
+				return fmt.Errorf("Cannot find %v in authenticated users", id)
+			}
+			err := schnorr.Verify(cothority.Suite, pk, mesg, sig)
+			if err == nil {
+				success = true
+				break
+			}
+		}
+		if !success {
+			return fmt.Errorf("Cannot verify a signature against the given authenticated users")
+		}
+	}
+	return nil
 }

@@ -61,13 +61,17 @@ type Workflow struct {
 }
 
 type UnitInfo struct {
-	UnitID   string
-	UnitName string
-	Txns     map[string]string
+	Roster *onet.Roster
+	UnitID string
+	//UnitName string
+	Txns map[string]string
 }
 
 type BaseStorage struct {
-	UInfo       *UnitInfo
+	//UInfo       *UnitInfo
+	UnitID      string
+	UnitName    string
+	Txns        map[string]string
 	CompPublics []kyber.Point
 }
 
@@ -83,8 +87,10 @@ type ExecutionPlan struct {
 type ExecutionData struct {
 	Index    int
 	ExecPlan *ExecutionPlan
-	PlanSig  protocol.BlsSignature
-	SigMap   map[int]protocol.BlsSignature
+	//ClientSig []byte
+	ClientSigs  map[string][]byte
+	CompilerSig protocol.BlsSignature
+	UnitSigs    []protocol.BlsSignature
 }
 
 type SerializedWf struct {

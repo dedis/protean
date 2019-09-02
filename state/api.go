@@ -21,10 +21,6 @@ func NewClient() *Client {
 }
 
 func (c *Client) UpdateState(contractID string, kv []*KV, instID byzcoin.InstanceID, signerCtr uint64, signer darc.Signer, wait int) (*UpdateStateReply, error) {
-	//var args byzcoin.Arguments
-	//for _, elt := range kv {
-	//args = append(args, byzcoin.Argument{Name: elt.Key, Value: elt.Value})
-	//}
 	args := make(byzcoin.Arguments, len(kv))
 	for i, elt := range kv {
 		args[i] = byzcoin.Argument{Name: elt.Key, Value: elt.Value}
@@ -56,10 +52,6 @@ func (c *Client) UpdateState(contractID string, kv []*KV, instID byzcoin.Instanc
 
 // This is called by the organize/owner/admin of the application
 func (c *Client) CreateState(contractID string, kv []*KV, adminDarc darc.Darc, signerCtr uint64, signer darc.Signer, wait int) (*CreateStateReply, error) {
-	//var args byzcoin.Arguments
-	//for _, elt := range kv {
-	//args = append(args, byzcoin.Argument{Name: elt.Key, Value: elt.Value})
-	//}
 	args := make(byzcoin.Arguments, len(kv))
 	for i, elt := range kv {
 		args[i] = byzcoin.Argument{Name: elt.Key, Value: elt.Value}
@@ -98,7 +90,6 @@ func (c *Client) SpawnDarc(spawnDarc darc.Darc, wait int) (*SpawnDarcReply, erro
 	return reply, err
 }
 
-//func (c *Client) InitUnit(roster *onet.Roster, scData *sys.ScInitData, bStore *sys.BaseStorage, interval time.Duration, typeDur time.Duration) (*InitUnitReply, error) {
 func (c *Client) InitUnit(roster *onet.Roster, scCfg *sys.ScConfig, bStore *sys.BaseStorage, interval time.Duration, typeDur time.Duration) (*InitUnitReply, error) {
 	c.roster = roster
 	req := &InitUnitRequest{

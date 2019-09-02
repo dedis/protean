@@ -5,7 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dedis/protean"
+	"github.com/dedis/protean/sys"
+
 	"github.com/stretchr/testify/require"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/byzcoin"
@@ -171,24 +172,23 @@ func prepareWriteTransaction(ltsReply *CreateLTSReply, data []byte, signer darc.
 }
 
 func generateInitRequest(roster *onet.Roster) *InitUnitRequest {
-	scData := &protean.ScInitData{
+	scCfg := &sys.ScConfig{
 		MHeight: 2,
 		BHeight: 2,
 	}
-	uData := &protean.BaseStorage{
-		UInfo: &protean.UnitInfo{
-			UnitID:   "pristore",
-			UnitName: "pristoreUnit",
-			Txns:     map[string]string{"a": "b", "c": "d"},
-		},
+	baseStore := &sys.BaseStorage{
+		UnitID:   "pristore",
+		UnitName: "pristoreUnit",
+		Txns:     map[string]string{"a": "b", "c": "d"},
 	}
 	return &InitUnitRequest{
-		Roster:       roster,
-		ScData:       scData,
-		BaseStore:    uData,
-		BlkInterval:  10,
-		DurationType: time.Second,
-	}
+		Cfg: &sys.UnitConfig{
+			Roster:       roster,
+			ScCfg:        scCfg,
+			BaseStore:    baseStore,
+			BlkInterval:  10,
+			DurationType: time.Second,
+		}}
 }
 
 func generateWriters(count int) []darc.Signer {

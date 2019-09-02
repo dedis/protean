@@ -7,22 +7,21 @@ import (
 	"go.dedis.ch/cothority/v3/darc"
 )
 
+const DARC = "SpawnDarc"
+const CREAT = "CreateState"
+const UPD = "UpdateState"
+const PROOF = "GetProof"
+
 type KV struct {
 	Key   string
 	Value []byte
 }
 
 type Storage struct {
-	//Data map[string][]byte
 	Data []KV
 }
 
 type InitUnitRequest struct {
-	//Roster *onet.Roster
-	//ScData       *sys.ScInitData
-	//BaseStore    *sys.BaseStorage
-	//BlkInterval  time.Duration
-	//DurationType time.Duration
 	Cfg *sys.UnitConfig
 }
 
@@ -42,7 +41,6 @@ type CreateStateReply struct {
 }
 
 type UpdateStateRequest struct {
-	//ExecData *protean.ExecutionData
 	ExecData *sys.ExecutionData
 	Ctx      byzcoin.ClientTransaction
 	Wait     int
@@ -58,8 +56,7 @@ type SpawnDarcRequest struct {
 	Wait int
 }
 
-type SpawnDarcReply struct {
-}
+type SpawnDarcReply struct{}
 
 type GetProofRequest struct {
 	InstanceID byzcoin.InstanceID

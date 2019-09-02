@@ -10,6 +10,13 @@ import (
 	"go.dedis.ch/onet/v3"
 )
 
+const DARC = "SpawnDarc"
+const LTS = "CreateLTS"
+const WRITE = "AddWrite"
+const READ = "AddRead"
+const PROOF = "GetProof"
+const DEC = "Decrypt"
+
 type WriteData struct {
 	ltsID     byzcoin.InstanceID
 	writeDarc darc.ID
@@ -18,11 +25,6 @@ type WriteData struct {
 }
 
 type InitUnitRequest struct {
-	//Roster *onet.Roster
-	//ScData       *sys.ScInitData
-	//BaseStore    *sys.BaseStorage
-	//BlkInterval  time.Duration
-	//DurationType time.Duration
 	Cfg *sys.UnitConfig
 }
 

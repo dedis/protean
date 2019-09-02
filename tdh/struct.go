@@ -8,6 +8,8 @@ import (
 )
 
 const TDHProtoName = "THDDecryptProto"
+const DKG = "InitDKG"
+const DEC = "Decrypt"
 
 type DKGID [32]byte
 
@@ -25,11 +27,6 @@ type Ciphertext struct {
 }
 
 type InitUnitRequest struct {
-	//Roster *onet.Roster
-	//ScData       *sys.ScInitData
-	//BaseStore    *sys.BaseStorage
-	//BlkInterval  time.Duration
-	//DurationType time.Duration
 	Cfg *sys.UnitConfig
 }
 
@@ -38,7 +35,6 @@ type InitUnitReply struct {
 }
 
 type InitDKGRequest struct {
-	//ID string
 	ID DKGID
 }
 
@@ -47,13 +43,10 @@ type InitDKGReply struct {
 }
 
 type DecryptRequest struct {
-	//ID  string
 	ID  DKGID
 	Gen []byte
 	Ct  *Ciphertext
 	Xc  kyber.Point
-	//C   kyber.Point
-	//U   kyber.Point
 }
 
 type DecryptReply struct {
@@ -65,7 +58,6 @@ type DecryptReply struct {
 // Protocol messages
 
 type PartialRequest struct {
-	//U   kyber.Point
 	Ct  *Ciphertext
 	Xc  kyber.Point // optional
 	Gen []byte

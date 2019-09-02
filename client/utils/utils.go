@@ -9,7 +9,10 @@ import (
 	"strings"
 
 	"github.com/dedis/protean/sys"
+	"github.com/dedis/protean/utils"
+	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/kyber/v3"
+	"go.dedis.ch/kyber/v3/sign/schnorr"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
 )
@@ -55,6 +58,27 @@ func PrepareWorkflow(wFilePtr *string, dirInfo map[string]*sys.UnitInfo, publics
 	}
 	return &sys.Workflow{Nodes: wfNodes, AuthPublics: authPublics, All: all}, nil
 }
+
+// TODO: For now we only ask the clients to sign the execution plan. However,
+// note that the fields of an execution plan do not change over the course of
+// its execution. In the case of requiring signatures from all authorized users
+// to execute a workflow, it might be a good idea to produce a signature for
+// each call that corresponds to a txn in the workflow. One option is to
+// Sign(Index || EP) instead of Sign(EP).
+func SignExecutionPlan(ep *sys.ExecutionPlan, sk kyber.Scalar) ([]byte, error) {
+	epHash, err := utils.ComputeEPHash(ep)
+	if err != nil {
+		log.Errorf("Cannot compute the hash of the execution plan: %v", err)
+		return nil, err
+	}
+	sig, err := schnorr.Sign(cothority.Suite, sk, epHash)
+	if err != nil {
+		log.Errorf("Cannot sign the workflow: %v", err)
+	}
+	return sig, err
+}
+
+//TODO: Delete Setup and PrepareUnits
 
 func Setup(roster *onet.Roster, uFilePtr *string, tFilePtr *string) ([]byte, map[string]string, map[string]string, error) {
 	return nil, nil, nil, nil

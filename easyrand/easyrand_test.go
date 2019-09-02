@@ -61,26 +61,23 @@ func TestService(t *testing.T) {
 }
 
 func generateInitRequest(roster *onet.Roster) *InitUnitRequest {
-	//scData := &protean.ScInitData{
-	scData := &sys.ScInitData{
+	scCfg := &sys.ScConfig{
 		MHeight: 2,
 		BHeight: 2,
 	}
-	//uData := &protean.BaseStorage{
-	uData := &sys.BaseStorage{
-		//UInfo: &protean.UnitInfo{
-		UInfo: &sys.UnitInfo{
-			UnitID:   "shuffle",
-			UnitName: "shuffleUnit",
-			Txns:     map[string]string{"a": "b", "c": "d"},
-		},
+	baseStore := &sys.BaseStorage{
+		UnitID:   "shuffle",
+		UnitName: "shuffleUnit",
+		Txns:     map[string]string{"a": "b", "c": "d"},
 	}
 	return &InitUnitRequest{
-		Roster:       roster,
-		ScData:       scData,
-		BaseStore:    uData,
-		BlkInterval:  10,
-		DurationType: time.Second,
-		Timeout:      2,
+		Cfg: &sys.UnitConfig{
+			Roster:       roster,
+			ScCfg:        scCfg,
+			BaseStore:    baseStore,
+			BlkInterval:  10,
+			DurationType: time.Second,
+		},
+		Timeout: 2,
 	}
 }

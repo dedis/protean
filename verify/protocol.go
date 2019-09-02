@@ -23,12 +23,15 @@ func init() {
 
 type VP struct {
 	*onet.TreeNodeInstance
-	Index int
-	Block *skipchain.SkipBlock
-	//ExecPlan       *protean.ExecutionPlan
-	ExecPlan       *sys.ExecutionPlan
-	PlanSig        protocol.BlsSignature
-	SigMap         map[int]protocol.BlsSignature
+	Index       int
+	TxnName     string
+	Block       *skipchain.SkipBlock
+	ExecPlan    *sys.ExecutionPlan
+	ClientSigs  map[string][]byte
+	CompilerSig protocol.BlsSignature
+	UnitSigs    []protocol.BlsSignature
+
+	Threshold      int
 	FaultThreshold int
 	Failures       int
 	Verified       chan bool
@@ -43,8 +46,9 @@ func NewVerifyExecutionPlan(n *onet.TreeNodeInstance) (onet.ProtocolInstance, er
 	numNodes := len(n.Roster().List)
 	vp := &VP{
 		TreeNodeInstance: n,
+		Threshold:        numNodes - (numNodes-1)/3,
+		FaultThreshold:   (numNodes - 1) / 3,
 		Verified:         make(chan bool, 1),
-		FaultThreshold:   numNodes - (numNodes-1)/3,
 	}
 	for _, handler := range []interface{}{vp.verifyExecPlan, vp.verifyExecPlanReply} {
 		if err := vp.RegisterHandler(handler); err != nil {
@@ -65,31 +69,24 @@ func (vp *VP) Start() error {
 		vp.finish(false)
 		return fmt.Errorf("Block missing")
 	}
-	if vp.SigMap == nil {
+	if vp.UnitSigs == nil {
 		vp.finish(false)
 		return fmt.Errorf("Signature map is missing")
 	}
-
 	v := &Verify{
-		Index:   vp.Index,
-		Plan:    vp.ExecPlan,
-		Block:   vp.Block,
-		PlanSig: vp.PlanSig,
-		SigMap:  vp.SigMap,
+		Index:       vp.Index,
+		TxnName:     vp.TxnName,
+		Block:       vp.Block,
+		ExecPlan:    vp.ExecPlan,
+		ClientSigs:  vp.ClientSigs,
+		CompilerSig: vp.CompilerSig,
+		UnitSigs:    vp.UnitSigs,
 	}
-
-	if !verifyPlan(v) {
-		vp.finish(false)
-		return fmt.Errorf("Verification failed")
-	}
-
-	//TODO: Do what the children will do here - i.e. sigver
 
 	vp.timeout = time.AfterFunc(1*time.Minute, func() {
 		log.Lvl1("VerifyPlan protocol timeout")
 		vp.finish(false)
 	})
-
 	errs := vp.Broadcast(v)
 	if len(errs) > vp.FaultThreshold {
 		log.Errorf("Some nodes failed with error(s): %v", errs)
@@ -101,22 +98,19 @@ func (vp *VP) Start() error {
 func (vp *VP) verifyExecPlan(sv ProtoVerify) error {
 	log.Lvl2(vp.Name() + ": starting verification")
 	defer vp.Done()
-	if !verifyPlan(&sv.Verify) {
+	success := verifyPlan(&sv.Verify)
+	if !success {
 		log.Errorf("Verify plan failed at: %s", vp.ServerIdentity())
-		return vp.SendToParent(&VerifyReply{
-			Success: false,
-		})
 	}
-	return vp.SendToParent(&VerifyReply{
-		Success: true,
-	})
+	return vp.SendToParent(&VerifyReply{Success: success})
 }
 
 func (vp *VP) verifyExecPlanReply(vr ProtoVerifyReply) error {
+	log.LLvlf2("%s is the root node", vp.ServerIdentity())
 	if vr.Success == false {
 		log.Lvl2("Node", vr.ServerIdentity, "failed verificiation")
 		vp.Failures++
-		if vp.Failures > len(vp.Roster().List)-vp.FaultThreshold {
+		if vp.Failures > vp.FaultThreshold {
 			log.Lvl2(vr.ServerIdentity, "could not get enough success messages")
 			vp.finish(false)
 		}
@@ -125,7 +119,7 @@ func (vp *VP) verifyExecPlanReply(vr ProtoVerifyReply) error {
 
 	vp.replies = append(vp.replies, vr.VerifyReply)
 	// Excluding the root
-	if len(vp.replies) >= int(vp.FaultThreshold-1) {
+	if len(vp.replies) >= int(vp.Threshold-1) {
 		log.Lvl2("Received", len(vp.replies)+1, "success messages. Verification success")
 		vp.finish(true)
 	}

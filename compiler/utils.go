@@ -16,20 +16,23 @@ import (
 	"go.dedis.ch/protobuf"
 )
 
-func prepareExecutionPlan(data *sbData, req *ExecutionPlanRequest) (*sys.ExecutionPlan, error) {
-	err := verifyAuthentication(req.Workflow, req.SigMap)
-	if err != nil {
-		return nil, err
-	}
+//func prepareExecutionPlan(data *sbData, req *ExecutionPlanRequest) (*sys.ExecutionPlan, error) {
+func prepareExecutionPlan(data *sbData, wf *sys.Workflow) (*sys.ExecutionPlan, error) {
+	//err := verifyAuthentication(req.Workflow, req.SigMap)
+	//if err != nil {
+	//return nil, err
+	//}
 	publics := make(map[string]*sys.UnitIdentity)
-	for _, wfn := range req.Workflow.Nodes {
+	//for _, wfn := range req.Workflow.Nodes {
+	for _, wfn := range wf.Nodes {
 		if uv, ok := data.Data[wfn.UID]; ok {
 			publics[wfn.UID] = &sys.UnitIdentity{Keys: uv.Ps}
 		} else {
 			return nil, fmt.Errorf("Functional unit does not exist")
 		}
 	}
-	return &sys.ExecutionPlan{Workflow: req.Workflow, Publics: publics}, nil
+	//return &sys.ExecutionPlan{Workflow: req.Workflow, Publics: publics}, nil
+	return &sys.ExecutionPlan{Workflow: wf, Publics: publics}, nil
 }
 
 func verifyAuthentication(wf *sys.Workflow, sigMap map[string][]byte) error {
@@ -37,11 +40,7 @@ func verifyAuthentication(wf *sys.Workflow, sigMap map[string][]byte) error {
 		log.LLvlf1("Workflow does not have authorized users")
 		return nil
 	}
-	//msg, err := protobuf.Encode(wf)
-	//if err != nil {
-	//return err
-	//}
-	digest, err := utils.ComputeWFHash(wf)
+	wfHash, err := utils.ComputeWFHash(wf)
 	if err != nil {
 		return err
 	}
@@ -51,8 +50,7 @@ func verifyAuthentication(wf *sys.Workflow, sigMap map[string][]byte) error {
 			if !ok {
 				return fmt.Errorf("Missing signature from %v", id)
 			}
-			//err := schnorr.Verify(cothority.Suite, authPub, msg, sig)
-			err := schnorr.Verify(cothority.Suite, authPub, digest, sig)
+			err := schnorr.Verify(cothority.Suite, authPub, wfHash, sig)
 			if err != nil {
 				return fmt.Errorf("Cannot verify signature from %v", id)
 			}
@@ -64,8 +62,7 @@ func verifyAuthentication(wf *sys.Workflow, sigMap map[string][]byte) error {
 			if !ok {
 				return fmt.Errorf("Cannot find %v in authenticated users", id)
 			}
-			//err := schnorr.Verify(cothority.Suite, pk, msg, sig)
-			err := schnorr.Verify(cothority.Suite, pk, digest, sig)
+			err := schnorr.Verify(cothority.Suite, pk, wfHash, sig)
 			if err == nil {
 				success = true
 				break
