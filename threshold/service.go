@@ -1,14 +1,16 @@
 package threshold
 
 import (
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"sync"
 	"time"
 
+	"github.com/dedis/protean/sys"
 	"github.com/dedis/protean/utils"
+	"github.com/dedis/protean/verify"
 	"go.dedis.ch/cothority/v3/blscosi"
+	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	dkgprotocol "go.dedis.ch/cothority/v3/dkg/pedersen"
 	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/kyber/v3"
@@ -85,6 +87,19 @@ func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 }
 
 func (s *Service) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
+	// First verify the execution request
+	db := s.scService.GetDB()
+	blk, err := db.GetLatest(db.GetByID(s.genesis))
+	if err != nil {
+		log.Errorf("Cannot get the latest block: %v", err)
+		return nil, err
+	}
+	verified := s.verifyExecutionRequest(DKG, blk, req.ExecData)
+	if !verified {
+		log.Errorf("Cannot verify execution plan")
+		return nil, fmt.Errorf("Cannot verify execution plan")
+	}
+	// Run DKG
 	reply := &InitDKGReply{}
 	tree := s.roster.GenerateNaryTreeWithRoot(len(s.roster.List), s.ServerIdentity())
 	if tree == nil {
@@ -97,12 +112,6 @@ func (s *Service) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
 		return nil, err
 	}
 	setupDKG := pi.(*dkgprotocol.Setup)
-	//encoded, err := hexToBytes(req.ID)
-	//if err != nil {
-	//log.Errorf("Could not convert string to byte array: %v", err)
-	//return nil, err
-	//}
-	//err = setupDKG.SetConfig(&onet.GenericConfig{Data: encoded})
 	err = setupDKG.SetConfig(&onet.GenericConfig{Data: req.ID[:]})
 	if err != nil {
 		log.Errorf("Could not set config: %v", err)
@@ -138,19 +147,36 @@ func (s *Service) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
 	case <-time.After(propagationTimeout):
 		return nil, errors.New("DKG did not finish in time")
 	}
+	// Collectively sign the execution plan
+	sig, err := s.signExecutionPlan(req.ExecData.ExecPlan)
+	if err != nil {
+		log.Errorf("Cannot produce blscosi signature: %v", err)
+		return nil, err
+	}
+	reply.Sig = sig
 	return reply, nil
 }
 
 func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
-	reply := &DecryptReply{}
-	numNodes := len(s.roster.List)
-
+	// First verify the execution request
+	db := s.scService.GetDB()
+	blk, err := db.GetLatest(db.GetByID(s.genesis))
+	if err != nil {
+		log.Errorf("Cannot get the latest block: %v", err)
+		return nil, err
+	}
+	verified := s.verifyExecutionRequest(DEC, blk, req.ExecData)
+	if !verified {
+		log.Errorf("Cannot verify execution plan")
+		return nil, fmt.Errorf("Cannot verify execution plan")
+	}
+	// Decrypt
 	s.storage.Lock()
 	shared, ok := s.storage.Shared[req.ID]
 	if !ok {
 		s.storage.Unlock()
 		log.Errorf("Cannot find ID: %v", req.ID)
-		return reply, errors.New("No DKG entry found for the given ID")
+		return nil, errors.New("No DKG entry found for the given ID")
 	}
 	//TODO: Why is shared originally not cloned but everything else in this
 	//lock-unlock scope?
@@ -172,6 +198,7 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 	bb := pp.B.Clone()
 	s.storage.Unlock()
 
+	numNodes := len(s.roster.List)
 	tree := s.roster.GenerateNaryTreeWithRoot(numNodes, s.ServerIdentity())
 	pi, err := s.CreateProtocol(ThreshProtoName, tree)
 	if err != nil {
@@ -182,18 +209,11 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 	decProto.Shared = shared
 	decProto.Poly = share.NewPubPoly(s.Suite(), bb, commits)
 	decProto.Server = req.Server
-	//encoded, err := hexToBytes(req.ID)
-	//if err != nil {
-	//log.Errorf("Could not convert string to byte array: %v", err)
-	//return nil, err
-	//}
-	//err = decProto.SetConfig(&onet.GenericConfig{Data: encoded})
 	err = decProto.SetConfig(&onet.GenericConfig{Data: req.ID[:]})
 	if err != nil {
 		log.Errorf("Could not set config: %v", err)
 		return nil, err
 	}
-
 	log.Lvl3("Starting decryption protocol")
 	err = decProto.Start()
 	if err != nil {
@@ -204,17 +224,22 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 	}
 	log.Lvl3("Decryption protocol is done.")
 
+	reply := &DecryptReply{}
 	if req.Server {
 		reply.Ps = make([]kyber.Point, len(decProto.Partials))
 		for i, partial := range decProto.Partials {
 			reply.Ps[i] = recoverCommit(numNodes, req.Cs[i], partial.Shares)
 		}
-		//for i, partial := range decProto.Partials {
-		//reply.Ps = append(reply.Ps, recoverCommit(numNodes, req.Cs[i], partial.Shares))
-		//}
 	} else {
 		reply.Partials = decProto.Partials
 	}
+	// Collectively sign the execution plan
+	sig, err := s.signExecutionPlan(req.ExecData.ExecPlan)
+	if err != nil {
+		log.Errorf("Cannot produce blscosi signature: %v", err)
+		return nil, err
+	}
+	reply.Sig = sig
 	return reply, nil
 }
 
@@ -281,11 +306,98 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 //return reply, nil
 //}
 
+func (s *Service) verifyExecutionRequest(txnName string, blk *skipchain.SkipBlock, execData *sys.ExecutionData) bool {
+	tree := s.roster.GenerateNaryTreeWithRoot(len(s.roster.List), s.ServerIdentity())
+	pi, err := s.CreateProtocol(verify.Name, tree)
+	if err != nil {
+		log.Errorf("Cannot create protocol: %v", err)
+		return false
+	}
+	verifyProto := pi.(*verify.VP)
+	verifyProto.Index = execData.Index
+	verifyProto.TxnName = txnName
+	verifyProto.Block = blk
+	verifyProto.ExecPlan = execData.ExecPlan
+	verifyProto.ClientSigs = execData.ClientSigs
+	verifyProto.CompilerSig = execData.CompilerSig
+	verifyProto.UnitSigs = execData.UnitSigs
+	err = verifyProto.Start()
+	if err != nil {
+		log.Errorf("Cannot start protocol: %v", err)
+		return false
+	}
+	if !<-verifyProto.Verified {
+		return false
+	} else {
+		return true
+	}
+}
+
+func (s *Service) signExecutionPlan(ep *sys.ExecutionPlan) (protocol.BlsSignature, error) {
+	epHash, err := utils.ComputeEPHash(ep)
+	if err != nil {
+		log.Errorf("Cannot compute the execution plan hash: %v", err)
+		return nil, err
+	}
+	cosiResp, err := utils.BlsCosiSign(s.cosiService, s.roster, epHash)
+	if err != nil {
+		log.Errorf("Cannot produce blscosi signature: %v", err)
+		return nil, err
+	}
+	return cosiResp.(*blscosi.SignatureResponse).Signature, nil
+}
+
+func (s *Service) getKeyPair() *key.Pair {
+	return &key.Pair{
+		Public:  s.ServerIdentity().ServicePublic(ServiceName),
+		Private: s.ServerIdentity().ServicePrivate(ServiceName),
+	}
+}
+
+func (s *Service) save() error {
+	s.storage.Lock()
+	defer s.storage.Unlock()
+	err := s.Save(storageKey, s.storage)
+	if err != nil {
+		log.Errorf("Could not save data: %v", err)
+		return err
+	}
+	return nil
+}
+
+func (s *Service) tryLoad() error {
+	s.storage = &storage{}
+	defer func() {
+		if len(s.storage.Shared) == 0 {
+			s.storage.Shared = make(map[DKGID]*dkgprotocol.SharedSecret)
+		}
+		if len(s.storage.Polys) == 0 {
+			s.storage.Polys = make(map[DKGID]*pubPoly)
+		}
+		if len(s.storage.DKS) == 0 {
+			s.storage.DKS = make(map[DKGID]*dkg.DistKeyShare)
+		}
+	}()
+	msg, err := s.Load(storageKey)
+	if err != nil {
+		log.Errorf("Load storage failed: %v", err)
+		return err
+	}
+	if msg == nil {
+		return nil
+	}
+	var ok bool
+	s.storage, ok = msg.(*storage)
+	if !ok {
+		return fmt.Errorf("Data of wrong type")
+	}
+	return nil
+}
+
 func (s *Service) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConfig) (onet.ProtocolInstance, error) {
 	log.Lvl3(s.ServerIdentity(), tn.ProtocolName(), conf)
 	switch tn.ProtocolName() {
 	case dkgprotocol.Name:
-		//id := hex.EncodeToString(conf.Data)
 		pi, err := dkgprotocol.NewSetup(tn)
 		if err != nil {
 			return nil, err
@@ -312,7 +424,6 @@ func (s *Service) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConfi
 		}(conf.Data)
 		return pi, nil
 	case ThreshProtoName:
-		//id := hex.EncodeToString(conf.Data)
 		id := NewDKGID(conf.Data)
 		s.storage.Lock()
 		shared, ok := s.storage.Shared[id]
@@ -330,60 +441,6 @@ func (s *Service) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConfi
 		return dec, nil
 	}
 	return nil, nil
-}
-
-func (s *Service) getKeyPair() *key.Pair {
-	return &key.Pair{
-		Public:  s.ServerIdentity().ServicePublic(ServiceName),
-		Private: s.ServerIdentity().ServicePrivate(ServiceName),
-	}
-}
-
-func hexToBytes(str string) ([]byte, error) {
-	return hex.DecodeString(str)
-}
-
-func (s *Service) save() error {
-	s.storage.Lock()
-	defer s.storage.Unlock()
-	err := s.Save(storageKey, s.storage)
-	if err != nil {
-		log.Errorf("Could not save data: %v", err)
-		return err
-	}
-	return nil
-}
-
-func (s *Service) tryLoad() error {
-	s.storage = &storage{}
-	defer func() {
-		if len(s.storage.Shared) == 0 {
-			//s.storage.Shared = make(map[[32]byte]*dkgprotocol.SharedSecret)
-			s.storage.Shared = make(map[DKGID]*dkgprotocol.SharedSecret)
-		}
-		if len(s.storage.Polys) == 0 {
-			//s.storage.Polys = make(map[[32]byte]*pubPoly)
-			s.storage.Polys = make(map[DKGID]*pubPoly)
-		}
-		if len(s.storage.DKS) == 0 {
-			//s.storage.DKS = make(map[[32]byte]*dkg.DistKeyShare)
-			s.storage.DKS = make(map[DKGID]*dkg.DistKeyShare)
-		}
-	}()
-	msg, err := s.Load(storageKey)
-	if err != nil {
-		log.Errorf("Load storage failed: %v", err)
-		return err
-	}
-	if msg == nil {
-		return nil
-	}
-	var ok bool
-	s.storage, ok = msg.(*storage)
-	if !ok {
-		return fmt.Errorf("Data of wrong type")
-	}
-	return nil
 }
 
 func newService(c *onet.Context) (onet.Service, error) {

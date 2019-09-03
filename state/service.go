@@ -223,7 +223,7 @@ func (s *Service) GetProof(req *GetProofRequest) (*GetProofReply, error) {
 		log.Errorf("Cannot get the latest block: %v", err)
 		return nil, err
 	}
-	verified := s.verifyExecutionRequest(CREAT, blk, req.ExecData)
+	verified := s.verifyExecutionRequest(PROOF, blk, req.ExecData)
 	if !verified {
 		log.Errorf("Cannot verify execution plan")
 		return nil, fmt.Errorf("Cannot verify execution plan")

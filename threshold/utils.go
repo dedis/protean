@@ -2,6 +2,7 @@ package threshold
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -14,6 +15,10 @@ import (
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
 )
+
+func hexToBytes(str string) ([]byte, error) {
+	return hex.DecodeString(str)
+}
 
 func recoverCommit(numNodes int, cs *utils.ElGamalPair, pubShares []*share.PubShare) kyber.Point {
 	threshold := numNodes - (numNodes-1)/3

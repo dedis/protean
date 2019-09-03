@@ -125,7 +125,8 @@ func (p *ShuffleProtocol) Dispatch() error {
 	}
 	// Sort the proofs in order and use that as our final result.
 	log.LLvl3(p.ServerIdentity(), "sending back final proof")
-	p.FinalProof <- ShuffleReply{sortProofs(proofMap, p.Root())}
+	//p.FinalProof <- ShuffleReply{sortProofs(proofMap, p.Root())}
+	p.FinalProof <- ShuffleReply{Proofs: sortProofs(proofMap, p.Root())}
 	return nil
 }
 

@@ -3,6 +3,7 @@ package threshold
 import (
 	"github.com/dedis/protean/sys"
 	"github.com/dedis/protean/utils"
+	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/share"
 	"go.dedis.ch/onet/v3"
@@ -23,16 +24,19 @@ type InitUnitReply struct {
 }
 
 type InitDKGRequest struct {
-	ID DKGID
+	ExecData *sys.ExecutionData
+	ID       DKGID
 }
 
 type InitDKGReply struct {
-	X kyber.Point
+	X   kyber.Point
+	Sig protocol.BlsSignature
 }
 
 type DecryptRequest struct {
-	ID DKGID
-	Cs []*utils.ElGamalPair
+	ExecData *sys.ExecutionData
+	ID       DKGID
+	Cs       []*utils.ElGamalPair
 	// Server is a flag that specifies where the secret reconstruction is
 	// going to happen. If true, threshold unit handles the secret
 	// reconstruction. If false, threshold unit returns the partial
@@ -47,6 +51,7 @@ type DecryptReply struct {
 	// If server = false, Partials will contain the partial decryptions and
 	// decryption proofs. If server = true, Partials will be nil
 	Partials []*Partial
+	Sig      protocol.BlsSignature
 }
 
 // Protocol messages

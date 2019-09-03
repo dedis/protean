@@ -45,16 +45,18 @@ type AuthorizeReply struct {
 type CreateLTSRequest struct {
 	LTSRoster *onet.Roster
 	Wait      int
+	ExecData  *sys.ExecutionData
 }
 
 type CreateLTSReply struct {
 	Reply *calypso.CreateLTSReply
+	Sig   protocol.BlsSignature
 }
 
 type SpawnDarcRequest struct {
-	ExecData *sys.ExecutionData
 	Darc     darc.Darc
 	Wait     int
+	ExecData *sys.ExecutionData
 }
 
 type SpawnDarcReply struct {
@@ -62,9 +64,9 @@ type SpawnDarcReply struct {
 }
 
 type AddWriteRequest struct {
-	ExecData *sys.ExecutionData
 	Ctx      byzcoin.ClientTransaction
 	Wait     int
+	ExecData *sys.ExecutionData
 }
 
 type AddWriteReply struct {
@@ -73,9 +75,9 @@ type AddWriteReply struct {
 }
 
 type AddReadRequest struct {
-	ExecData *sys.ExecutionData
 	Ctx      byzcoin.ClientTransaction
 	Wait     int
+	ExecData *sys.ExecutionData
 }
 
 type AddReadReply struct {
@@ -84,8 +86,8 @@ type AddReadReply struct {
 }
 
 type DecryptRequest struct {
-	ExecData *sys.ExecutionData
 	Request  *calypso.DecryptKey
+	ExecData *sys.ExecutionData
 }
 
 type DecryptReply struct {
@@ -94,8 +96,8 @@ type DecryptReply struct {
 }
 
 type GetProofRequest struct {
-	ExecData   *sys.ExecutionData
 	InstanceID byzcoin.InstanceID
+	ExecData   *sys.ExecutionData
 }
 
 type GetProofReply struct {

@@ -98,6 +98,18 @@ func (s *Service) Authorize(req *AuthorizeRequest) (*AuthorizeReply, error) {
 }
 
 func (s *Service) CreateLTS(req *CreateLTSRequest) (*CreateLTSReply, error) {
+	// First verify the execution request
+	db := s.scService.GetDB()
+	blk, err := db.GetLatest(db.GetByID(s.genesis))
+	if err != nil {
+		log.Errorf("Cannot get the latest block: %v", err)
+		return nil, err
+	}
+	verified := s.verifyExecutionRequest(LTS, blk, req.ExecData)
+	if !verified {
+		log.Errorf("Cannot verify execution plan")
+		return nil, fmt.Errorf("Cannot verify execution plan")
+	}
 	buf, err := protobuf.Encode(&calypso.LtsInstanceInfo{Roster: *req.LTSRoster})
 	if err != nil {
 		log.Errorf("Protobuf encode error: %v", err)
@@ -135,8 +147,8 @@ func (s *Service) CreateLTS(req *CreateLTSRequest) (*CreateLTSReply, error) {
 		ID:      s.byzID,
 		Key:     ctx.Instructions[0].DeriveID("").Slice(),
 	})
-	reply := &CreateLTSReply{}
-	reply.Reply, err = s.calyService.CreateLTS(&calypso.CreateLTS{
+	//reply := &CreateLTSReply{}
+	ltsReply, err := s.calyService.CreateLTS(&calypso.CreateLTS{
 		Proof: gpResp.Proof,
 	})
 	if err != nil {
@@ -144,10 +156,28 @@ func (s *Service) CreateLTS(req *CreateLTSRequest) (*CreateLTSReply, error) {
 		return nil, err
 	}
 	s.signerCtr++
-	return reply, nil
+	// Collectively sign the execution plan
+	sig, err := s.signExecutionPlan(req.ExecData.ExecPlan)
+	if err != nil {
+		log.Errorf("Cannot produce blscosi signature: %v", err)
+		return nil, err
+	}
+	return &CreateLTSReply{Reply: ltsReply, Sig: sig}, nil
 }
 
 func (s *Service) SpawnDarc(req *SpawnDarcRequest) (*SpawnDarcReply, error) {
+	// First verify the execution request
+	db := s.scService.GetDB()
+	blk, err := db.GetLatest(db.GetByID(s.genesis))
+	if err != nil {
+		log.Errorf("Cannot get the latest block: %v", err)
+		return nil, err
+	}
+	verified := s.verifyExecutionRequest(DARC, blk, req.ExecData)
+	if !verified {
+		log.Errorf("Cannot verify execution plan")
+		return nil, fmt.Errorf("Cannot verify execution plan")
+	}
 	darcBuf, err := req.Darc.ToProto()
 	if err != nil {
 		log.Errorf("Cannot convert darc to protobuf: %v", err)
@@ -182,7 +212,13 @@ func (s *Service) SpawnDarc(req *SpawnDarcRequest) (*SpawnDarcReply, error) {
 		return nil, err
 	}
 	s.signerCtr++
-	return &SpawnDarcReply{}, nil
+	// Collectively sign the execution plan
+	sig, err := s.signExecutionPlan(req.ExecData.ExecPlan)
+	if err != nil {
+		log.Errorf("Cannot produce blscosi signature: %v", err)
+		return nil, err
+	}
+	return &SpawnDarcReply{Sig: sig}, nil
 }
 
 func (s *Service) AddWrite(req *AddWriteRequest) (*AddWriteReply, error) {
@@ -267,7 +303,7 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 		log.Errorf("Cannot get the latest block: %v", err)
 		return nil, err
 	}
-	verified := s.verifyExecutionRequest(READ, blk, req.ExecData)
+	verified := s.verifyExecutionRequest(DEC, blk, req.ExecData)
 	if !verified {
 		log.Errorf("Cannot verify execution plan")
 		return nil, fmt.Errorf("Cannot verify execution plan")
@@ -295,7 +331,7 @@ func (s *Service) GetProof(req *GetProofRequest) (*GetProofReply, error) {
 		log.Errorf("Cannot get the latest block: %v", err)
 		return nil, err
 	}
-	verified := s.verifyExecutionRequest(READ, blk, req.ExecData)
+	verified := s.verifyExecutionRequest(PROOF, blk, req.ExecData)
 	if !verified {
 		log.Errorf("Cannot verify execution plan")
 		return nil, fmt.Errorf("Cannot verify execution plan")

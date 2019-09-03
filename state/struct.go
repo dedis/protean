@@ -30,9 +30,9 @@ type InitUnitReply struct {
 }
 
 type SpawnDarcRequest struct {
-	ExecData *sys.ExecutionData
 	Darc     darc.Darc
 	Wait     int
+	ExecData *sys.ExecutionData
 }
 
 type SpawnDarcReply struct {
@@ -40,9 +40,9 @@ type SpawnDarcReply struct {
 }
 
 type CreateStateRequest struct {
-	ExecData *sys.ExecutionData
 	Ctx      byzcoin.ClientTransaction
 	Wait     int
+	ExecData *sys.ExecutionData
 }
 
 type CreateStateReply struct {
@@ -51,9 +51,9 @@ type CreateStateReply struct {
 }
 
 type UpdateStateRequest struct {
-	ExecData *sys.ExecutionData
 	Ctx      byzcoin.ClientTransaction
 	Wait     int
+	ExecData *sys.ExecutionData
 }
 
 type UpdateStateReply struct {
@@ -61,8 +61,8 @@ type UpdateStateReply struct {
 }
 
 type GetProofRequest struct {
-	ExecData   *sys.ExecutionData
 	InstanceID byzcoin.InstanceID
+	ExecData   *sys.ExecutionData
 }
 
 type GetProofReply struct {
