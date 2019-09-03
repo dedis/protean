@@ -2,6 +2,7 @@ package tdh
 
 import (
 	"github.com/dedis/protean/sys"
+	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/share"
 	"go.dedis.ch/onet/v3"
@@ -35,24 +36,28 @@ type InitUnitReply struct {
 }
 
 type InitDKGRequest struct {
-	ID DKGID
+	ID       DKGID
+	ExecData *sys.ExecutionData
 }
 
 type InitDKGReply struct {
-	X kyber.Point
+	X   kyber.Point
+	Sig protocol.BlsSignature
 }
 
 type DecryptRequest struct {
-	ID  DKGID
-	Gen []byte
-	Ct  *Ciphertext
-	Xc  kyber.Point
+	ID       DKGID
+	Gen      []byte
+	Ct       *Ciphertext
+	Xc       kyber.Point
+	ExecData *sys.ExecutionData
 }
 
 type DecryptReply struct {
 	C       kyber.Point
 	X       kyber.Point
 	XhatEnc kyber.Point
+	Sig     protocol.BlsSignature
 }
 
 // Protocol messages

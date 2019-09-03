@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/dedis/protean/sys"
+	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/kyber/v3"
 )
 
@@ -20,20 +21,27 @@ type InitUnitReply struct {
 
 type InitDKGRequest struct {
 	// Timeout waiting for DKG to finish - originally 5 seconds
-	Timeout int
+	Timeout  int
+	ExecData *sys.ExecutionData
 }
 
 // InitDKGReply is the response of DKG.
 type InitDKGReply struct {
 	Public kyber.Point
+	Sig    protocol.BlsSignature
 }
 
 // RandomnessRequest is a request to get the public randomness.
-type RandomnessRequest struct{}
+type RandomnessRequest struct {
+	ExecData *sys.ExecutionData
+}
 
 // RandomnessReply is the returned public randomness.
 type RandomnessReply struct {
 	Round uint64
 	Prev  []byte
-	Sig   []byte
+	//Sig   []byte
+	// Value is the collective signature. Use the hash of it!
+	Value []byte
+	Sig   protocol.BlsSignature
 }

@@ -7,9 +7,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dedis/protean/sys"
 	"github.com/dedis/protean/utils"
+	"github.com/dedis/protean/verify"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/blscosi"
+	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	dkgprotocol "go.dedis.ch/cothority/v3/dkg/pedersen"
 	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/kyber/v3"
@@ -86,7 +89,19 @@ func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 }
 
 func (s *Service) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
-	log.Info("Roster length is:", len(s.roster.List))
+	// First verify the execution request
+	db := s.scService.GetDB()
+	blk, err := db.GetLatest(db.GetByID(s.genesis))
+	if err != nil {
+		log.Errorf("Cannot get the latest block: %v", err)
+		return nil, err
+	}
+	verified := s.verifyExecutionRequest(DKG, blk, req.ExecData)
+	if !verified {
+		log.Errorf("Cannot verify execution plan")
+		return nil, fmt.Errorf("Cannot verify execution plan")
+	}
+	// Run DKG
 	reply := &InitDKGReply{}
 	tree := s.roster.GenerateNaryTreeWithRoot(len(s.roster.List), s.ServerIdentity())
 	if tree == nil {
@@ -134,14 +149,33 @@ func (s *Service) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
 	case <-time.After(propagationTimeout):
 		return nil, errors.New("DKG did not finish in time")
 	}
+	// Collectively sign the execution plan
+	sig, err := s.signExecutionPlan(req.ExecData.ExecPlan)
+	if err != nil {
+		log.Errorf("Cannot produce blscosi signature: %v", err)
+		return nil, err
+	}
+	reply.Sig = sig
 	return reply, nil
 }
 
 func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
-	reply := &DecryptReply{}
-	numNodes := len(s.roster.List)
-	threshold := numNodes - (numNodes-1)/3
+	// First verify the execution request
+	db := s.scService.GetDB()
+	blk, err := db.GetLatest(db.GetByID(s.genesis))
+	if err != nil {
+		log.Errorf("Cannot get the latest block: %v", err)
+		return nil, err
+	}
+	verified := s.verifyExecutionRequest(DEC, blk, req.ExecData)
+	if !verified {
+		log.Errorf("Cannot verify execution plan")
+		return nil, fmt.Errorf("Cannot verify execution plan")
+	}
 
+	// Decrypt
+	reply := &DecryptReply{}
+	reply.C = req.Ct.C
 	s.storage.Lock()
 	shared, ok := s.storage.Shared[req.ID]
 	if !ok {
@@ -164,6 +198,8 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 	bb := pp.B.Clone()
 	s.storage.Unlock()
 
+	numNodes := len(s.roster.List)
+	threshold := numNodes - (numNodes-1)/3
 	tree := s.roster.GenerateNaryTreeWithRoot(numNodes, s.ServerIdentity())
 	pi, err := s.CreateProtocol(TDHProtoName, tree)
 	if err != nil {
@@ -194,8 +230,13 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 	if err != nil {
 		return nil, errors.New("Failed to recover commit: " + err.Error())
 	}
-	reply.C = req.Ct.C
-	log.Lvl3("Decryption success")
+	// Collectively sign the execution plan
+	sig, err := s.signExecutionPlan(req.ExecData.ExecPlan)
+	if err != nil {
+		log.Errorf("Cannot produce blscosi signature: %v", err)
+		return nil, err
+	}
+	reply.Sig = sig
 	return reply, nil
 }
 
@@ -253,6 +294,47 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 //log.Lvl3("Decryption success")
 //return reply, nil
 //}
+
+func (s *Service) verifyExecutionRequest(txnName string, blk *skipchain.SkipBlock, execData *sys.ExecutionData) bool {
+	tree := s.roster.GenerateNaryTreeWithRoot(len(s.roster.List), s.ServerIdentity())
+	pi, err := s.CreateProtocol(verify.Name, tree)
+	if err != nil {
+		log.Errorf("Cannot create protocol: %v", err)
+		return false
+	}
+	verifyProto := pi.(*verify.VP)
+	verifyProto.Index = execData.Index
+	verifyProto.TxnName = txnName
+	verifyProto.Block = blk
+	verifyProto.ExecPlan = execData.ExecPlan
+	verifyProto.ClientSigs = execData.ClientSigs
+	verifyProto.CompilerSig = execData.CompilerSig
+	verifyProto.UnitSigs = execData.UnitSigs
+	err = verifyProto.Start()
+	if err != nil {
+		log.Errorf("Cannot start protocol: %v", err)
+		return false
+	}
+	if !<-verifyProto.Verified {
+		return false
+	} else {
+		return true
+	}
+}
+
+func (s *Service) signExecutionPlan(ep *sys.ExecutionPlan) (protocol.BlsSignature, error) {
+	epHash, err := utils.ComputeEPHash(ep)
+	if err != nil {
+		log.Errorf("Cannot compute the execution plan hash: %v", err)
+		return nil, err
+	}
+	cosiResp, err := utils.BlsCosiSign(s.cosiService, s.roster, epHash)
+	if err != nil {
+		log.Errorf("Cannot produce blscosi signature: %v", err)
+		return nil, err
+	}
+	return cosiResp.(*blscosi.SignatureResponse).Signature, nil
+}
 
 func (s *Service) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConfig) (onet.ProtocolInstance, error) {
 	log.Lvl3(s.ServerIdentity(), tn.ProtocolName(), conf)

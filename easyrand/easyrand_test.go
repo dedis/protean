@@ -38,7 +38,8 @@ func TestService(t *testing.T) {
 	require.NotNil(t, resp)
 	//require.NoError(t, bls.Verify(suite, root.pubPoly.Commit(), root.getRoundBlock(0), resp.Sig))
 	//require.NoError(t, bls.Verify(suite, root.pubPoly.Commit(), resp.Prev, resp.Sig))
-	require.NoError(t, bls.Verify(suite, dkgReply.Public, resp.Prev, resp.Sig))
+	//require.NoError(t, bls.Verify(suite, dkgReply.Public, resp.Prev, resp.Sig))
+	require.NoError(t, bls.Verify(suite, dkgReply.Public, resp.Prev, resp.Value))
 
 	// future rounds
 	var resps []*RandomnessReply
@@ -47,14 +48,16 @@ func TestService(t *testing.T) {
 		resp, err := root.Randomness(&RandomnessRequest{})
 		require.NoError(t, err)
 		require.NotNil(t, resp)
-		require.NoError(t, bls.Verify(suite, dkgReply.Public, prev, resp.Sig))
+		//require.NoError(t, bls.Verify(suite, dkgReply.Public, prev, resp.Sig))
+		require.NoError(t, bls.Verify(suite, dkgReply.Public, prev, resp.Value))
 		resps = append(resps, resp)
 	}
 
 	for _, resp := range resps {
 		//prev := root.getRoundBlock(resp.Round)
 		//err := bls.Verify(suite, root.pubPoly.Commit(), prev, resp.Sig)
-		err := bls.Verify(suite, dkgReply.Public, resp.Prev, resp.Sig)
+		//err := bls.Verify(suite, dkgReply.Public, resp.Prev, resp.Sig)
+		err := bls.Verify(suite, dkgReply.Public, resp.Prev, resp.Value)
 		require.NoError(t, err)
 	}
 
@@ -66,8 +69,8 @@ func generateInitRequest(roster *onet.Roster) *InitUnitRequest {
 		BHeight: 2,
 	}
 	baseStore := &sys.BaseStorage{
-		UnitID:   "shuffle",
-		UnitName: "shuffleUnit",
+		UnitID:   "randomness",
+		UnitName: "randomnessUnit",
 		Txns:     map[string]string{"a": "b", "c": "d"},
 	}
 	return &InitUnitRequest{

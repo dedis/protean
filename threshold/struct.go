@@ -24,8 +24,8 @@ type InitUnitReply struct {
 }
 
 type InitDKGRequest struct {
-	ExecData *sys.ExecutionData
 	ID       DKGID
+	ExecData *sys.ExecutionData
 }
 
 type InitDKGReply struct {
@@ -34,14 +34,14 @@ type InitDKGReply struct {
 }
 
 type DecryptRequest struct {
-	ExecData *sys.ExecutionData
-	ID       DKGID
-	Cs       []*utils.ElGamalPair
+	ID DKGID
+	Cs []*utils.ElGamalPair
 	// Server is a flag that specifies where the secret reconstruction is
 	// going to happen. If true, threshold unit handles the secret
 	// reconstruction. If false, threshold unit returns the partial
 	// decryptions and decryption proofs to the client
-	Server bool
+	Server   bool
+	ExecData *sys.ExecutionData
 }
 
 type DecryptReply struct {

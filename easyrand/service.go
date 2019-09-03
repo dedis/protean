@@ -4,10 +4,14 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"time"
 
+	"github.com/dedis/protean/sys"
 	"github.com/dedis/protean/utils"
+	"github.com/dedis/protean/verify"
 	"go.dedis.ch/cothority/v3/blscosi"
+	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	dkgprotocol "go.dedis.ch/cothority/v3/dkg/pedersen"
 	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/kyber/v3/pairing/bn256"
@@ -119,6 +123,19 @@ func (s *EasyRand) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
 
 // Randomness returns the public randomness.
 func (s *EasyRand) Randomness(req *RandomnessRequest) (*RandomnessReply, error) {
+	// First verify the execution request
+	db := s.scService.GetDB()
+	blk, err := db.GetLatest(db.GetByID(s.genesis))
+	if err != nil {
+		log.Errorf("Cannot get the latest block: %v", err)
+		return nil, err
+	}
+	verified := s.verifyExecutionRequest(RAND, blk, req.ExecData)
+	if !verified {
+		log.Errorf("Cannot verify execution plan")
+		return nil, fmt.Errorf("Cannot verify execution plan")
+	}
+	// Generate randomness
 	pi, err := s.CreateProtocol(signProtoName, s.roster.GenerateStar())
 	if err != nil {
 		log.Errorf("Create protocol error: %v", err)
@@ -131,19 +148,64 @@ func (s *EasyRand) Randomness(req *RandomnessRequest) (*RandomnessReply, error) 
 		log.Errorf("Start protocol error: %v", err)
 		return nil, err
 	}
-
 	select {
 	case sig := <-signPi.FinalSignature:
 		s.blocks = append(s.blocks, sig)
 		round := uint64(len(s.blocks) - 1)
 		prev := s.getRoundBlock(round)
-		//return &RandomnessReply{uint64(len(s.blocks) - 1), sig}, nil
-		return &RandomnessReply{Round: round, Sig: sig, Prev: prev}, nil
+		// Collectively sign the execution plan
+		blsSig, err := s.signExecutionPlan(req.ExecData.ExecPlan)
+		if err != nil {
+			log.Errorf("Cannot produce blscosi signature: %v", err)
+			return nil, err
+		}
+		return &RandomnessReply{Round: round, Prev: prev, Value: sig, Sig: blsSig}, nil
 	// s.timeout was originally 2 seconds
 	case <-time.After(s.timeout * time.Second):
 		log.Errorf("Timed out waiting for the final signature")
 		return nil, errors.New("timeout waiting for final signature")
 	}
+}
+
+func (s *EasyRand) verifyExecutionRequest(txnName string, blk *skipchain.SkipBlock, execData *sys.ExecutionData) bool {
+	tree := s.roster.GenerateNaryTreeWithRoot(len(s.roster.List), s.ServerIdentity())
+	pi, err := s.CreateProtocol(verify.Name, tree)
+	if err != nil {
+		log.Errorf("Cannot create protocol: %v", err)
+		return false
+	}
+	verifyProto := pi.(*verify.VP)
+	verifyProto.Index = execData.Index
+	verifyProto.TxnName = txnName
+	verifyProto.Block = blk
+	verifyProto.ExecPlan = execData.ExecPlan
+	verifyProto.ClientSigs = execData.ClientSigs
+	verifyProto.CompilerSig = execData.CompilerSig
+	verifyProto.UnitSigs = execData.UnitSigs
+	err = verifyProto.Start()
+	if err != nil {
+		log.Errorf("Cannot start protocol: %v", err)
+		return false
+	}
+	if !<-verifyProto.Verified {
+		return false
+	} else {
+		return true
+	}
+}
+
+func (s *EasyRand) signExecutionPlan(ep *sys.ExecutionPlan) (protocol.BlsSignature, error) {
+	epHash, err := utils.ComputeEPHash(ep)
+	if err != nil {
+		log.Errorf("Cannot compute the execution plan hash: %v", err)
+		return nil, err
+	}
+	cosiResp, err := utils.BlsCosiSign(s.cosiService, s.roster, epHash)
+	if err != nil {
+		log.Errorf("Cannot produce blscosi signature: %v", err)
+		return nil, err
+	}
+	return cosiResp.(*blscosi.SignatureResponse).Signature, nil
 }
 
 func (s *EasyRand) getRoundBlock(round uint64) []byte {
@@ -156,6 +218,34 @@ func (s *EasyRand) getRoundBlock(round uint64) []byte {
 	rBuf := make([]byte, 8)
 	binary.LittleEndian.PutUint64(rBuf, uint64(round))
 	buf := append(rBuf, s.blocks[round-1]...)
+	return buf
+}
+
+func (s *EasyRand) storeShare(setup *dkgprotocol.Setup) error {
+	_, dks, err := setup.SharedSecret()
+	if err != nil {
+		return err
+	}
+	s.distKeyStore = dks
+	s.pubPoly = share.NewPubPoly(vssSuite, vssSuite.Point().Base(), dks.Commitments())
+	return nil
+}
+
+func (s *EasyRand) verify(msg []byte) error {
+	if !bytes.Equal(msg, createNextMsg(s.blocks)) {
+		return errors.New("bad message")
+	}
+	return nil
+}
+
+func createNextMsg(blocks [][]byte) []byte {
+	round := len(blocks)
+	if round == 0 {
+		return []byte(genesisMsg)
+	}
+	rBuf := make([]byte, 8)
+	binary.LittleEndian.PutUint64(rBuf, uint64(round))
+	buf := append(rBuf, blocks[len(blocks)-1]...)
 	return buf
 }
 
@@ -200,34 +290,6 @@ func (s *EasyRand) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConf
 	default:
 		return nil, errors.New("invalid protocol")
 	}
-}
-
-func (s *EasyRand) storeShare(setup *dkgprotocol.Setup) error {
-	_, dks, err := setup.SharedSecret()
-	if err != nil {
-		return err
-	}
-	s.distKeyStore = dks
-	s.pubPoly = share.NewPubPoly(vssSuite, vssSuite.Point().Base(), dks.Commitments())
-	return nil
-}
-
-func (s *EasyRand) verify(msg []byte) error {
-	if !bytes.Equal(msg, createNextMsg(s.blocks)) {
-		return errors.New("bad message")
-	}
-	return nil
-}
-
-func createNextMsg(blocks [][]byte) []byte {
-	round := len(blocks)
-	if round == 0 {
-		return []byte(genesisMsg)
-	}
-	rBuf := make([]byte, 8)
-	binary.LittleEndian.PutUint64(rBuf, uint64(round))
-	buf := append(rBuf, blocks[len(blocks)-1]...)
-	return buf
 }
 
 func newService(c *onet.Context) (onet.Service, error) {
