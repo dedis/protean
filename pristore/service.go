@@ -1,8 +1,13 @@
 package pristore
 
 import (
+	"fmt"
+
+	"github.com/dedis/protean/sys"
 	"github.com/dedis/protean/utils"
+	"github.com/dedis/protean/verify"
 	"go.dedis.ch/cothority/v3/blscosi"
+	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/calypso"
 	"go.dedis.ch/cothority/v3/darc"
@@ -53,7 +58,6 @@ func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 	s.roster = cfg.Roster
 	///////////////////////
 	// Now adding a block with the unit information
-	//enc, err := protobuf.Encode(req.BaseStore)
 	enc, err := protobuf.Encode(cfg.BaseStore)
 	if err != nil {
 		log.Errorf("Error in protobuf encoding: %v", err)
@@ -182,7 +186,20 @@ func (s *Service) SpawnDarc(req *SpawnDarcRequest) (*SpawnDarcReply, error) {
 }
 
 func (s *Service) AddWrite(req *AddWriteRequest) (*AddWriteReply, error) {
-	_, err := s.byzService.AddTransaction(&byzcoin.AddTxRequest{
+	// First verify the execution request
+	db := s.scService.GetDB()
+	blk, err := db.GetLatest(db.GetByID(s.genesis))
+	if err != nil {
+		log.Errorf("Cannot get the latest block: %v", err)
+		return nil, err
+	}
+	verified := s.verifyExecutionRequest(WRITE, blk, req.ExecData)
+	if !verified {
+		log.Errorf("Cannot verify execution plan")
+		return nil, fmt.Errorf("Cannot verify execution plan")
+	}
+	// Add write
+	_, err = s.byzService.AddTransaction(&byzcoin.AddTxRequest{
 		Version:       byzcoin.CurrentVersion,
 		SkipchainID:   s.byzID,
 		Transaction:   req.Ctx,
@@ -192,11 +209,34 @@ func (s *Service) AddWrite(req *AddWriteRequest) (*AddWriteReply, error) {
 		log.Errorf("Cannot add write -- Byzcoin add transaction error: %v", err)
 		return nil, err
 	}
-	return &AddWriteReply{InstanceID: req.Ctx.Instructions[0].DeriveID("")}, nil
+	// Collectively sign the execution plan
+	sig, err := s.signExecutionPlan(req.ExecData.ExecPlan)
+	if err != nil {
+		log.Errorf("Cannot produce blscosi signature: %v", err)
+		return nil, err
+	}
+	reply := &AddWriteReply{
+		InstanceID: req.Ctx.Instructions[0].DeriveID(""),
+		Sig:        sig,
+	}
+	return reply, nil
 }
 
 func (s *Service) AddRead(req *AddReadRequest) (*AddReadReply, error) {
-	_, err := s.byzService.AddTransaction(&byzcoin.AddTxRequest{
+	// First verify the execution request
+	db := s.scService.GetDB()
+	blk, err := db.GetLatest(db.GetByID(s.genesis))
+	if err != nil {
+		log.Errorf("Cannot get the latest block: %v", err)
+		return nil, err
+	}
+	verified := s.verifyExecutionRequest(READ, blk, req.ExecData)
+	if !verified {
+		log.Errorf("Cannot verify execution plan")
+		return nil, fmt.Errorf("Cannot verify execution plan")
+	}
+	// Add read
+	_, err = s.byzService.AddTransaction(&byzcoin.AddTxRequest{
 		Version:       byzcoin.CurrentVersion,
 		SkipchainID:   s.byzID,
 		Transaction:   req.Ctx,
@@ -206,24 +246,62 @@ func (s *Service) AddRead(req *AddReadRequest) (*AddReadReply, error) {
 		log.Errorf("Cannot add read -- Byzcoin add transaction error: %v", err)
 		return nil, err
 	}
-	return &AddReadReply{InstanceID: req.Ctx.Instructions[0].DeriveID("")}, nil
-}
-
-func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
-	var err error
-	reply := &DecryptReply{}
-	reply.Reply, err = s.calyService.DecryptKey(req.Request)
+	// Collectively sign the execution plan
+	sig, err := s.signExecutionPlan(req.ExecData.ExecPlan)
 	if err != nil {
-		log.Errorf("Decrypt error: %v", err)
+		log.Errorf("Cannot produce blscosi signature: %v", err)
 		return nil, err
+	}
+	reply := &AddReadReply{
+		InstanceID: req.Ctx.Instructions[0].DeriveID(""),
+		Sig:        sig,
 	}
 	return reply, nil
 }
 
+func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
+	// First verify the execution request
+	db := s.scService.GetDB()
+	blk, err := db.GetLatest(db.GetByID(s.genesis))
+	if err != nil {
+		log.Errorf("Cannot get the latest block: %v", err)
+		return nil, err
+	}
+	verified := s.verifyExecutionRequest(READ, blk, req.ExecData)
+	if !verified {
+		log.Errorf("Cannot verify execution plan")
+		return nil, fmt.Errorf("Cannot verify execution plan")
+	}
+	// Perform decrypt
+	dkr, err := s.calyService.DecryptKey(req.Request)
+	if err != nil {
+		log.Errorf("Decrypt error: %v", err)
+		return nil, err
+	}
+	// Collectively sign the execution plan
+	sig, err := s.signExecutionPlan(req.ExecData.ExecPlan)
+	if err != nil {
+		log.Errorf("Cannot produce blscosi signature: %v", err)
+		return nil, err
+	}
+	return &DecryptReply{Reply: dkr, Sig: sig}, nil
+}
+
 func (s *Service) GetProof(req *GetProofRequest) (*GetProofReply, error) {
-	var err error
-	reply := &GetProofReply{}
-	reply.GetProofResponse, err = s.byzService.GetProof(&byzcoin.GetProof{
+	// First verify the execution request
+	db := s.scService.GetDB()
+	blk, err := db.GetLatest(db.GetByID(s.genesis))
+	if err != nil {
+		log.Errorf("Cannot get the latest block: %v", err)
+		return nil, err
+	}
+	verified := s.verifyExecutionRequest(READ, blk, req.ExecData)
+	if !verified {
+		log.Errorf("Cannot verify execution plan")
+		return nil, fmt.Errorf("Cannot verify execution plan")
+	}
+	// Get proof
+	gpr, err := s.byzService.GetProof(&byzcoin.GetProof{
 		Version: byzcoin.CurrentVersion,
 		ID:      s.byzID,
 		Key:     req.InstanceID.Slice(),
@@ -232,7 +310,54 @@ func (s *Service) GetProof(req *GetProofRequest) (*GetProofReply, error) {
 		log.Errorf("GetProof request failed: %v", err)
 		return nil, err
 	}
-	return reply, nil
+	// Collectively sign the execution plan
+	sig, err := s.signExecutionPlan(req.ExecData.ExecPlan)
+	if err != nil {
+		log.Errorf("Cannot produce blscosi signature: %v", err)
+		return nil, err
+	}
+	return &GetProofReply{GetProofResponse: gpr, Sig: sig}, nil
+}
+
+func (s *Service) verifyExecutionRequest(txnName string, blk *skipchain.SkipBlock, execData *sys.ExecutionData) bool {
+	tree := s.roster.GenerateNaryTreeWithRoot(len(s.roster.List), s.ServerIdentity())
+	pi, err := s.CreateProtocol(verify.Name, tree)
+	if err != nil {
+		log.Errorf("Cannot create protocol: %v", err)
+		return false
+	}
+	verifyProto := pi.(*verify.VP)
+	verifyProto.Index = execData.Index
+	verifyProto.TxnName = txnName
+	verifyProto.Block = blk
+	verifyProto.ExecPlan = execData.ExecPlan
+	verifyProto.ClientSigs = execData.ClientSigs
+	verifyProto.CompilerSig = execData.CompilerSig
+	verifyProto.UnitSigs = execData.UnitSigs
+	err = verifyProto.Start()
+	if err != nil {
+		log.Errorf("Cannot start protocol: %v", err)
+		return false
+	}
+	if !<-verifyProto.Verified {
+		return false
+	} else {
+		return true
+	}
+}
+
+func (s *Service) signExecutionPlan(ep *sys.ExecutionPlan) (protocol.BlsSignature, error) {
+	epHash, err := utils.ComputeEPHash(ep)
+	if err != nil {
+		log.Errorf("Cannot compute the execution plan hash: %v", err)
+		return nil, err
+	}
+	cosiResp, err := utils.BlsCosiSign(s.cosiService, s.roster, epHash)
+	if err != nil {
+		log.Errorf("Cannot produce blscosi signature: %v", err)
+		return nil, err
+	}
+	return cosiResp.(*blscosi.SignatureResponse).Signature, nil
 }
 
 func newService(c *onet.Context) (onet.Service, error) {

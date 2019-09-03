@@ -15,7 +15,7 @@ import (
 
 func init() {
 	network.RegisterMessages(&Verify{}, &VerifyReply{})
-	_, err := onet.GlobalProtocolRegister(Name, NewVerifyExecutionPlan)
+	_, err := onet.GlobalProtocolRegister(Name, NewVerifyExecutionRequest)
 	if err != nil {
 		log.Errorf("Cannot register protocol: %v", err)
 	}
@@ -42,7 +42,7 @@ type VP struct {
 
 var _ onet.ProtocolInstance = (*VP)(nil)
 
-func NewVerifyExecutionPlan(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
+func NewVerifyExecutionRequest(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
 	numNodes := len(n.Roster().List)
 	vp := &VP{
 		TreeNodeInstance: n,

@@ -29,6 +29,16 @@ type InitUnitReply struct {
 	Genesis []byte
 }
 
+type SpawnDarcRequest struct {
+	ExecData *sys.ExecutionData
+	Darc     darc.Darc
+	Wait     int
+}
+
+type SpawnDarcReply struct {
+	Sig protocol.BlsSignature
+}
+
 type CreateStateRequest struct {
 	ExecData *sys.ExecutionData
 	Ctx      byzcoin.ClientTransaction
@@ -47,21 +57,15 @@ type UpdateStateRequest struct {
 }
 
 type UpdateStateReply struct {
-	//AddTxResp *byzcoin.AddTxResponse
 	Sig protocol.BlsSignature
 }
 
-type SpawnDarcRequest struct {
-	Darc darc.Darc
-	Wait int
-}
-
-type SpawnDarcReply struct{}
-
 type GetProofRequest struct {
+	ExecData   *sys.ExecutionData
 	InstanceID byzcoin.InstanceID
 }
 
 type GetProofReply struct {
 	*byzcoin.GetProofResponse
+	Sig protocol.BlsSignature
 }

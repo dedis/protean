@@ -2,6 +2,7 @@ package pristore
 
 import (
 	"github.com/dedis/protean/sys"
+	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/calypso"
 	"go.dedis.ch/cothority/v3/darc"
@@ -51,46 +52,53 @@ type CreateLTSReply struct {
 }
 
 type SpawnDarcRequest struct {
-	Darc darc.Darc
-	Wait int
+	ExecData *sys.ExecutionData
+	Darc     darc.Darc
+	Wait     int
 }
 
 type SpawnDarcReply struct {
+	Sig protocol.BlsSignature
 }
 
 type AddWriteRequest struct {
-	//ExecData *protean.ExecutionData
-	Ctx  byzcoin.ClientTransaction
-	Wait int
+	ExecData *sys.ExecutionData
+	Ctx      byzcoin.ClientTransaction
+	Wait     int
 }
 
 type AddWriteReply struct {
 	InstanceID byzcoin.InstanceID
+	Sig        protocol.BlsSignature
 }
 
 type AddReadRequest struct {
-	//ExecData *protean.ExecutionData
-	Ctx  byzcoin.ClientTransaction
-	Wait int
+	ExecData *sys.ExecutionData
+	Ctx      byzcoin.ClientTransaction
+	Wait     int
 }
 
 type AddReadReply struct {
 	InstanceID byzcoin.InstanceID
+	Sig        protocol.BlsSignature
 }
 
 type DecryptRequest struct {
-	//ExecData *protean.ExecutionData
-	Request *calypso.DecryptKey
+	ExecData *sys.ExecutionData
+	Request  *calypso.DecryptKey
 }
 
 type DecryptReply struct {
 	Reply *calypso.DecryptKeyReply
+	Sig   protocol.BlsSignature
 }
 
 type GetProofRequest struct {
+	ExecData   *sys.ExecutionData
 	InstanceID byzcoin.InstanceID
 }
 
 type GetProofReply struct {
 	*byzcoin.GetProofResponse
+	Sig protocol.BlsSignature
 }

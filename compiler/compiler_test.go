@@ -33,30 +33,29 @@ func TestCompiler_Basic(t *testing.T) {
 	local := onet.NewTCPTest(cothority.Suite)
 	hosts, roster, _ := local.GenTree(n, true)
 	defer local.CloseAll()
+
 	services := local.GetServices(hosts, compilerID)
+	nodes := make([]*Service, len(services))
+	for i := 0; i < len(services); i++ {
+		nodes[i] = services[i].(*Service)
+	}
 	root := services[0].(*Service)
 	fmt.Println(">>>>>> Root node is:", root.ServerIdentity(), "<<<<<<")
 
 	units, err := sys.PrepareUnits(roster, &uname)
 	require.Nil(t, err)
-
 	initReply, err := root.InitUnit(&InitUnitRequest{Roster: roster, ScCfg: &sys.ScConfig{MHeight: 2, BHeight: 2}})
 	require.NoError(t, err)
-	_, err = root.StoreGenesis(&StoreGenesisRequest{Genesis: initReply.Genesis})
+	for _, n := range nodes {
+		_, err = n.StoreGenesis(&StoreGenesisRequest{Genesis: initReply.Genesis})
+		require.NoError(t, err)
+	}
 	require.NoError(t, err)
 	_, err = root.CreateUnits(&CreateUnitsRequest{Units: units})
 	require.NoError(t, err)
 	reply, err := root.GetDirectoryInfo(&DirectoryInfoRequest{})
 	require.NoError(t, err)
 	require.NotNil(t, reply)
-	//for k, v := range reply.Directory {
-	//fmt.Println("Unit name:", k)
-	//fmt.Println("Unit ID:", v.UnitID)
-	//fmt.Println(">> Transactions <<")
-	//for id, name := range v.Txns {
-	//fmt.Println(id, "--->", name)
-	//}
-	//}
 }
 
 func Test_PrepareWf(t *testing.T) {
@@ -64,7 +63,12 @@ func Test_PrepareWf(t *testing.T) {
 	local := onet.NewTCPTest(cothority.Suite)
 	hosts, roster, _ := local.GenTree(n, true)
 	defer local.CloseAll()
+
 	services := local.GetServices(hosts, compilerID)
+	nodes := make([]*Service, len(services))
+	for i := 0; i < len(services); i++ {
+		nodes[i] = services[i].(*Service)
+	}
 	root := services[0].(*Service)
 	fmt.Println(">>>>>> Root node is:", root.ServerIdentity(), "<<<<<<")
 
@@ -73,7 +77,10 @@ func Test_PrepareWf(t *testing.T) {
 
 	initReply, err := root.InitUnit(&InitUnitRequest{Roster: roster, ScCfg: &sys.ScConfig{MHeight: 2, BHeight: 2}})
 	require.NoError(t, err)
-	_, err = root.StoreGenesis(&StoreGenesisRequest{Genesis: initReply.Genesis})
+	for _, n := range nodes {
+		_, err = n.StoreGenesis(&StoreGenesisRequest{Genesis: initReply.Genesis})
+		require.NoError(t, err)
+	}
 	require.NoError(t, err)
 	_, err = root.CreateUnits(&CreateUnitsRequest{Units: units})
 	require.NoError(t, err)
@@ -82,10 +89,6 @@ func Test_PrepareWf(t *testing.T) {
 	wf, err := cliutils.PrepareWorkflow(&wname, reply.Directory, nil, false)
 	require.NoError(t, err)
 	require.True(t, len(wf.Nodes) > 0)
-	//for _, w := range wf.Nodes {
-	//fmt.Println(w.UID, w.TID)
-	//fmt.Println("Deps:", w.Deps)
-	//}
 }
 
 func Test_GenerateEPNoAuth(t *testing.T) {
@@ -93,8 +96,8 @@ func Test_GenerateEPNoAuth(t *testing.T) {
 	local := onet.NewTCPTest(cothority.Suite)
 	hosts, roster, _ := local.GenTree(n, true)
 	defer local.CloseAll()
-	services := local.GetServices(hosts, compilerID)
 
+	services := local.GetServices(hosts, compilerID)
 	nodes := make([]*Service, len(services))
 	for i := 0; i < len(services); i++ {
 		nodes[i] = services[i].(*Service)
@@ -134,8 +137,8 @@ func Test_GenerateEPWithAuth_All(t *testing.T) {
 	local := onet.NewTCPTest(cothority.Suite)
 	hosts, roster, _ := local.GenTree(n, true)
 	defer local.CloseAll()
-	services := local.GetServices(hosts, compilerID)
 
+	services := local.GetServices(hosts, compilerID)
 	nodes := make([]*Service, len(services))
 	for i := 0; i < len(services); i++ {
 		nodes[i] = services[i].(*Service)
@@ -190,8 +193,8 @@ func Test_GenerateEPWithAuth_NoAll(t *testing.T) {
 	local := onet.NewTCPTest(cothority.Suite)
 	hosts, roster, _ := local.GenTree(n, true)
 	defer local.CloseAll()
-	services := local.GetServices(hosts, compilerID)
 
+	services := local.GetServices(hosts, compilerID)
 	nodes := make([]*Service, len(services))
 	for i := 0; i < len(services); i++ {
 		nodes[i] = services[i].(*Service)

@@ -15,7 +15,7 @@ import (
 )
 
 // Name can be used from other packages to refer to this protocol.
-const Name = "VerifyExecutionPlan"
+const Name = "VerifyExecutionRequest"
 
 var suite = pairing.NewSuiteBn256()
 
