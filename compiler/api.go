@@ -18,14 +18,15 @@ type Client struct {
 	roster *onet.Roster
 }
 
-func NewClient() *Client {
-	return &Client{Client: onet.NewClient(cothority.Suite, ServiceName)}
+func NewClient(r *onet.Roster) *Client {
+	return &Client{Client: onet.NewClient(cothority.Suite, ServiceName), roster: r}
 }
 
-func (c *Client) InitUnit(roster *onet.Roster, scCfg *sys.ScConfig) (*InitUnitReply, error) {
-	c.roster = roster
+//func (c *Client) InitUnit(roster *onet.Roster, scCfg *sys.ScConfig) (*InitUnitReply, error) {
+func (c *Client) InitUnit(scCfg *sys.ScConfig) (*InitUnitReply, error) {
+	//c.roster = roster
 	req := &InitUnitRequest{
-		Roster: roster,
+		Roster: c.roster,
 		ScCfg:  scCfg,
 	}
 	reply := &InitUnitReply{}

@@ -2,9 +2,8 @@ package utils
 
 import (
 	"crypto/sha256"
-	"fmt"
-	"os"
 	"sort"
+	"time"
 
 	"github.com/dedis/protean/sys"
 	"go.dedis.ch/cothority/v3"
@@ -15,8 +14,6 @@ import (
 	"go.dedis.ch/kyber/v3/pairing"
 	"go.dedis.ch/kyber/v3/util/random"
 	"go.dedis.ch/onet/v3"
-	"go.dedis.ch/onet/v3/app"
-	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/onet/v3/network"
 	"go.dedis.ch/protobuf"
 )
@@ -51,10 +48,7 @@ func ElGamalDecrypt(private kyber.Scalar, egp ElGamalPair) kyber.Point {
 }
 
 func BlsCosiSign(s *blscosi.Service, r *onet.Roster, data []byte) (network.Message, error) {
-	//h := sha256.New()
-	//h.Write(data)
 	resp, err := s.SignatureRequest(&blscosi.SignatureRequest{
-		//Message: h.Sum(nil),
 		Message: data,
 		Roster:  r,
 	})
@@ -182,44 +176,22 @@ func CreateGenesisBlock(s *skipchain.Service, scCfg *sys.ScConfig, roster *onet.
 	return reply, err
 }
 
-func ReadRoster(path *string) (*onet.Roster, error) {
-	file, err := os.Open(*path)
-	if err != nil {
-		log.Errorf("ReadRoster error: %v", err)
-		return nil, err
+func GenerateUnitConfig(compKeys []kyber.Point, roster *onet.Roster, id string, name string, txns map[string]string) *sys.UnitConfig {
+	scCfg := &sys.ScConfig{
+		MHeight: 2,
+		BHeight: 2,
 	}
-
-	group, err := app.ReadGroupDescToml(file)
-	if err != nil {
-		log.Errorf("ReadRoster error: %v", err)
-		return nil, err
+	uData := &sys.BaseStorage{
+		UnitID:      id,
+		UnitName:    name,
+		Txns:        txns,
+		CompPublics: compKeys,
 	}
-
-	if len(group.Roster.List) == 0 {
-		fmt.Println("Empty roster")
-		log.Errorf("ReadRoster error: %v", err)
-		return nil, err
+	return &sys.UnitConfig{
+		Roster:       roster,
+		ScCfg:        scCfg,
+		BaseStore:    uData,
+		BlkInterval:  10,
+		DurationType: time.Second,
 	}
-	return group.Roster, nil
 }
-
-//func GetServerKey(fname *string) (kyber.Point, error) {
-//var keys []kyber.Point
-//fh, err := os.Open(*fname)
-//defer fh.Close()
-//if err != nil {
-//log.Errorf("GetServerKey error: %v", err)
-//return nil, err
-//}
-
-//fs := bufio.NewScanner(fh)
-//for fs.Scan() {
-//tmp, err := encoding.StringHexToPoint(cothority.Suite, fs.Text())
-//if err != nil {
-//log.Errorf("GetServerKey error: %v", err)
-//return nil, err
-//}
-//keys = append(keys, tmp)
-//}
-//return keys[0], nil
-//}

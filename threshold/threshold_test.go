@@ -33,30 +33,21 @@ type cs struct {
 	cl       *compiler.Client
 }
 
-func initCompilerUnit(t *testing.T, local *onet.LocalTest, total int, roster *onet.Roster, hosts []*onet.Server, units []*sys.FunctionalUnit) (*cs, map[string]*sys.UnitInfo) {
+func initCompilerUnit(t *testing.T, local *onet.LocalTest, total int, roster *onet.Roster, hosts []*onet.Server, units []*sys.FunctionalUnit) {
 	compServices := local.GetServices(hosts[:total], compiler.GetServiceID())
 	compNodes := make([]*compiler.Service, len(compServices))
 	for i := 0; i < len(compServices); i++ {
 		compNodes[i] = compServices[i].(*compiler.Service)
 	}
-	cl := compiler.NewClient()
-	//root := compNodes[0]
-	//initReply, err := root.InitUnit(&compiler.InitUnitRequest{Roster: roster, ScCfg: &sys.ScConfig{MHeight: 2, BHeight: 2}})
-	initReply, err := cl.InitUnit(roster, &sys.ScConfig{MHeight: 2, BHeight: 2})
+	root := compNodes[0]
+	initReply, err := root.InitUnit(&compiler.InitUnitRequest{Roster: roster, ScCfg: &sys.ScConfig{MHeight: 2, BHeight: 2}})
 	require.NoError(t, err)
-	//for _, n := range compNodes {
-	for _, n := range hosts {
-		//_, err = n.StoreGenesis(&compiler.StoreGenesisRequest{Genesis: initReply.Genesis})
-		err := cl.StoreGenesis(n.ServerIdentity, initReply.Genesis)
+	for _, n := range compNodes {
+		_, err = n.StoreGenesis(&compiler.StoreGenesisRequest{Genesis: initReply.Genesis})
 		require.NoError(t, err)
 	}
-	//_, err = root.CreateUnits(&compiler.CreateUnitsRequest{Units: units})
-	_, err = cl.CreateUnits(units)
+	_, err = root.CreateUnits(&compiler.CreateUnitsRequest{Units: units})
 	require.NoError(t, err)
-	//reply, err := root.GetDirectoryInfo(&compiler.DirectoryInfoRequest{})
-	reply, err := cl.GetDirectoryInfo()
-	require.NoError(t, err)
-	return &cs{total: total, hosts: hosts, roster: roster, services: compServices, nodes: compNodes, cl: cl}, reply.Directory
 }
 
 func TestMain(m *testing.M) {
@@ -74,9 +65,12 @@ func TestThreshold_Server(t *testing.T) {
 
 	units, err := sys.PrepareUnits(unitRoster, &uname)
 	require.Nil(t, err)
-	cs, directory := initCompilerUnit(t, local, compTotal, compRoster, hosts[:compTotal], units)
-	require.NotNil(t, cs)
-	require.NotNil(t, directory)
+
+	initCompilerUnit(t, local, compTotal, compRoster, hosts[:compTotal], units)
+	compCl := compiler.NewClient(compRoster)
+	reply, err := compCl.GetDirectoryInfo()
+	require.NoError(t, err)
+	directory := reply.Directory
 
 	thServices := local.GetServices(hosts[compTotal:], thresholdID)
 	root := thServices[0].(*Service)
@@ -84,8 +78,8 @@ func TestThreshold_Server(t *testing.T) {
 	val := directory[unitName]
 	txns := utils.ReverseMap(val.Txns)
 
-	initReq := GenerateInitRequest(compRoster.ServicePublics(compiler.ServiceName), unitRoster, val.UnitID, unitName, txns)
-	_, err = root.InitUnit(initReq)
+	cfg := utils.GenerateUnitConfig(compRoster.ServicePublics(compiler.ServiceName), unitRoster, val.UnitID, unitName, txns)
+	_, err = root.InitUnit(&InitUnitRequest{Cfg: cfg})
 	require.Nil(t, err)
 
 	// This part is done by the client
@@ -93,7 +87,7 @@ func TestThreshold_Server(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, len(wf.Nodes) > 0)
 
-	planReply, err := cs.cl.GenerateExecutionPlan(wf, nil, nil)
+	planReply, err := compCl.GenerateExecutionPlan(wf, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, planReply.ExecPlan.Publics)
 	require.NotNil(t, planReply.Signature)
@@ -105,22 +99,28 @@ func TestThreshold_Server(t *testing.T) {
 		UnitSigs:    make([]protocol.BlsSignature, len(planReply.ExecPlan.Workflow.Nodes)),
 	}
 
-	//TODO: Change these to API calls
-	id := NewDKGID(GenerateRandBytes())
-	ed.Index = 0
-	dkgReply, err := root.InitDKG(&InitDKGRequest{ID: id, ExecData: ed})
+	idx := 0
+	thCl := NewClient(unitRoster)
+	ed.Index = idx
+	id := GenerateRandBytes()
+	dkgReply, err := thCl.InitDKG(id, ed)
 	require.Nil(t, err)
+	ed.UnitSigs[idx] = dkgReply.Sig
+	idx++
+
+	ed.Index = idx
 	mesgs, cts := GenerateMesgs(10, "Go Badgers!", dkgReply.X)
-	ed.Index = 1
-	ed.UnitSigs[0] = dkgReply.Sig
-	decReply, err := root.Decrypt(&DecryptRequest{ID: id, Cs: cts, Server: true, ExecData: ed})
+	decReply, err := thCl.Decrypt(id, cts, true, ed)
+	require.NoError(t, err)
+	require.NotNil(t, decReply.Sig)
 	require.Nil(t, decReply.Partials)
-	require.Nil(t, err)
 	for i, p := range decReply.Ps {
 		pt, err := p.Data()
 		require.Nil(t, err)
 		require.Equal(t, mesgs[i], pt)
 	}
+	ed.UnitSigs[idx] = decReply.Sig
+	idx++
 }
 
 //func TestThreshold_ServerFalse(t *testing.T) {

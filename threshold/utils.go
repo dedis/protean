@@ -4,15 +4,12 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"time"
 
-	"github.com/dedis/protean/sys"
 	"github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/share"
 	"go.dedis.ch/kyber/v3/util/random"
-	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
 )
 
@@ -46,28 +43,6 @@ func VerifyDecProof(sh kyber.Point, ei kyber.Scalar, fi kyber.Scalar, u kyber.Po
 	hiHat.MarshalTo(hash)
 	e := cothority.Suite.Scalar().SetBytes(hash.Sum(nil))
 	return e.Equal(ei)
-}
-
-func GenerateInitRequest(compKeys []kyber.Point, roster *onet.Roster, id string, name string, txns map[string]string) *InitUnitRequest {
-	scCfg := &sys.ScConfig{
-		MHeight: 2,
-		BHeight: 2,
-	}
-	uData := &sys.BaseStorage{
-		UnitID:      id,
-		UnitName:    name,
-		Txns:        txns,
-		CompPublics: compKeys,
-	}
-	return &InitUnitRequest{
-		Cfg: &sys.UnitConfig{
-			Roster:       roster,
-			ScCfg:        scCfg,
-			BaseStore:    uData,
-			BlkInterval:  10,
-			DurationType: time.Second,
-		},
-	}
 }
 
 func GenerateMesgs(count int, m string, key kyber.Point) ([][]byte, []*utils.ElGamalPair) {

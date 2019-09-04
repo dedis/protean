@@ -23,15 +23,14 @@ type Client struct {
 	ltsReply *calypso.CreateLTSReply
 }
 
-func NewClient() *Client {
-	return &Client{Client: onet.NewClient(cothority.Suite, ServiceName)}
+func NewClient(r *onet.Roster) *Client {
+	return &Client{Client: onet.NewClient(cothority.Suite, ServiceName), roster: r}
 }
 
-func (c *Client) InitUnit(roster *onet.Roster, scCfg *sys.ScConfig, bStore *sys.BaseStorage, interval time.Duration, typeDur time.Duration) (*InitUnitReply, error) {
-	c.roster = roster
+func (c *Client) InitUnit(scCfg *sys.ScConfig, bStore *sys.BaseStorage, interval time.Duration, typeDur time.Duration) (*InitUnitReply, error) {
 	req := &InitUnitRequest{
 		Cfg: &sys.UnitConfig{
-			Roster:       roster,
+			Roster:       c.roster,
 			ScCfg:        scCfg,
 			BaseStore:    bStore,
 			BlkInterval:  interval,
@@ -180,20 +179,16 @@ func CreateDarc(ownerID darc.Identity, name string) *darc.Darc {
 }
 
 func AddWriteRule(d *darc.Darc, writers ...darc.Signer) error {
-	//var ids []string
 	ids := make([]string, len(writers))
 	for i, w := range writers {
-		//ids = append(ids, w.Identity().String())
 		ids[i] = w.Identity().String()
 	}
 	return d.Rules.AddRule(darc.Action("spawn:"+calypso.ContractWriteID), expression.InitOrExpr(ids...))
 }
 
 func AddReadRule(d *darc.Darc, readers ...darc.Signer) error {
-	//var ids []string
 	ids := make([]string, len(readers))
 	for i, r := range readers {
-		//ids = append(ids, r.Identity().String())
 		ids[i] = r.Identity().String()
 	}
 	return d.Rules.AddRule(darc.Action("spawn:"+calypso.ContractReadID), expression.InitOrExpr(ids...))

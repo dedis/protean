@@ -23,9 +23,6 @@ func contractValueFromBytes(in []byte) (byzcoin.Contract, error) {
 		log.Errorf("Protobuf decode failed: %v", err)
 		return nil, err
 	}
-	//if cv.Storage.Data == nil {
-	//cv.Storage.Data = make(map[string][]byte)
-	//}
 	return cv, nil
 }
 
@@ -39,7 +36,6 @@ func (c *contractValue) Spawn(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Instru
 	}
 	cs := &c.Storage
 	for _, kv := range inst.Spawn.Args {
-		//cs.Data[kv.Name] = kv.Value
 		cs.Data = append(cs.Data, KV{kv.Name, kv.Value})
 	}
 	csBuf, err := protobuf.Encode(&c.Storage)
@@ -110,22 +106,3 @@ func (cs *Storage) Update(args byzcoin.Arguments) {
 		}
 	}
 }
-
-//func (cs *Storage) Update(args byzcoin.Arguments) {
-//for _, arg := range args {
-//var updated bool
-//for key, value := range cs.Data {
-//if key == arg.Name {
-//updated = true
-//if value == nil || len(value) == 0 {
-//delete(cs.Data, key)
-//break
-//}
-//cs.Data[arg.Name] = arg.Value
-//}
-//}
-//if !updated {
-//cs.Data[arg.Name] = arg.Value
-//}
-//}
-//}

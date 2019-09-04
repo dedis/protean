@@ -16,14 +16,8 @@ import (
 	"go.dedis.ch/protobuf"
 )
 
-//func prepareExecutionPlan(data *sbData, req *ExecutionPlanRequest) (*sys.ExecutionPlan, error) {
 func prepareExecutionPlan(data *sbData, wf *sys.Workflow) (*sys.ExecutionPlan, error) {
-	//err := verifyAuthentication(req.Workflow, req.SigMap)
-	//if err != nil {
-	//return nil, err
-	//}
 	publics := make(map[string]*sys.UnitIdentity)
-	//for _, wfn := range req.Workflow.Nodes {
 	for _, wfn := range wf.Nodes {
 		if uv, ok := data.Data[wfn.UID]; ok {
 			publics[wfn.UID] = &sys.UnitIdentity{Keys: uv.Ps}
@@ -31,7 +25,6 @@ func prepareExecutionPlan(data *sbData, wf *sys.Workflow) (*sys.ExecutionPlan, e
 			return nil, fmt.Errorf("Functional unit does not exist")
 		}
 	}
-	//return &sys.ExecutionPlan{Workflow: req.Workflow, Publics: publics}, nil
 	return &sys.ExecutionPlan{Workflow: wf, Publics: publics}, nil
 }
 
@@ -77,8 +70,10 @@ func verifyAuthentication(wf *sys.Workflow, sigMap map[string][]byte) error {
 
 func verifyDag(wfNodes []*sys.WfNode) error {
 	var edges []*edge
+	//levels := make(map[int]int)
 	nodes := make(map[int]bool)
 	for idx, wfn := range wfNodes {
+		//levels[idx] = -1
 		nodes[idx] = true
 		for _, p := range wfn.Deps {
 			edges = append(edges, &edge{parent: p, child: idx, removed: false})
@@ -86,6 +81,7 @@ func verifyDag(wfNodes []*sys.WfNode) error {
 	}
 	var sorted []int
 	idx := 0
+	//noIncoming := findNoIncoming(nodes, edges, levels)
 	noIncoming := findNoIncoming(nodes, edges)
 	for idx < len(noIncoming) {
 		curr := noIncoming[idx]
@@ -97,6 +93,15 @@ func verifyDag(wfNodes []*sys.WfNode) error {
 				if !hasIncomingEdge(tmp.child, edges) {
 					noIncoming = append(noIncoming, tmp.child)
 				}
+				//currLvl := levels[tmp.child]
+				//newLvl := levels[curr] + 1
+				//if currLvl != -1 {
+				//levels[tmp.child] = newLvl
+				//} else {
+				//if newLvl > currLvl {
+				//levels[tmp.child] = newLvl
+				//}
+				//}
 			}
 		}
 		idx++
@@ -106,7 +111,6 @@ func verifyDag(wfNodes []*sys.WfNode) error {
 			return fmt.Errorf("Workflow has a circular dependency")
 		}
 	}
-	//log.Info("TOPOLOGICAL SORT:", sorted)
 	return nil
 }
 
@@ -119,6 +123,7 @@ func hasIncomingEdge(node int, edges []*edge) bool {
 	return false
 }
 
+//func findNoIncoming(nodes map[int]bool, edges []*edge, levels map[int]int) []int {
 func findNoIncoming(nodes map[int]bool, edges []*edge) []int {
 	var noIncoming []int
 	for _, edge := range edges {
@@ -127,6 +132,7 @@ func findNoIncoming(nodes map[int]bool, edges []*edge) []int {
 	for k, v := range nodes {
 		if v == true {
 			noIncoming = append(noIncoming, k)
+			//levels[k] = 0
 		}
 	}
 	return noIncoming
