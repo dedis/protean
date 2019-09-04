@@ -25,7 +25,7 @@ import (
 	"go.dedis.ch/protobuf"
 )
 
-var serviceID onet.ServiceID
+var easyrandID onet.ServiceID
 var suite = bn256.NewSuite()
 var vssSuite = suite.G2().(vss.Suite)
 
@@ -37,7 +37,7 @@ const ServiceName = "EasyRandService"
 
 func init() {
 	var err error
-	serviceID, err = onet.RegisterNewService(ServiceName, newService)
+	easyrandID, err = onet.RegisterNewService(ServiceName, newService)
 	if err != nil {
 		panic(err)
 	}

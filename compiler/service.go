@@ -69,7 +69,6 @@ func (s *Service) CreateUnits(req *CreateUnitsRequest) (*CreateUnitsReply, error
 			Txns: txnMap,
 		}
 		sbd[uid] = val
-		//log.Infof("Unit: %s - UID: %s", val.N, uid)
 	}
 	enc, err := protobuf.Encode(&sbData{Data: sbd})
 	if err != nil {

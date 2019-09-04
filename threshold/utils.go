@@ -86,7 +86,3 @@ func GenerateRandBytes() []byte {
 	random.Bytes(slc, random.New())
 	return slc
 }
-
-func GetServiceID() onet.ServiceID {
-	return thresholdID
-}

@@ -72,7 +72,3 @@ func GenerateRequest(n int, msg []byte, key kyber.Point) ShuffleRequest {
 		H:     cothority.Suite.Point().Pick(r),
 	}
 }
-
-func GetServiceID() onet.ServiceID {
-	return serviceID
-}

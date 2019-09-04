@@ -22,7 +22,6 @@ func NewClient() *Client {
 	return &Client{Client: onet.NewClient(cothority.Suite, ServiceName)}
 }
 
-//func (c *Client) InitUnit(roster *onet.Roster, scData *sys.ScInitData, bStore *sys.BaseStorage, interval time.Duration, typeDur time.Duration) (*InitUnitReply, error) {
 func (c *Client) InitUnit(roster *onet.Roster, scCfg *sys.ScConfig, bStore *sys.BaseStorage, interval time.Duration, typeDur time.Duration) (*InitUnitReply, error) {
 	c.roster = roster
 	req := &InitUnitRequest{
@@ -39,20 +38,22 @@ func (c *Client) InitUnit(roster *onet.Roster, scCfg *sys.ScConfig, bStore *sys.
 	return reply, err
 }
 
-func (c *Client) InitDKG(id []byte) (*InitDKGReply, error) {
+func (c *Client) InitDKG(id []byte, ed *sys.ExecutionData) (*InitDKGReply, error) {
 	req := &InitDKGRequest{
-		ID: NewDKGID(id),
+		ID:       NewDKGID(id),
+		ExecData: ed,
 	}
 	reply := &InitDKGReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)
 	return reply, err
 }
 
-func (c *Client) Decrypt(id []byte, cs []*utils.ElGamalPair, server bool) (*DecryptReply, error) {
+func (c *Client) Decrypt(id []byte, cs []*utils.ElGamalPair, server bool, ed *sys.ExecutionData) (*DecryptReply, error) {
 	req := &DecryptRequest{
-		ID:     NewDKGID(id),
-		Cs:     cs,
-		Server: server,
+		ID:       NewDKGID(id),
+		Cs:       cs,
+		Server:   server,
+		ExecData: ed,
 	}
 	reply := &DecryptReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)
@@ -60,7 +61,6 @@ func (c *Client) Decrypt(id []byte, cs []*utils.ElGamalPair, server bool) (*Decr
 }
 
 func RecoverMessages(numNodes int, cs []*utils.ElGamalPair, partials []*Partial) []kyber.Point {
-	//var ps []kyber.Point
 	ps := make([]kyber.Point, len(partials))
 	for i, partial := range partials {
 		var validShares []*share.PubShare
@@ -72,8 +72,11 @@ func RecoverMessages(numNodes int, cs []*utils.ElGamalPair, partials []*Partial)
 				log.Info("Cannot verify decryption proof from node", j)
 			}
 		}
-		//ps = append(ps, recoverCommit(numNodes, cs[i], validShares))
 		ps[i] = recoverCommit(numNodes, cs[i], validShares)
 	}
 	return ps
+}
+
+func GetServiceID() onet.ServiceID {
+	return thresholdID
 }

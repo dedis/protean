@@ -17,14 +17,14 @@ import (
 	"go.dedis.ch/protobuf"
 )
 
-var serviceID onet.ServiceID
+var easyneffID onet.ServiceID
 
 const ServiceName = "EasyNeffService"
 const shuffleProtoName = "neffshuffle_protocol"
 
 func init() {
 	var err error
-	serviceID, err = onet.RegisterNewService(ServiceName, newService)
+	easyneffID, err = onet.RegisterNewService(ServiceName, newService)
 	if err != nil {
 		panic(err)
 	}

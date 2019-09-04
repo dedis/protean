@@ -90,3 +90,7 @@ func SignWorkflow(wf *sys.Workflow, sk kyber.Scalar) ([]byte, error) {
 	}
 	return sig, nil
 }
+
+func GetServiceID() onet.ServiceID {
+	return compilerID
+}

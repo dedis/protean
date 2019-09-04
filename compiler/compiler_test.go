@@ -39,7 +39,8 @@ func TestCompiler_Basic(t *testing.T) {
 	for i := 0; i < len(services); i++ {
 		nodes[i] = services[i].(*Service)
 	}
-	root := services[0].(*Service)
+	//root := services[0].(*Service)
+	root := nodes[0]
 	fmt.Println(">>>>>> Root node is:", root.ServerIdentity(), "<<<<<<")
 
 	units, err := sys.PrepareUnits(roster, &uname)
@@ -69,7 +70,8 @@ func Test_PrepareWf(t *testing.T) {
 	for i := 0; i < len(services); i++ {
 		nodes[i] = services[i].(*Service)
 	}
-	root := services[0].(*Service)
+	//root := services[0].(*Service)
+	root := nodes[0]
 	fmt.Println(">>>>>> Root node is:", root.ServerIdentity(), "<<<<<<")
 
 	units, err := sys.PrepareUnits(roster, &uname)
@@ -102,7 +104,8 @@ func Test_GenerateEPNoAuth(t *testing.T) {
 	for i := 0; i < len(services); i++ {
 		nodes[i] = services[i].(*Service)
 	}
-	root := services[0].(*Service)
+	//root := services[0].(*Service)
+	root := nodes[0]
 	fmt.Println(">>>>>> Root node is:", root.ServerIdentity(), "<<<<<<")
 
 	units, err := sys.PrepareUnits(roster, &uname)
@@ -143,7 +146,8 @@ func Test_GenerateEPWithAuth_All(t *testing.T) {
 	for i := 0; i < len(services); i++ {
 		nodes[i] = services[i].(*Service)
 	}
-	root := services[0].(*Service)
+	//root := services[0].(*Service)
+	root := nodes[0]
 	fmt.Println(">>>>>> Root node is:", root.ServerIdentity(), "<<<<<<")
 
 	units, err := sys.PrepareUnits(roster, &uname)
@@ -199,7 +203,8 @@ func Test_GenerateEPWithAuth_NoAll(t *testing.T) {
 	for i := 0; i < len(services); i++ {
 		nodes[i] = services[i].(*Service)
 	}
-	root := services[0].(*Service)
+	//root := services[0].(*Service)
+	root := nodes[0]
 	fmt.Println(">>>>>> Root node is:", root.ServerIdentity(), "<<<<<<")
 
 	units, err := sys.PrepareUnits(roster, &uname)

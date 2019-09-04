@@ -54,10 +54,11 @@ func (c *Client) Authorize(who *network.ServerIdentity, id skipchain.SkipBlockID
 	return err
 }
 
-func (c *Client) CreateLTS(ltsRoster *onet.Roster, wait int) error {
+func (c *Client) CreateLTS(ltsRoster *onet.Roster, wait int, ed *sys.ExecutionData) error {
 	req := &CreateLTSRequest{
 		LTSRoster: ltsRoster,
 		Wait:      wait,
+		ExecData:  ed,
 	}
 	reply := &CreateLTSReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)
@@ -67,17 +68,18 @@ func (c *Client) CreateLTS(ltsRoster *onet.Roster, wait int) error {
 	return err
 }
 
-func (c *Client) SpawnDarc(spawnDarc darc.Darc, wait int) (*SpawnDarcReply, error) {
+func (c *Client) SpawnDarc(spawnDarc darc.Darc, wait int, ed *sys.ExecutionData) (*SpawnDarcReply, error) {
 	req := &SpawnDarcRequest{
-		Darc: spawnDarc,
-		Wait: wait,
+		Darc:     spawnDarc,
+		Wait:     wait,
+		ExecData: ed,
 	}
 	reply := &SpawnDarcReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)
 	return reply, err
 }
 
-func (c *Client) AddWrite(data []byte, signer darc.Signer, signerCtr uint64, darc darc.Darc, wait int) (*AddWriteReply, error) {
+func (c *Client) AddWrite(data []byte, signer darc.Signer, signerCtr uint64, darc darc.Darc, wait int, ed *sys.ExecutionData) (*AddWriteReply, error) {
 	write := calypso.NewWrite(cothority.Suite, c.ltsReply.InstanceID, darc.GetBaseID(), c.ltsReply.X, data)
 	writeBuf, err := protobuf.Encode(write)
 	if err != nil {
@@ -100,15 +102,16 @@ func (c *Client) AddWrite(data []byte, signer darc.Signer, signerCtr uint64, dar
 		return nil, err
 	}
 	req := &AddWriteRequest{
-		Ctx:  ctx,
-		Wait: wait,
+		Ctx:      ctx,
+		Wait:     wait,
+		ExecData: ed,
 	}
 	reply := &AddWriteReply{}
 	err = c.SendProtobuf(c.roster.List[0], req, reply)
 	return reply, err
 }
 
-func (c *Client) AddRead(proof *byzcoin.Proof, signer darc.Signer, signerCtr uint64, wait int) (*AddReadReply, error) {
+func (c *Client) AddRead(proof *byzcoin.Proof, signer darc.Signer, signerCtr uint64, wait int, ed *sys.ExecutionData) (*AddReadReply, error) {
 	instID := proof.InclusionProof.Key()
 	read := &calypso.Read{
 		Write: byzcoin.NewInstanceID(instID),
@@ -136,29 +139,32 @@ func (c *Client) AddRead(proof *byzcoin.Proof, signer darc.Signer, signerCtr uin
 		return nil, err
 	}
 	req := &AddReadRequest{
-		Ctx:  ctx,
-		Wait: wait,
+		Ctx:      ctx,
+		Wait:     wait,
+		ExecData: ed,
 	}
 	reply := &AddReadReply{}
 	err = c.SendProtobuf(c.roster.List[0], req, reply)
 	return reply, err
 }
 
-func (c *Client) Decrypt(wrProof byzcoin.Proof, rProof byzcoin.Proof) (*DecryptReply, error) {
+func (c *Client) Decrypt(wrProof byzcoin.Proof, rProof byzcoin.Proof, ed *sys.ExecutionData) (*DecryptReply, error) {
 	req := &DecryptRequest{
 		Request: &calypso.DecryptKey{
 			Read:  rProof,
 			Write: wrProof,
 		},
+		ExecData: ed,
 	}
 	reply := &DecryptReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)
 	return reply, err
 }
 
-func (c *Client) GetProof(instID byzcoin.InstanceID) (*GetProofReply, error) {
+func (c *Client) GetProof(instID byzcoin.InstanceID, ed *sys.ExecutionData) (*GetProofReply, error) {
 	req := &GetProofRequest{
 		InstanceID: instID,
+		ExecData:   ed,
 	}
 	reply := &GetProofReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)
@@ -191,4 +197,8 @@ func AddReadRule(d *darc.Darc, readers ...darc.Signer) error {
 		ids[i] = r.Identity().String()
 	}
 	return d.Rules.AddRule(darc.Action("spawn:"+calypso.ContractReadID), expression.InitOrExpr(ids...))
+}
+
+func GetServiceID() onet.ServiceID {
+	return priStoreID
 }

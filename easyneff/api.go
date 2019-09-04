@@ -24,7 +24,6 @@ func NewClient() *Client {
 	return &Client{Client: onet.NewClient(cothority.Suite, ServiceName)}
 }
 
-//func (c *Client) InitUnit(roster *onet.Roster, scData *sys.ScInitData, bStore *sys.BaseStorage, interval time.Duration, typeDur time.Duration) (*InitUnitReply, error) {
 func (c *Client) InitUnit(roster *onet.Roster, scCfg *sys.ScConfig, bStore *sys.BaseStorage, interval time.Duration, typeDur time.Duration) (*InitUnitReply, error) {
 	c.roster = roster
 	req := &InitUnitRequest{
@@ -41,15 +40,15 @@ func (c *Client) InitUnit(roster *onet.Roster, scCfg *sys.ScConfig, bStore *sys.
 	return reply, err
 }
 
-//func (c *Client) Shuffle(pairs []ElGamalPair, g kyber.Point, h kyber.Point) (*ShuffleReply, error) {
-func (c *Client) Shuffle(pairs []utils.ElGamalPair, g kyber.Point, h kyber.Point) (*ShuffleReply, error) {
+func (c *Client) Shuffle(pairs []utils.ElGamalPair, g kyber.Point, h kyber.Point, ed *sys.ExecutionData) (*ShuffleReply, error) {
 	if len(pairs) <= 0 {
 		return nil, fmt.Errorf("No ciphertext to shuffle")
 	}
 	req := &ShuffleRequest{
-		Pairs: pairs,
-		G:     g,
-		H:     h,
+		Pairs:    pairs,
+		G:        g,
+		H:        h,
+		ExecData: ed,
 	}
 	reply := &ShuffleReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)
@@ -84,4 +83,8 @@ func Verify(prf []byte, G, H kyber.Point, x, y, xbar, ybar []kyber.Point) error 
 	}
 	verifier := shuffle.Verifier(cothority.Suite, G, H, x, y, xbar, ybar)
 	return proof.HashVerify(cothority.Suite, "", verifier, prf)
+}
+
+func GetServiceID() onet.ServiceID {
+	return easyneffID
 }

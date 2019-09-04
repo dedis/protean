@@ -20,7 +20,65 @@ func NewClient() *Client {
 	return &Client{Client: onet.NewClient(cothority.Suite, ServiceName)}
 }
 
-func (c *Client) UpdateState(contractID string, kv []*KV, instID byzcoin.InstanceID, signerCtr uint64, signer darc.Signer, wait int) (*UpdateStateReply, error) {
+func (c *Client) InitUnit(roster *onet.Roster, scCfg *sys.ScConfig, bStore *sys.BaseStorage, interval time.Duration, typeDur time.Duration) (*InitUnitReply, error) {
+	c.roster = roster
+	req := &InitUnitRequest{
+		Cfg: &sys.UnitConfig{
+			Roster:       roster,
+			ScCfg:        scCfg,
+			BaseStore:    bStore,
+			BlkInterval:  interval,
+			DurationType: typeDur,
+		},
+	}
+	reply := &InitUnitReply{}
+	err := c.SendProtobuf(c.roster.List[0], req, reply)
+	return reply, err
+}
+
+func (c *Client) SpawnDarc(spawnDarc darc.Darc, wait int, ed *sys.ExecutionData) (*SpawnDarcReply, error) {
+	req := &SpawnDarcRequest{
+		Darc:     spawnDarc,
+		Wait:     wait,
+		ExecData: ed,
+	}
+	reply := &SpawnDarcReply{}
+	err := c.SendProtobuf(c.roster.List[0], req, reply)
+	return reply, err
+}
+
+// This is called by the organize/owner/admin of the application
+func (c *Client) CreateState(contractID string, kv []*KV, adminDarc darc.Darc, signerCtr uint64, signer darc.Signer, wait int, ed *sys.ExecutionData) (*CreateStateReply, error) {
+	args := make(byzcoin.Arguments, len(kv))
+	for i, elt := range kv {
+		args[i] = byzcoin.Argument{Name: elt.Key, Value: elt.Value}
+	}
+	ctx := byzcoin.ClientTransaction{
+		Instructions: []byzcoin.Instruction{{
+			InstanceID: byzcoin.NewInstanceID(adminDarc.GetBaseID()),
+			Spawn: &byzcoin.Spawn{
+				ContractID: contractID,
+				Args:       args,
+			},
+			SignerCounter: []uint64{signerCtr},
+		}},
+	}
+	err := ctx.FillSignersAndSignWith(signer)
+	if err != nil {
+		log.Errorf("Sign transaction failed: %v", err)
+		return nil, err
+	}
+	req := &CreateStateRequest{
+		Ctx:      ctx,
+		Wait:     wait,
+		ExecData: ed,
+	}
+	reply := &CreateStateReply{}
+	err = c.SendProtobuf(c.roster.List[0], req, reply)
+	return reply, err
+}
+
+func (c *Client) UpdateState(contractID string, kv []*KV, instID byzcoin.InstanceID, signerCtr uint64, signer darc.Signer, wait int, ed *sys.ExecutionData) (*UpdateStateReply, error) {
 	args := make(byzcoin.Arguments, len(kv))
 	for i, elt := range kv {
 		args[i] = byzcoin.Argument{Name: elt.Key, Value: elt.Value}
@@ -42,75 +100,25 @@ func (c *Client) UpdateState(contractID string, kv []*KV, instID byzcoin.Instanc
 		return nil, err
 	}
 	req := &UpdateStateRequest{
-		Ctx:  ctx,
-		Wait: wait,
+		Ctx:      ctx,
+		Wait:     wait,
+		ExecData: ed,
 	}
 	reply := &UpdateStateReply{}
 	err = c.SendProtobuf(c.roster.List[0], req, reply)
 	return reply, err
 }
 
-// This is called by the organize/owner/admin of the application
-func (c *Client) CreateState(contractID string, kv []*KV, adminDarc darc.Darc, signerCtr uint64, signer darc.Signer, wait int) (*CreateStateReply, error) {
-	args := make(byzcoin.Arguments, len(kv))
-	for i, elt := range kv {
-		args[i] = byzcoin.Argument{Name: elt.Key, Value: elt.Value}
-	}
-	ctx := byzcoin.ClientTransaction{
-		Instructions: []byzcoin.Instruction{{
-			InstanceID: byzcoin.NewInstanceID(adminDarc.GetBaseID()),
-			Spawn: &byzcoin.Spawn{
-				ContractID: contractID,
-				Args:       args,
-			},
-			SignerCounter: []uint64{signerCtr},
-		}},
-	}
-	err := ctx.FillSignersAndSignWith(signer)
-	if err != nil {
-		log.Errorf("Sign transaction failed: %v", err)
-		return nil, err
-	}
-	req := &CreateStateRequest{
-		Ctx:  ctx,
-		Wait: wait,
-	}
-	reply := &CreateStateReply{}
-	err = c.SendProtobuf(c.roster.List[0], req, reply)
-	return reply, err
-}
-
-func (c *Client) SpawnDarc(spawnDarc darc.Darc, wait int) (*SpawnDarcReply, error) {
-	req := &SpawnDarcRequest{
-		Darc: spawnDarc,
-		Wait: wait,
-	}
-	reply := &SpawnDarcReply{}
-	err := c.SendProtobuf(c.roster.List[0], req, reply)
-	return reply, err
-}
-
-func (c *Client) InitUnit(roster *onet.Roster, scCfg *sys.ScConfig, bStore *sys.BaseStorage, interval time.Duration, typeDur time.Duration) (*InitUnitReply, error) {
-	c.roster = roster
-	req := &InitUnitRequest{
-		Cfg: &sys.UnitConfig{
-			Roster:       roster,
-			ScCfg:        scCfg,
-			BaseStore:    bStore,
-			BlkInterval:  interval,
-			DurationType: typeDur,
-		},
-	}
-	reply := &InitUnitReply{}
-	err := c.SendProtobuf(c.roster.List[0], req, reply)
-	return reply, err
-}
-
-func (c *Client) GetProof(instID byzcoin.InstanceID) (*GetProofReply, error) {
+func (c *Client) GetProof(instID byzcoin.InstanceID, ed *sys.ExecutionData) (*GetProofReply, error) {
 	req := &GetProofRequest{
 		InstanceID: instID,
+		ExecData:   ed,
 	}
 	reply := &GetProofReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)
 	return reply, err
+}
+
+func GetServiceID() onet.ServiceID {
+	return stateID
 }

@@ -17,7 +17,6 @@ func NewClient() *Client {
 	return &Client{Client: onet.NewClient(cothority.Suite, ServiceName)}
 }
 
-//func (c *Client) InitUnit(roster *onet.Roster, scData *sys.ScInitData, bStore *sys.BaseStorage, interval time.Duration, typeDur time.Duration, timeout time.Duration) (*InitUnitReply, error) {
 func (c *Client) InitUnit(roster *onet.Roster, scCfg *sys.ScConfig, bStore *sys.BaseStorage, interval time.Duration, typeDur time.Duration, timeout time.Duration) (*InitUnitReply, error) {
 	c.roster = roster
 	req := &InitUnitRequest{
@@ -35,18 +34,25 @@ func (c *Client) InitUnit(roster *onet.Roster, scCfg *sys.ScConfig, bStore *sys.
 	return reply, err
 }
 
-func (c *Client) InitDKG(timeout int) (*InitDKGReply, error) {
+func (c *Client) InitDKG(timeout int, ed *sys.ExecutionData) (*InitDKGReply, error) {
 	req := &InitDKGRequest{
-		Timeout: timeout,
+		Timeout:  timeout,
+		ExecData: ed,
 	}
 	reply := &InitDKGReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)
 	return reply, err
 }
 
-func (c *Client) Randomness() (*RandomnessReply, error) {
-	req := &RandomnessRequest{}
+func (c *Client) Randomness(ed *sys.ExecutionData) (*RandomnessReply, error) {
+	req := &RandomnessRequest{
+		ExecData: ed,
+	}
 	reply := &RandomnessReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)
 	return reply, err
+}
+
+func GetServiceID() onet.ServiceID {
+	return easyrandID
 }

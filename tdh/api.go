@@ -19,7 +19,6 @@ func NewClient() *Client {
 	return &Client{Client: onet.NewClient(cothority.Suite, ServiceName)}
 }
 
-//func (c *Client) InitUnit(roster *onet.Roster, scData *sys.ScInitData, bStore *sys.BaseStorage, interval time.Duration, typeDur time.Duration) (*InitUnitReply, error) {
 func (c *Client) InitUnit(roster *onet.Roster, scCfg *sys.ScConfig, bStore *sys.BaseStorage, interval time.Duration, typeDur time.Duration) (*InitUnitReply, error) {
 	c.roster = roster
 	req := &InitUnitRequest{
@@ -36,23 +35,29 @@ func (c *Client) InitUnit(roster *onet.Roster, scCfg *sys.ScConfig, bStore *sys.
 	return reply, err
 }
 
-func (c *Client) InitDKG(id []byte) (*InitDKGReply, error) {
+func (c *Client) InitDKG(id []byte, ed *sys.ExecutionData) (*InitDKGReply, error) {
 	req := &InitDKGRequest{
-		ID: NewDKGID(id),
+		ID:       NewDKGID(id),
+		ExecData: ed,
 	}
 	reply := &InitDKGReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)
 	return reply, err
 }
 
-func (c *Client) Decrypt(id []byte, gen []byte, ct *Ciphertext, xc kyber.Point) (*DecryptReply, error) {
+func (c *Client) Decrypt(id []byte, gen []byte, ct *Ciphertext, xc kyber.Point, ed *sys.ExecutionData) (*DecryptReply, error) {
 	req := &DecryptRequest{
-		ID:  NewDKGID(id),
-		Gen: gen,
-		Ct:  ct,
-		Xc:  xc,
+		ID:       NewDKGID(id),
+		Gen:      gen,
+		Ct:       ct,
+		Xc:       xc,
+		ExecData: ed,
 	}
 	reply := &DecryptReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)
 	return reply, err
+}
+
+func GetServiceID() onet.ServiceID {
+	return tdhID
 }
