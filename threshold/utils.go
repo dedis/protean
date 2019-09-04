@@ -48,15 +48,16 @@ func VerifyDecProof(sh kyber.Point, ei kyber.Scalar, fi kyber.Scalar, u kyber.Po
 	return e.Equal(ei)
 }
 
-func GenerateInitRequest(roster *onet.Roster) *InitUnitRequest {
+func GenerateInitRequest(compKeys []kyber.Point, roster *onet.Roster, id string, name string, txns map[string]string) *InitUnitRequest {
 	scCfg := &sys.ScConfig{
 		MHeight: 2,
 		BHeight: 2,
 	}
 	uData := &sys.BaseStorage{
-		UnitID:   "threshold",
-		UnitName: "thresholdUnit",
-		Txns:     map[string]string{"a": "b", "c": "d"},
+		UnitID:      id,
+		UnitName:    name,
+		Txns:        txns,
+		CompPublics: compKeys,
 	}
 	return &InitUnitRequest{
 		Cfg: &sys.UnitConfig{

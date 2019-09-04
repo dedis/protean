@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"go.dedis.ch/cothority/v3"
+	"go.dedis.ch/cothority/v3/blscosi"
 	"go.dedis.ch/kyber/v3/sign/schnorr"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
@@ -38,7 +39,7 @@ func PrepareUnits(roster *onet.Roster, uFilePtr *string) ([]*FunctionalUnit, err
 	units := make([]*FunctionalUnit, sz)
 	for i := 0; i < sz; i++ {
 		tmp := fus[i]
-		sn := tmp.Name + "Service"
+		//sn := tmp.Name + "Service"
 		units[i] = &FunctionalUnit{
 			Type:     tmp.Type,
 			Name:     tmp.Name,
@@ -47,7 +48,8 @@ func PrepareUnits(roster *onet.Roster, uFilePtr *string) ([]*FunctionalUnit, err
 			Roster:   roster,
 			//Publics:  roster.Publics(),
 		}
-		units[i].Publics = roster.ServicePublics(sn)
+		//units[i].Publics = roster.ServicePublics(sn)
+		units[i].Publics = roster.ServicePublics(blscosi.ServiceName)
 	}
 	return units, nil
 }

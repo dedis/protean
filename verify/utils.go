@@ -12,8 +12,6 @@ import (
 	"go.dedis.ch/protobuf"
 )
 
-//func getBaseStorage(blk *skipchain.SkipBlock) (*protean.BaseStorage, error) {
-//data := &protean.BaseStorage{}
 func getBaseStorage(blk *skipchain.SkipBlock) (*sys.BaseStorage, error) {
 	data := &sys.BaseStorage{}
 	err := protobuf.DecodeWithConstructors(blk.Data, data, network.DefaultConstructors(cothority.Suite))
@@ -29,7 +27,6 @@ func verifyPlan(v *Verify) bool {
 	if err != nil {
 		return false
 	}
-
 	// STEP 1: Check that the workflow node that represents this transaction
 	// has the correct UID and TID.
 	myWfNode := v.ExecPlan.Workflow.Nodes[v.Index]
@@ -42,6 +39,9 @@ func verifyPlan(v *Verify) bool {
 	txnName, ok := storageData.Txns[myWfNode.TID]
 	if !ok {
 		log.Errorf("Invalid TID: %s", myWfNode.TID)
+		for k, v := range storageData.Txns {
+			log.Info(k, "===>", v)
+		}
 		return false
 	}
 	// STEP 2: Check that the client made the correct function call
@@ -50,18 +50,6 @@ func verifyPlan(v *Verify) bool {
 		return false
 	}
 	// STEP 3: Check compiler unit's signature on the execution plan
-	//payload, err := protobuf.Encode(v.Plan)
-	//if err != nil {
-	//log.Errorf("Protobuf decode failed: %v", err)
-	//return false
-	//}
-	//h := sha256.New()
-	//h.Write(payload)
-	//err = v.CompilerSig.Verify(suite, h.Sum(nil), storageData.CompPublics)
-	//if err != nil {
-	//log.Errorf("Cannot verify blscosi signature on the execution plan: %v", err)
-	//return false
-	//}
 	wf := v.ExecPlan.Workflow
 	epHash, err := utils.ComputeEPHash(v.ExecPlan)
 	if err != nil {
@@ -73,7 +61,6 @@ func verifyPlan(v *Verify) bool {
 		log.Errorf("Cannot verify blscosi signature on the execution plan: %v", err)
 		return false
 	}
-
 	// STEP 4: Verify client signatures
 	wfHash, err := utils.ComputeWFHash(wf)
 	if err != nil {
@@ -85,17 +72,13 @@ func verifyPlan(v *Verify) bool {
 		log.Errorf("Cannot verify that the request comes from an authorized user: %v", err)
 		return false
 	}
-
 	//STEP 5: Check the dependencies
 	for _, depIdx := range myWfNode.Deps {
 		depUID := wf.Nodes[depIdx].UID
-		// TODO: Make sure that this change is correct
-		//sig := v.SigMap[depIdx]
 		sig := v.UnitSigs[depIdx]
-		//err = sig.Verify(suite, payload, v.ExecPlan.Publics[depUID].Keys)
 		err = sig.Verify(suite, epHash, v.ExecPlan.Publics[depUID].Keys)
 		if err != nil {
-			log.Errorf("Cannot verify the signature of UID: %s", depUID)
+			log.Errorf("Cannot verify the signature of UID %s: %v", depUID, err)
 			return false
 		}
 	}

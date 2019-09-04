@@ -1,0 +1,14 @@
+[ 
+        {
+                "index": 0,
+                "uname": "ThreshCrypto",
+                "tname": "InitDKG",
+                "deps" : []
+        },
+        {
+                "index": 1,
+                "uname": "ThreshCrypto",
+                "tname": "Decrypt",
+                "deps" : [0]
+        }
+]

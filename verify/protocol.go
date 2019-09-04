@@ -106,7 +106,7 @@ func (vp *VP) verifyExecPlan(sv ProtoVerify) error {
 }
 
 func (vp *VP) verifyExecPlanReply(vr ProtoVerifyReply) error {
-	log.LLvlf2("%s is the root node", vp.ServerIdentity())
+	//log.LLvlf2("%s is the root node", vp.ServerIdentity())
 	if vr.Success == false {
 		log.Lvl2("Node", vr.ServerIdentity, "failed verificiation")
 		vp.Failures++

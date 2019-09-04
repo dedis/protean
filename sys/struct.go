@@ -63,12 +63,10 @@ type Workflow struct {
 type UnitInfo struct {
 	Roster *onet.Roster
 	UnitID string
-	//UnitName string
-	Txns map[string]string
+	Txns   map[string]string
 }
 
 type BaseStorage struct {
-	//UInfo       *UnitInfo
 	UnitID      string
 	UnitName    string
 	Txns        map[string]string
@@ -85,9 +83,8 @@ type ExecutionPlan struct {
 }
 
 type ExecutionData struct {
-	Index    int
-	ExecPlan *ExecutionPlan
-	//ClientSig []byte
+	Index       int
+	ExecPlan    *ExecutionPlan
 	ClientSigs  map[string][]byte
 	CompilerSig protocol.BlsSignature
 	UnitSigs    []protocol.BlsSignature
@@ -100,9 +97,6 @@ type SerializedWf struct {
 }
 
 type SerializedEp struct {
-	//Nodes       []*WfNode
-	//AuthPublics []byte
-	//All         bool
 	Swf     *SerializedWf
 	Publics []byte
 }

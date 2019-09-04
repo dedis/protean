@@ -51,10 +51,11 @@ func ElGamalDecrypt(private kyber.Scalar, egp ElGamalPair) kyber.Point {
 }
 
 func BlsCosiSign(s *blscosi.Service, r *onet.Roster, data []byte) (network.Message, error) {
-	h := sha256.New()
-	h.Write(data)
+	//h := sha256.New()
+	//h.Write(data)
 	resp, err := s.SignatureRequest(&blscosi.SignatureRequest{
-		Message: h.Sum(nil),
+		//Message: h.Sum(nil),
+		Message: data,
 		Roster:  r,
 	})
 	return resp, err
@@ -142,6 +143,14 @@ func SerializeAuthKeys(keyMap map[string]kyber.Point) []byte {
 		h.Write([]byte(authKey.String()))
 	}
 	return h.Sum(nil)
+}
+
+func ReverseMap(m map[string]string) map[string]string {
+	revMap := make(map[string]string)
+	for k, v := range m {
+		revMap[v] = k
+	}
+	return revMap
 }
 
 func StoreBlock(s *skipchain.Service, genesis skipchain.SkipBlockID, data []byte) error {
