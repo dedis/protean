@@ -39,9 +39,6 @@ func verifyPlan(v *Verify) bool {
 	txnName, ok := storageData.Txns[myWfNode.TID]
 	if !ok {
 		log.Errorf("Invalid TID: %s", myWfNode.TID)
-		for k, v := range storageData.Txns {
-			log.Info(k, "===>", v)
-		}
 		return false
 	}
 	// STEP 2: Check that the client made the correct function call

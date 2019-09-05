@@ -24,15 +24,6 @@ func init() {
 	flag.StringVar(&wname, "wflow", "", "JSON file")
 }
 
-type cs struct {
-	total    int
-	hosts    []*onet.Server
-	roster   *onet.Roster
-	services []onet.Service
-	nodes    []*compiler.Service
-	cl       *compiler.Client
-}
-
 func initCompilerUnit(t *testing.T, local *onet.LocalTest, total int, roster *onet.Roster, hosts []*onet.Server, units []*sys.FunctionalUnit) {
 	compServices := local.GetServices(hosts[:total], compiler.GetServiceID())
 	compNodes := make([]*compiler.Service, len(compServices))
@@ -92,6 +83,8 @@ func TestThreshold_Server(t *testing.T) {
 	require.NotNil(t, planReply.ExecPlan.Publics)
 	require.NotNil(t, planReply.Signature)
 
+	thCl := NewClient(unitRoster)
+	idx := 0
 	ed := &sys.ExecutionData{
 		ExecPlan:    planReply.ExecPlan,
 		ClientSigs:  nil,
@@ -99,8 +92,6 @@ func TestThreshold_Server(t *testing.T) {
 		UnitSigs:    make([]protocol.BlsSignature, len(planReply.ExecPlan.Workflow.Nodes)),
 	}
 
-	idx := 0
-	thCl := NewClient(unitRoster)
 	ed.Index = idx
 	id := GenerateRandBytes()
 	dkgReply, err := thCl.InitDKG(id, ed)

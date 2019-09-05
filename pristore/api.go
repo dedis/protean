@@ -9,6 +9,7 @@ import (
 	"go.dedis.ch/cothority/v3/calypso"
 	"go.dedis.ch/cothority/v3/darc"
 	"go.dedis.ch/cothority/v3/darc/expression"
+	"go.dedis.ch/kyber/v3"
 
 	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/onet/v3"
@@ -19,8 +20,8 @@ import (
 
 type Client struct {
 	*onet.Client
-	roster   *onet.Roster
-	ltsReply *calypso.CreateLTSReply
+	roster *onet.Roster
+	//ltsReply *calypso.CreateLTSReply
 }
 
 func NewClient(r *onet.Roster) *Client {
@@ -53,7 +54,7 @@ func (c *Client) Authorize(who *network.ServerIdentity, id skipchain.SkipBlockID
 	return err
 }
 
-func (c *Client) CreateLTS(ltsRoster *onet.Roster, wait int, ed *sys.ExecutionData) error {
+func (c *Client) CreateLTS(ltsRoster *onet.Roster, wait int, ed *sys.ExecutionData) (*CreateLTSReply, error) {
 	req := &CreateLTSRequest{
 		LTSRoster: ltsRoster,
 		Wait:      wait,
@@ -61,10 +62,10 @@ func (c *Client) CreateLTS(ltsRoster *onet.Roster, wait int, ed *sys.ExecutionDa
 	}
 	reply := &CreateLTSReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)
-	if err == nil {
-		c.ltsReply = reply.Reply
-	}
-	return err
+	//if err == nil {
+	//c.ltsReply = reply.Reply
+	//}
+	return reply, err
 }
 
 func (c *Client) SpawnDarc(spawnDarc darc.Darc, wait int, ed *sys.ExecutionData) (*SpawnDarcReply, error) {
@@ -78,8 +79,8 @@ func (c *Client) SpawnDarc(spawnDarc darc.Darc, wait int, ed *sys.ExecutionData)
 	return reply, err
 }
 
-func (c *Client) AddWrite(data []byte, signer darc.Signer, signerCtr uint64, darc darc.Darc, wait int, ed *sys.ExecutionData) (*AddWriteReply, error) {
-	write := calypso.NewWrite(cothority.Suite, c.ltsReply.InstanceID, darc.GetBaseID(), c.ltsReply.X, data)
+func (c *Client) AddWrite(data []byte, iid byzcoin.InstanceID, X kyber.Point, signer darc.Signer, signerCtr uint64, darc darc.Darc, wait int, ed *sys.ExecutionData) (*AddWriteReply, error) {
+	write := calypso.NewWrite(cothority.Suite, iid, darc.GetBaseID(), X, data)
 	writeBuf, err := protobuf.Encode(write)
 	if err != nil {
 		return nil, err
