@@ -33,6 +33,6 @@
                 "name": "EasyRand",
                 "type": 4,
                 "numnodes": 7,
-                "txns" : ["Randomness"]
+                "txns" : ["InitDKG", "Randomness"]
         }
 ]

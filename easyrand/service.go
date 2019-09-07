@@ -90,6 +90,21 @@ func (s *EasyRand) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 
 // InitDKG starts the DKG protocol.
 func (s *EasyRand) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
+	// First verify the execution request
+	log.Info("InitDKG call")
+	db := s.scService.GetDB()
+	blk, err := db.GetLatest(db.GetByID(s.genesis))
+	if err != nil {
+		log.Errorf("Cannot get the latest block: %v", err)
+		return nil, err
+	}
+	verified := s.verifyExecutionRequest(DKG, blk, req.ExecData)
+	if !verified {
+		log.Errorf("Cannot verify execution plan")
+		return nil, fmt.Errorf("Cannot verify execution plan")
+	}
+	log.Lvlf1("Verify execution request success")
+	// Run DKG
 	tree := s.roster.GenerateStar()
 	pi, err := s.CreateProtocol(dkgProtoName, tree)
 	if err != nil {
@@ -117,8 +132,13 @@ func (s *EasyRand) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
 		log.Errorf("DKG did not finish")
 		return nil, errors.New("dkg did not finish")
 	}
-	//return &InitDKGReply{}, nil
-	return &InitDKGReply{Public: s.pubPoly.Commit()}, nil
+	// Collectively sign the execution plan
+	sig, err := s.signExecutionPlan(req.ExecData.ExecPlan)
+	if err != nil {
+		log.Errorf("Cannot produce blscosi signature: %v", err)
+		return nil, err
+	}
+	return &InitDKGReply{Public: s.pubPoly.Commit(), Sig: sig}, nil
 }
 
 // Randomness returns the public randomness.
@@ -231,7 +251,7 @@ func (s *EasyRand) storeShare(setup *dkgprotocol.Setup) error {
 	return nil
 }
 
-func (s *EasyRand) verify(msg []byte) error {
+func (s *EasyRand) verifyMessage(msg []byte) error {
 	if !bytes.Equal(msg, createNextMsg(s.blocks)) {
 		return errors.New("bad message")
 	}
@@ -270,7 +290,7 @@ func (s *EasyRand) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConf
 		}()
 		return pi, nil
 	case signProtoName:
-		pi, err := NewSignProtocol(tn, s.verify, s.distKeyStore.PriShare(), s.pubPoly, suite)
+		pi, err := NewSignProtocol(tn, s.verifyMessage, s.distKeyStore.PriShare(), s.pubPoly, suite)
 		if err != nil {
 			log.Errorf("Cannot initialize the signing protocol: %v", err)
 			return nil, err
@@ -288,7 +308,8 @@ func (s *EasyRand) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConf
 
 		return pi, nil
 	default:
-		return nil, errors.New("invalid protocol")
+		//return nil, errors.New("invalid protocol")
+		return nil, nil
 	}
 }
 
@@ -308,13 +329,13 @@ func newService(c *onet.Context) (onet.Service, error) {
 	}
 	_, err = s.ProtocolRegister(signProtoName, func(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
 		// TODO giving NewSignProtocol to pointers isn't so nice because these mutate
-		return NewSignProtocol(n, s.verify, s.distKeyStore.PriShare(), s.pubPoly, suite)
+		return NewSignProtocol(n, s.verifyMessage, s.distKeyStore.PriShare(), s.pubPoly, suite)
 	})
 	if err != nil {
 		log.Errorf("Registering protocol %s failed: %v", signProtoName, err)
 		return nil, err
 	}
-	err = s.RegisterHandlers(s.InitUnit, s.Randomness)
+	err = s.RegisterHandlers(s.InitUnit, s.InitDKG, s.Randomness)
 	if err != nil {
 		log.Errorf("Registering handlers failed: %v", err)
 		return nil, err

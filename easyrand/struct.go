@@ -8,6 +8,7 @@ import (
 	"go.dedis.ch/kyber/v3"
 )
 
+const DKG = "InitDKG"
 const RAND = "Randomness"
 
 type InitUnitRequest struct {

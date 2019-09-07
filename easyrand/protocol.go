@@ -19,11 +19,11 @@ type SignProtocol struct {
 	sigChan  chan sigChan
 	syncChan chan syncChan
 
-	verify    func([]byte) error
-	sk        *share.PriShare
-	pk        *share.PubPoly
-	suite     pairing.Suite
-	threshold int
+	verifyMesg func([]byte) error
+	sk         *share.PriShare
+	pk         *share.PubPoly
+	suite      pairing.Suite
+	threshold  int
 
 	FinalSignature chan []byte
 }
@@ -59,7 +59,7 @@ func NewSignProtocol(n *onet.TreeNodeInstance, vf func([]byte) error, sk *share.
 	numNodes := len(n.Roster().List)
 	t := &SignProtocol{
 		TreeNodeInstance: n,
-		verify:           vf,
+		verifyMesg:       vf,
 		sk:               sk,
 		pk:               pk,
 		suite:            suite,
@@ -85,7 +85,7 @@ func (p *SignProtocol) Start() error {
 func (p *SignProtocol) Dispatch() error {
 	defer p.Done()
 	initMsg := <-p.initChan
-	if err := p.verify(initMsg.Msg); err != nil {
+	if err := p.verifyMesg(initMsg.Msg); err != nil {
 		return err
 	}
 	log.Lvl3(p.ServerIdentity(), "signing")
