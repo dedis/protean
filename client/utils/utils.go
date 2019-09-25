@@ -5,13 +5,25 @@ import (
 	"io/ioutil"
 	"os"
 
+	"github.com/dedis/protean/compiler"
 	"github.com/dedis/protean/sys"
 	"github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3"
+	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/sign/schnorr"
 	"go.dedis.ch/onet/v3/log"
 )
+
+func PrepareExecutionData(planReply *compiler.ExecutionPlanReply, sigs map[string][]byte) *sys.ExecutionData {
+	return &sys.ExecutionData{
+		Index:       0,
+		ExecPlan:    planReply.ExecPlan,
+		ClientSigs:  sigs,
+		CompilerSig: planReply.Signature,
+		UnitSigs:    make([]protocol.BlsSignature, len(planReply.ExecPlan.Workflow.Nodes)),
+	}
+}
 
 func PrepareWorkflow(wFilePtr *string, dirInfo map[string]*sys.UnitInfo, publics []kyber.Point, all bool) (*sys.Workflow, error) {
 	var tmpWf []sys.WfJSON

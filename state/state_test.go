@@ -1,4 +1,4 @@
-package threshold
+package state
 
 import (
 	"flag"
@@ -23,6 +23,15 @@ func init() {
 	flag.StringVar(&wname, "wflow", "", "JSON file")
 }
 
+type cs struct {
+	total    int
+	hosts    []*onet.Server
+	roster   *onet.Roster
+	services []onet.Service
+	nodes    []*compiler.Service
+	cl       *compiler.Client
+}
+
 func initCompilerUnit(t *testing.T, local *onet.LocalTest, total int, roster *onet.Roster, hosts []*onet.Server, units []*sys.FunctionalUnit) {
 	compServices := local.GetServices(hosts[:total], compiler.GetServiceID())
 	compNodes := make([]*compiler.Service, len(compServices))
@@ -44,7 +53,7 @@ func TestMain(m *testing.M) {
 	log.MainTest(m)
 }
 
-func TestThreshold_Server(t *testing.T) {
+func TestState_Simple(t *testing.T) {
 	total := 14
 	compTotal := total / 2
 	local := onet.NewTCPTest(cothority.Suite)
@@ -62,8 +71,8 @@ func TestThreshold_Server(t *testing.T) {
 	require.NoError(t, err)
 	directory := reply.Directory
 
-	thServices := local.GetServices(hosts[compTotal:], thresholdID)
-	root := thServices[0].(*Service)
+	stServices := local.GetServices(hosts[compTotal:], stateID)
+	root := stServices[0].(*Service)
 	unitName := strings.Replace(ServiceName, "Service", "", 1)
 	val := directory[unitName]
 	txns := utils.ReverseMap(val.Txns)
@@ -82,92 +91,33 @@ func TestThreshold_Server(t *testing.T) {
 	require.NotNil(t, planReply.ExecPlan.Publics)
 	require.NotNil(t, planReply.Signature)
 
-	thCl := NewClient(unitRoster)
-	idx := 0
 	//ed := &sys.ExecutionData{
 	//ExecPlan:    planReply.ExecPlan,
 	//ClientSigs:  nil,
 	//CompilerSig: planReply.Signature,
 	//UnitSigs:    make([]protocol.BlsSignature, len(planReply.ExecPlan.Workflow.Nodes)),
 	//}
-	ed := cliutils.PrepareExecutionData(planReply, nil)
 
-	ed.Index = idx
-	id := GenerateRandBytes()
-	dkgReply, err := thCl.InitDKG(id, ed)
-	require.Nil(t, err)
-	ed.UnitSigs[idx] = dkgReply.Sig
-	idx++
+	//idx := 0
+	//stCl := NewClient(unitRoster)
+	//ed.Index = idx
+	//id := GenerateRandBytes()
+	//dkgReply, err := thCl.InitDKG(id, ed)
+	//require.Nil(t, err)
+	//ed.UnitSigs[idx] = dkgReply.Sig
+	//idx++
 
-	ed.Index = idx
-	mesgs, cts := GenerateMesgs(10, "Go Badgers!", dkgReply.X)
-	decReply, err := thCl.Decrypt(id, cts, true, ed)
-	require.NoError(t, err)
-	require.NotNil(t, decReply.Sig)
-	require.Nil(t, decReply.Partials)
-	for i, p := range decReply.Ps {
-		pt, err := p.Data()
-		require.Nil(t, err)
-		require.Equal(t, mesgs[i], pt)
-	}
-	ed.UnitSigs[idx] = decReply.Sig
-	idx++
+	//ed.Index = idx
+	//mesgs, cts := GenerateMesgs(10, "Go Badgers!", dkgReply.X)
+	//decReply, err := thCl.Decrypt(id, cts, true, ed)
+	//require.NoError(t, err)
+	//require.NotNil(t, decReply.Sig)
+	//require.Nil(t, decReply.Partials)
+	//for i, p := range decReply.Ps {
+	//pt, err := p.Data()
+	//require.Nil(t, err)
+	//require.Equal(t, mesgs[i], pt)
+	//}
+	//ed.UnitSigs[idx] = decReply.Sig
+	//idx++
 }
-
-//func TestThreshold_ServerFalse(t *testing.T) {
-//n := 10
-//local := onet.NewTCPTest(cothority.Suite)
-//hosts, roster, _ := local.GenTree(n, true)
-//defer local.CloseAll()
-
-//services := local.GetServices(hosts, thresholdID)
-//root := services[0].(*Service)
-//initReq := GenerateInitRequest(roster)
-//_, err := root.InitUnit(initReq)
-//require.Nil(t, err)
-
-//id := NewDKGID(GenerateRandBytes())
-//dkgReply, err := root.InitDKG(&InitDKGRequest{ID: id})
-//require.Nil(t, err)
-//mesgs, cs := GenerateMesgs(10, "Go Badgers!", dkgReply.X)
-//decReply, err := root.Decrypt(&DecryptRequest{ID: id, Cs: cs, Server: false})
-//require.Nil(t, err)
-//require.Nil(t, decReply.Ps)
-
-//ps := RecoverMessages(n, cs, decReply.Partials)
-//for i, p := range ps {
-//pt, err := p.Data()
-//require.Nil(t, err)
-//require.Equal(t, mesgs[i], pt)
-//}
-//}
-
-//func TestThreshold_Failures(t *testing.T) {
-//n := 10
-//local := onet.NewTCPTest(cothority.Suite)
-//hosts, roster, _ := local.GenTree(n, true)
-//defer local.CloseAll()
-
-//services := local.GetServices(hosts, thresholdID)
-//root := services[0].(*Service)
-//initReq := GenerateInitRequest(roster)
-//_, err := root.InitUnit(initReq)
-//require.Nil(t, err)
-
-//id := NewDKGID(GenerateRandBytes())
-//fakeID := NewDKGID(GenerateRandBytes())
-//dkgReply, err := root.InitDKG(&InitDKGRequest{ID: id})
-//require.Nil(t, err)
-//mesgs, cs := GenerateMesgs(10, "Go Badgers!", dkgReply.X)
-//_, err = root.Decrypt(&DecryptRequest{ID: fakeID, Cs: cs, Server: true})
-//require.Error(t, err)
-
-//_, newCs := GenerateMesgs(10, "On Wisconsin!", dkgReply.X)
-//decReply, err := root.Decrypt(&DecryptRequest{ID: id, Cs: newCs, Server: true})
-//require.Nil(t, err)
-//for i, p := range decReply.Ps {
-//p, err := p.Data()
-//require.Nil(t, err)
-//require.True(t, !bytes.Equal(p, mesgs[i]))
-//}
-//}

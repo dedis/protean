@@ -12,13 +12,15 @@ const CREAT = "CreateState"
 const UPD = "UpdateState"
 const PROOF = "GetProof"
 
-type KV struct {
-	Key   string
-	Value []byte
+type Keys struct {
+	// Hex strings
+	List []string
 }
 
-type Storage struct {
-	Data []KV
+type KV struct {
+	Key     string
+	Value   []byte
+	Version uint32
 }
 
 type InitUnitRequest struct {

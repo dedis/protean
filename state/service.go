@@ -46,6 +46,14 @@ func init() {
 		&CreateStateRequest{}, &CreateStateReply{}, &UpdateStateRequest{},
 		&UpdateStateReply{}, &SpawnDarcRequest{}, &SpawnDarcReply{},
 		&GetProofRequest{}, &GetProofReply{})
+	err = byzcoin.RegisterGlobalContract(ContractKeyValueID, contractValueFromBytes)
+	if err != nil {
+		log.ErrFatal(err)
+	}
+	err = byzcoin.RegisterGlobalContract(ContractCalyLotteryID, contractCalyLotteryFromBytes)
+	if err != nil {
+		log.ErrFatal(err)
+	}
 }
 
 func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
@@ -298,11 +306,6 @@ func newService(c *onet.Context) (onet.Service, error) {
 	err := s.RegisterHandlers(s.InitUnit, s.CreateState, s.UpdateState, s.SpawnDarc, s.GetProof)
 	if err != nil {
 		log.Errorf("Cannot register messages")
-		return nil, err
-	}
-	err = byzcoin.RegisterContract(c, ContractKeyValueID, contractValueFromBytes)
-	if err != nil {
-		log.Errorf("Cannot register contract %s: %v", ContractKeyValueID, err)
 		return nil, err
 	}
 	return s, nil

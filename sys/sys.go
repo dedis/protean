@@ -39,16 +39,13 @@ func PrepareUnits(roster *onet.Roster, uFilePtr *string) ([]*FunctionalUnit, err
 	units := make([]*FunctionalUnit, sz)
 	for i := 0; i < sz; i++ {
 		tmp := fus[i]
-		//sn := tmp.Name + "Service"
 		units[i] = &FunctionalUnit{
 			Type:     tmp.Type,
 			Name:     tmp.Name,
 			NumNodes: tmp.NumNodes,
 			Txns:     tmp.Txns,
 			Roster:   roster,
-			//Publics:  roster.Publics(),
 		}
-		//units[i].Publics = roster.ServicePublics(sn)
 		units[i].Publics = roster.ServicePublics(blscosi.ServiceName)
 	}
 	return units, nil

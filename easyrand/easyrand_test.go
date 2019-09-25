@@ -89,13 +89,7 @@ func TestRandom_Simple(t *testing.T) {
 
 	////////
 	randCl := NewClient(unitRoster)
-	ed := &sys.ExecutionData{
-		Index:       0,
-		ExecPlan:    planReply.ExecPlan,
-		ClientSigs:  nil,
-		CompilerSig: planReply.Signature,
-		UnitSigs:    make([]protocol.BlsSignature, len(planReply.ExecPlan.Workflow.Nodes)),
-	}
+	ed := cliutils.PrepareExecutionData(planReply, nil)
 	dkgReply, err := randCl.InitDKG(5, ed)
 	require.NoError(t, err)
 	require.NotNil(t, dkgReply.Public)

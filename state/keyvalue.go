@@ -11,6 +11,10 @@ import (
 
 const ContractKeyValueID = "keyValue"
 
+type Storage struct {
+	Data []KV
+}
+
 type contractValue struct {
 	byzcoin.BasicContract
 	Storage
@@ -36,7 +40,8 @@ func (c *contractValue) Spawn(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Instru
 	}
 	cs := &c.Storage
 	for _, kv := range inst.Spawn.Args {
-		cs.Data = append(cs.Data, KV{kv.Name, kv.Value})
+		//cs.Data = append(cs.Data, KV{kv.Name, kv.Value})
+		cs.Data = append(cs.Data, KV{Key: kv.Name, Value: kv.Value, Version: 0})
 	}
 	csBuf, err := protobuf.Encode(&c.Storage)
 	if err != nil {
@@ -99,10 +104,13 @@ func (cs *Storage) Update(args byzcoin.Arguments) {
 					break
 				}
 				cs.Data[i].Value = kv.Value
+				//TODO: Make sure this does not break things
+				cs.Data[i].Version++
 			}
 		}
 		if !updated {
-			cs.Data = append(cs.Data, KV{kv.Name, kv.Value})
+			//cs.Data = append(cs.Data, KV{kv.Name, kv.Value})
+			cs.Data = append(cs.Data, KV{Key: kv.Name, Value: kv.Value, Version: 0})
 		}
 	}
 }

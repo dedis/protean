@@ -3,6 +3,7 @@ package pristore
 import (
 	"bytes"
 	"flag"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -13,7 +14,6 @@ import (
 	cliutils "github.com/dedis/protean/client/utils"
 	"github.com/stretchr/testify/require"
 	"go.dedis.ch/cothority/v3"
-	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/calypso"
 	"go.dedis.ch/cothority/v3/darc"
@@ -98,13 +98,14 @@ func TestPristore_Multiple(t *testing.T) {
 	require.NotNil(t, planReply.Signature)
 
 	psCl := NewClient(unitRoster)
-	ed := &sys.ExecutionData{
-		Index:       0,
-		ExecPlan:    planReply.ExecPlan,
-		ClientSigs:  nil,
-		CompilerSig: planReply.Signature,
-		UnitSigs:    make([]protocol.BlsSignature, len(planReply.ExecPlan.Workflow.Nodes)),
-	}
+	//ed := &sys.ExecutionData{
+	//Index:       0,
+	//ExecPlan:    planReply.ExecPlan,
+	//ClientSigs:  nil,
+	//CompilerSig: planReply.Signature,
+	//UnitSigs:    make([]protocol.BlsSignature, len(planReply.ExecPlan.Workflow.Nodes)),
+	//}
+	ed := cliutils.PrepareExecutionData(planReply, nil)
 
 	// Admin (client) setting up Calyspo
 	ltsReply, err := psCl.CreateLTS(unitRoster, 2, ed)
@@ -136,13 +137,14 @@ func TestPristore_Multiple(t *testing.T) {
 	require.NotNil(t, writePlan.Signature)
 
 	psCl = NewClient(unitRoster)
-	ed = &sys.ExecutionData{
-		Index:       0,
-		ExecPlan:    writePlan.ExecPlan,
-		ClientSigs:  nil,
-		CompilerSig: writePlan.Signature,
-		UnitSigs:    make([]protocol.BlsSignature, len(writePlan.ExecPlan.Workflow.Nodes)),
-	}
+	//ed = &sys.ExecutionData{
+	//Index:       0,
+	//ExecPlan:    writePlan.ExecPlan,
+	//ClientSigs:  nil,
+	//CompilerSig: writePlan.Signature,
+	//UnitSigs:    make([]protocol.BlsSignature, len(writePlan.ExecPlan.Workflow.Nodes)),
+	//}
+	ed = cliutils.PrepareExecutionData(writePlan, nil)
 
 	data := []byte("mor daglar")
 	data2 := []byte("i remember mom")
@@ -177,13 +179,14 @@ func TestPristore_Multiple(t *testing.T) {
 	require.NotNil(t, readPlan.Signature)
 
 	psCl = NewClient(unitRoster)
-	ed = &sys.ExecutionData{
-		Index:       0,
-		ExecPlan:    readPlan.ExecPlan,
-		ClientSigs:  nil,
-		CompilerSig: readPlan.Signature,
-		UnitSigs:    make([]protocol.BlsSignature, len(readPlan.ExecPlan.Workflow.Nodes)),
-	}
+	//ed = &sys.ExecutionData{
+	//Index:       0,
+	//ExecPlan:    readPlan.ExecPlan,
+	//ClientSigs:  nil,
+	//CompilerSig: readPlan.Signature,
+	//UnitSigs:    make([]protocol.BlsSignature, len(readPlan.ExecPlan.Workflow.Nodes)),
+	//}
+	ed = cliutils.PrepareExecutionData(readPlan, nil)
 
 	readerCt := uint64(1)
 	//ctx, err = prepareReadTransaction(&wpr1.Proof, readers[0], readerCt)
@@ -241,6 +244,7 @@ func TestPristore_Multiple(t *testing.T) {
 	pt2, err := dr2.RecoverKey(readers[0])
 	require.True(t, bytes.Equal(pt2, data2))
 	require.NoError(t, err)
+	fmt.Println(string(pt1), string(pt2))
 }
 
 func prepareReadTransaction(proof *byzcoin.Proof, signer darc.Signer, signerCtr uint64) (byzcoin.ClientTransaction, error) {
@@ -267,6 +271,7 @@ func prepareReadTransaction(proof *byzcoin.Proof, signer darc.Signer, signerCtr 
 	}
 	err = ctx.FillSignersAndSignWith(signer)
 	if err != nil {
+		log.Errorf("Sign transaction failed: %v", err)
 		return ctx, err
 	}
 	return ctx, nil
