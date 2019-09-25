@@ -17,15 +17,25 @@ func NewClient(r *onet.Roster) *Client {
 	return &Client{Client: onet.NewClient(cothority.Suite, ServiceName), roster: r}
 }
 
-func (c *Client) InitUnit(scCfg *sys.ScConfig, bStore *sys.BaseStorage, interval time.Duration, typeDur time.Duration, timeout time.Duration) (*InitUnitReply, error) {
+//func (c *Client) InitUnit(scCfg *sys.ScConfig, bStore *sys.BaseStorage, interval time.Duration, typeDur time.Duration, timeout time.Duration) (*InitUnitReply, error) {
+//req := &InitUnitRequest{
+//Cfg: &sys.UnitConfig{
+//Roster:       c.roster,
+//ScCfg:        scCfg,
+//BaseStore:    bStore,
+//BlkInterval:  interval,
+//DurationType: typeDur,
+//},
+//Timeout: timeout,
+//}
+//reply := &InitUnitReply{}
+//err := c.SendProtobuf(c.roster.List[0], req, reply)
+//return reply, err
+//}
+
+func (c *Client) InitUnit(cfg *sys.UnitConfig, timeout time.Duration) (*InitUnitReply, error) {
 	req := &InitUnitRequest{
-		Cfg: &sys.UnitConfig{
-			Roster:       c.roster,
-			ScCfg:        scCfg,
-			BaseStore:    bStore,
-			BlkInterval:  interval,
-			DurationType: typeDur,
-		},
+		Cfg:     cfg,
 		Timeout: timeout,
 	}
 	reply := &InitUnitReply{}

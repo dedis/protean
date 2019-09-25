@@ -19,7 +19,7 @@ func TestShuffle(t *testing.T) {
 	hosts, roster, _ := local.GenTree(n, true)
 	defer local.CloseAll()
 
-	services := local.GetServices(hosts, serviceID)
+	services := local.GetServices(hosts, easyneffID)
 	root := services[0].(*EasyNeff)
 	// begin PROTEAN-related stuff
 	initReq := GenerateInitRequest(roster)
