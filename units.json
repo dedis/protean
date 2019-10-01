@@ -9,7 +9,7 @@
                 "name": "PriStore",
                 "type": 1,
                 "numnodes": 7,
-                "txns" : ["CreateLTS", "SpawnDarc", "AddWrite", "AddRead", "GetProof", "Decrypt"]
+                "txns" : ["CreateLTS", "SpawnDarc", "AddWrite", "AddRead", "AddReadBatch", "GetProof", "GetProofBatch", "Decrypt", "DecryptProofBatch"]
         },
         {
                 "name": "ThreshCrypto",

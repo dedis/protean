@@ -68,6 +68,6 @@ type GetProofRequest struct {
 }
 
 type GetProofReply struct {
-	*byzcoin.GetProofResponse
-	Sig protocol.BlsSignature
+	ProofResp *byzcoin.GetProofResponse
+	Sig       protocol.BlsSignature
 }

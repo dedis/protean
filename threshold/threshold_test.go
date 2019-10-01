@@ -68,7 +68,7 @@ func TestThreshold_Server(t *testing.T) {
 	val := directory[unitName]
 	txns := utils.ReverseMap(val.Txns)
 
-	cfg := utils.GenerateUnitConfig(compRoster.ServicePublics(compiler.ServiceName), unitRoster, val.UnitID, unitName, txns)
+	cfg := utils.GenerateUnitConfig(compRoster.ServicePublics(compiler.ServiceName), unitRoster, val.UnitID, unitName, txns, 10)
 	_, err = root.InitUnit(&InitUnitRequest{Cfg: cfg})
 	require.Nil(t, err)
 

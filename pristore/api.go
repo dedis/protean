@@ -1,6 +1,8 @@
 package pristore
 
 import (
+	"fmt"
+
 	"github.com/dedis/protean/sys"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/byzcoin"
@@ -84,8 +86,12 @@ func (c *Client) SpawnDarc(spawnDarc darc.Darc, wait int, ed *sys.ExecutionData)
 	return reply, err
 }
 
-func (c *Client) AddWrite(data []byte, iid byzcoin.InstanceID, X kyber.Point, signer darc.Signer, signerCtr uint64, darc darc.Darc, wait int, ed *sys.ExecutionData) (*AddWriteReply, error) {
-	write := calypso.NewWrite(cothority.Suite, iid, darc.GetBaseID(), X, data)
+func (c *Client) AddWrite(data []byte, ltsID byzcoin.InstanceID, X kyber.Point, signer darc.Signer, signerCtr uint64, darc darc.Darc, wait int, ed *sys.ExecutionData) (*AddWriteReply, error) {
+	write := calypso.NewWrite(cothority.Suite, ltsID, darc.GetBaseID(), X, data)
+	if write == nil {
+		log.Errorf("Cannot create Calypso write")
+		return nil, fmt.Errorf("Cannot create Calypso write")
+	}
 	writeBuf, err := protobuf.Encode(write)
 	if err != nil {
 		return nil, err
@@ -153,16 +159,43 @@ func (c *Client) AddRead(proof *byzcoin.Proof, signer darc.Signer, signerCtr uin
 	return reply, err
 }
 
-func (c *Client) Decrypt(wrProof byzcoin.Proof, rProof byzcoin.Proof, ed *sys.ExecutionData) (*DecryptReply, error) {
-	req := &DecryptRequest{
-		Request: &calypso.DecryptKey{
-			Read:  rProof,
-			Write: wrProof,
-		},
+func (c *Client) AddReadBatch(proofs []*byzcoin.Proof, signer darc.Signer, signerCtr uint64, wait int, ed *sys.ExecutionData) (*AddReadBatchReply, error) {
+	ctx := byzcoin.ClientTransaction{
+		Instructions: make([]byzcoin.Instruction, len(proofs)),
+	}
+	for i, p := range proofs {
+		instID := p.InclusionProof.Key()
+		read := &calypso.Read{
+			Write: byzcoin.NewInstanceID(instID),
+			Xc:    signer.Ed25519.Point,
+		}
+		readBuf, err := protobuf.Encode(read)
+		if err != nil {
+			log.Errorf("Protobuf encode error: %v", err)
+			return nil, err
+		}
+		ctx.Instructions[i] = byzcoin.Instruction{
+			InstanceID: byzcoin.NewInstanceID(instID),
+			Spawn: &byzcoin.Spawn{
+				ContractID: calypso.ContractReadID,
+				Args:       byzcoin.Arguments{{Name: "read", Value: readBuf}},
+			},
+			SignerCounter: []uint64{signerCtr},
+		}
+		signerCtr++
+	}
+	err := ctx.FillSignersAndSignWith(signer)
+	if err != nil {
+		log.Errorf("Sign transaction failed: %v", err)
+		return nil, err
+	}
+	req := &AddReadRequest{
+		Ctx:      ctx,
+		Wait:     wait,
 		ExecData: ed,
 	}
-	reply := &DecryptReply{}
-	err := c.SendProtobuf(c.roster.List[0], req, reply)
+	reply := &AddReadBatchReply{}
+	err = c.SendProtobuf(c.roster.List[0], req, reply)
 	return reply, err
 }
 
@@ -172,6 +205,47 @@ func (c *Client) GetProof(instID byzcoin.InstanceID, ed *sys.ExecutionData) (*Ge
 		ExecData:   ed,
 	}
 	reply := &GetProofReply{}
+	err := c.SendProtobuf(c.roster.List[0], req, reply)
+	return reply, err
+}
+
+func (c *Client) GetProofBatch(instIDs []byzcoin.InstanceID, ed *sys.ExecutionData) (*GetProofBatchReply, error) {
+	req := &GetProofBatchRequest{
+		InstanceIDs: instIDs,
+		ExecData:    ed,
+	}
+	reply := &GetProofBatchReply{}
+	err := c.SendProtobuf(c.roster.List[0], req, reply)
+	return reply, err
+}
+
+func (c *Client) Decrypt(wrProof *byzcoin.Proof, rProof *byzcoin.Proof, ed *sys.ExecutionData) (*DecryptReply, error) {
+	req := &DecryptRequest{
+		Request: &calypso.DecryptKey{
+			Read:  *rProof,
+			Write: *wrProof,
+		},
+		ExecData: ed,
+	}
+	reply := &DecryptReply{}
+	err := c.SendProtobuf(c.roster.List[0], req, reply)
+	return reply, err
+}
+
+func (c *Client) DecryptBatch(wrProofs []*byzcoin.Proof, rProofs []*byzcoin.Proof, ed *sys.ExecutionData) (*DecryptBatchReply, error) {
+	if len(wrProofs) != len(rProofs) {
+		return nil, fmt.Errorf("Number of write proofs does not match the number of read proofs")
+	}
+	sz := len(wrProofs)
+	dks := make([]*calypso.DecryptKey, sz)
+	for i := 0; i < sz; i++ {
+		dks[i] = &calypso.DecryptKey{
+			Read:  *rProofs[i],
+			Write: *wrProofs[i],
+		}
+	}
+	req := &DecryptBatchRequest{Requests: dks, ExecData: ed}
+	reply := &DecryptBatchReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)
 	return reply, err
 }

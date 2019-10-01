@@ -176,7 +176,7 @@ func CreateGenesisBlock(s *skipchain.Service, scCfg *sys.ScConfig, roster *onet.
 	return reply, err
 }
 
-func GenerateUnitConfig(compKeys []kyber.Point, roster *onet.Roster, id string, name string, txns map[string]string) *sys.UnitConfig {
+func GenerateUnitConfig(compKeys []kyber.Point, roster *onet.Roster, id string, name string, txns map[string]string, blkIntv time.Duration) *sys.UnitConfig {
 	scCfg := &sys.ScConfig{
 		MHeight: 2,
 		BHeight: 2,
@@ -188,10 +188,11 @@ func GenerateUnitConfig(compKeys []kyber.Point, roster *onet.Roster, id string, 
 		CompPublics: compKeys,
 	}
 	return &sys.UnitConfig{
-		Roster:       roster,
-		ScCfg:        scCfg,
-		BaseStore:    uData,
-		BlkInterval:  10,
+		Roster:    roster,
+		ScCfg:     scCfg,
+		BaseStore: uData,
+		//BlkInterval:  10,
+		BlkInterval:  blkIntv,
 		DurationType: time.Second,
 	}
 }

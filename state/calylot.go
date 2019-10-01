@@ -23,25 +23,20 @@ type contractCalyLottery struct {
 }
 
 type SetupData struct {
-	LTSID byzcoin.InstanceID
-	X     kyber.Point
+	LTSID    byzcoin.InstanceID
+	X        kyber.Point
+	CalyDarc *darc.Darc
 }
 
 type CalyLotteryStorage struct {
 	//Key: public key of the participant
 	//TODO: Removed sig from value. was it necessary?
 	//Value: proof + hash of ticket
-	//WriteData KVStorage
 	SetupData SetupData
 	// Key: public key in hex format || Value: encoded WriteDataValue
 	WriteData []KV
 	ReadData  []KV
-	//FinalData CalyData
 }
-
-//type KVStorage struct {
-//KV []KV
-//}
 
 type WriteDataValue struct {
 	// Index saves us from iterating over the array
@@ -81,14 +76,19 @@ func (c *contractCalyLottery) Spawn(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.
 		log.Errorf("Missing ltsid")
 		return
 	}
-	pkBytes := inst.Spawn.Args.Search("pubkey")
+	pkBytes := inst.Spawn.Args.Search("sharedpk")
 	if pkBytes == nil {
-		log.Errorf("Missing pubkey")
+		log.Errorf("Missing shared public key")
 		return
 	}
 	klBytes := inst.Spawn.Args.Search("keylist")
 	if klBytes == nil {
 		log.Errorf("Missing key list")
+		return
+	}
+	darcBytes := inst.Spawn.Args.Search("calydarc")
+	if darcBytes == nil {
+		log.Errorf("Missing darc")
 		return
 	}
 	keys := &Keys{}
@@ -97,14 +97,19 @@ func (c *contractCalyLottery) Spawn(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.
 		log.Errorf("Protobuf decode failed: %v", err)
 		return
 	}
+	darc := &darc.Darc{}
+	err = protobuf.Decode(darcBytes, darc)
+	if err != nil {
+		log.Errorf("Protobuf decode failed: %v", err)
+		return
+	}
 	// Create a KV entry for all the eligible lottery participants
 	for i, k := range keys.List {
 		var valBuf []byte
-		//wdv := &WriteDataValue{Index: i, Version: 0}
 		wdv := &WriteDataValue{Index: i}
 		valBuf, err = protobuf.Encode(wdv)
 		if err != nil {
-			log.Errorf("Protobuf encode failed: %v", err)
+			log.Errorf("[SPAWN] Protobuf encode failed: %v", err)
 			return
 		}
 		kv := KV{
@@ -122,6 +127,8 @@ func (c *contractCalyLottery) Spawn(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.
 	// Store Calypso public key
 	pk, err := encoding.StringHexToPoint(cothority.Suite, string(pkBytes))
 	cls.SetupData.X = pk
+	// Store Calypso darc
+	cls.SetupData.CalyDarc = darc
 	// Encode state change
 	clsBuf, err := protobuf.Encode(&c.CalyLotteryStorage)
 	if err != nil {
@@ -144,7 +151,7 @@ func (c *contractCalyLottery) Invoke(rst byzcoin.ReadOnlyStateTrie, inst byzcoin
 	}
 	cls := &c.CalyLotteryStorage
 	switch inst.Invoke.Command {
-	case "storeticket":
+	case "storejoin":
 		valBuf := inst.Invoke.Args.Search("data")
 		if valBuf == nil {
 			log.Errorf("Missing store ticket data")
@@ -152,7 +159,7 @@ func (c *contractCalyLottery) Invoke(rst byzcoin.ReadOnlyStateTrie, inst byzcoin
 		}
 		sig := inst.Invoke.Args.Search("sig")
 		if sig == nil {
-			log.Errorf("Missing store ticket data")
+			log.Errorf("Missing signature")
 			return
 		}
 		verBuf := inst.Invoke.Args.Search("version")
@@ -175,7 +182,7 @@ func (c *contractCalyLottery) Invoke(rst byzcoin.ReadOnlyStateTrie, inst byzcoin
 			return
 		}
 		// 2- Make sure that the client is updating the correct key
-		err = c.authorizeAccess(pkStr, valBuf, sig)
+		err = c.authorizeAccess(pkStr, valBuf, verBuf, sig)
 		if err != nil {
 			log.Errorf("Not authorized to update the value for key %v: %v", pkStr, err)
 			return
@@ -192,7 +199,7 @@ func (c *contractCalyLottery) Invoke(rst byzcoin.ReadOnlyStateTrie, inst byzcoin
 			byzcoin.NewStateChange(byzcoin.Update, inst.InstanceID, ContractCalyLotteryID, clsBuf, darcID),
 		}
 		return
-	case "logread":
+	case "storeread":
 		lrBuf := inst.Invoke.Args.Search("data")
 		if lrBuf == nil {
 			log.Errorf("Missing logread data")
@@ -249,13 +256,15 @@ func (c *contractCalyLottery) Invoke(rst byzcoin.ReadOnlyStateTrie, inst byzcoin
 	}
 }
 
-func (c *contractCalyLottery) authorizeAccess(pkStr string, data []byte, sig []byte) error {
+func (c *contractCalyLottery) authorizeAccess(pkStr string, valBuf []byte, verBuf []byte, sig []byte) error {
 	pk, err := encoding.StringHexToPoint(cothority.Suite, pkStr)
 	if err != nil {
 		return fmt.Errorf("cannot convert string to point - %v", err)
 	}
 	h := sha256.New()
-	h.Write(data)
+	//h.Write(data)
+	h.Write(valBuf)
+	h.Write(verBuf)
 	err = schnorr.Verify(cothority.Suite, pk, h.Sum(nil), sig)
 	if err != nil {
 		return fmt.Errorf("cannot verify signature - %v", err)

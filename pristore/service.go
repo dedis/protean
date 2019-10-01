@@ -44,7 +44,10 @@ func init() {
 		&AuthorizeRequest{}, &AuthorizeReply{}, &CreateLTSRequest{},
 		&CreateLTSReply{}, &SpawnDarcRequest{}, &SpawnDarcReply{},
 		&AddWriteRequest{}, &AddWriteReply{}, &AddReadRequest{},
-		&AddReadReply{}, &DecryptRequest{}, &DecryptReply{}, &GetProofRequest{}, &GetProofReply{})
+		&AddReadReply{}, &AddReadBatchReply{}, &GetProofRequest{},
+		&GetProofReply{}, &GetProofBatchRequest{},
+		&GetProofBatchReply{}, &DecryptRequest{}, &DecryptReply{},
+		&DecryptBatchRequest{}, &DecryptBatchReply{})
 }
 
 func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
@@ -295,7 +298,7 @@ func (s *Service) AddRead(req *AddReadRequest) (*AddReadReply, error) {
 	return reply, nil
 }
 
-func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
+func (s *Service) AddReadBatch(req *AddReadRequest) (*AddReadBatchReply, error) {
 	// First verify the execution request
 	db := s.scService.GetDB()
 	blk, err := db.GetLatest(db.GetByID(s.genesis))
@@ -303,15 +306,20 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 		log.Errorf("Cannot get the latest block: %v", err)
 		return nil, err
 	}
-	verified := s.verifyExecutionRequest(DEC, blk, req.ExecData)
+	verified := s.verifyExecutionRequest(READBATCH, blk, req.ExecData)
 	if !verified {
 		log.Errorf("Cannot verify execution plan")
 		return nil, fmt.Errorf("Cannot verify execution plan")
 	}
-	// Perform decrypt
-	dkr, err := s.calyService.DecryptKey(req.Request)
+	// Add read
+	_, err = s.byzService.AddTransaction(&byzcoin.AddTxRequest{
+		Version:       byzcoin.CurrentVersion,
+		SkipchainID:   s.byzID,
+		Transaction:   req.Ctx,
+		InclusionWait: req.Wait,
+	})
 	if err != nil {
-		log.Errorf("Decrypt error: %v", err)
+		log.Errorf("Cannot add read -- Byzcoin add transaction error: %v", err)
 		return nil, err
 	}
 	// Collectively sign the execution plan
@@ -320,7 +328,14 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 		log.Errorf("Cannot produce blscosi signature: %v", err)
 		return nil, err
 	}
-	return &DecryptReply{Reply: dkr, Sig: sig}, nil
+	reply := &AddReadBatchReply{
+		InstanceIDs: make([]byzcoin.InstanceID, len(req.Ctx.Instructions)),
+		Sig:         sig,
+	}
+	for i, inst := range req.Ctx.Instructions {
+		reply.InstanceIDs[i] = inst.DeriveID("")
+	}
+	return reply, nil
 }
 
 func (s *Service) GetProof(req *GetProofRequest) (*GetProofReply, error) {
@@ -352,7 +367,103 @@ func (s *Service) GetProof(req *GetProofRequest) (*GetProofReply, error) {
 		log.Errorf("Cannot produce blscosi signature: %v", err)
 		return nil, err
 	}
-	return &GetProofReply{GetProofResponse: gpr, Sig: sig}, nil
+	return &GetProofReply{ProofResp: gpr, Sig: sig}, nil
+}
+
+func (s *Service) GetProofBatch(req *GetProofBatchRequest) (*GetProofBatchReply, error) {
+	// First verify the execution request
+	db := s.scService.GetDB()
+	blk, err := db.GetLatest(db.GetByID(s.genesis))
+	if err != nil {
+		log.Errorf("Cannot get the latest block: %v", err)
+		return nil, err
+	}
+	verified := s.verifyExecutionRequest(PROOFBATCH, blk, req.ExecData)
+	if !verified {
+		log.Errorf("Cannot verify execution plan")
+		return nil, fmt.Errorf("Cannot verify execution plan")
+	}
+	// Get proofs
+	proofs := make([]*byzcoin.GetProofResponse, len(req.InstanceIDs))
+	for i, id := range req.InstanceIDs {
+		gpr, err := s.byzService.GetProof(&byzcoin.GetProof{
+			Version: byzcoin.CurrentVersion,
+			ID:      s.byzID,
+			Key:     id.Slice(),
+		})
+		if err != nil {
+			log.Errorf("GetProof request failed: %v", err)
+			return nil, err
+		}
+		proofs[i] = gpr
+	}
+	// Collectively sign the execution plan
+	sig, err := s.signExecutionPlan(req.ExecData.ExecPlan)
+	if err != nil {
+		log.Errorf("Cannot produce blscosi signature: %v", err)
+		return nil, err
+	}
+	return &GetProofBatchReply{ProofResps: proofs, Sig: sig}, nil
+}
+
+func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
+	// First verify the execution request
+	db := s.scService.GetDB()
+	blk, err := db.GetLatest(db.GetByID(s.genesis))
+	if err != nil {
+		log.Errorf("Cannot get the latest block: %v", err)
+		return nil, err
+	}
+	verified := s.verifyExecutionRequest(DEC, blk, req.ExecData)
+	if !verified {
+		log.Errorf("Cannot verify execution plan")
+		return nil, fmt.Errorf("Cannot verify execution plan")
+	}
+	// Perform decrypt
+	dkr, err := s.calyService.DecryptKey(req.Request)
+	if err != nil {
+		log.Errorf("Decrypt error: %v", err)
+		return nil, err
+	}
+	// Collectively sign the execution plan
+	sig, err := s.signExecutionPlan(req.ExecData.ExecPlan)
+	if err != nil {
+		log.Errorf("Cannot produce blscosi signature: %v", err)
+		return nil, err
+	}
+	return &DecryptReply{Reply: dkr, Sig: sig}, nil
+}
+
+func (s *Service) DecryptBatch(req *DecryptBatchRequest) (*DecryptBatchReply, error) {
+	// First verify the execution request
+	db := s.scService.GetDB()
+	blk, err := db.GetLatest(db.GetByID(s.genesis))
+	if err != nil {
+		log.Errorf("Cannot get the latest block: %v", err)
+		return nil, err
+	}
+	verified := s.verifyExecutionRequest(DECBATCH, blk, req.ExecData)
+	if !verified {
+		log.Errorf("Cannot verify execution plan")
+		return nil, fmt.Errorf("Cannot verify execution plan")
+	}
+	// Perform decrypt
+	replies := make([]*calypso.DecryptKeyReply, len(req.Requests))
+	for i, dkr := range req.Requests {
+		reply, err := s.calyService.DecryptKey(dkr)
+		if err != nil {
+			log.Errorf("Decrypt error: %v", err)
+			return nil, err
+		}
+		replies[i] = reply
+	}
+	// Collectively sign the execution plan
+	sig, err := s.signExecutionPlan(req.ExecData.ExecPlan)
+	if err != nil {
+		log.Errorf("Cannot produce blscosi signature: %v", err)
+		return nil, err
+	}
+	return &DecryptBatchReply{Replies: replies, Sig: sig}, nil
 }
 
 func (s *Service) verifyExecutionRequest(txnName string, blk *skipchain.SkipBlock, execData *sys.ExecutionData) bool {

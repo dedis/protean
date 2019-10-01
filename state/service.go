@@ -252,7 +252,7 @@ func (s *Service) GetProof(req *GetProofRequest) (*GetProofReply, error) {
 		log.Errorf("Cannot produce blscosi signature: %v", err)
 		return nil, err
 	}
-	return &GetProofReply{GetProofResponse: gpr, Sig: sig}, nil
+	return &GetProofReply{ProofResp: gpr, Sig: sig}, nil
 }
 
 func (s *Service) verifyExecutionRequest(txnName string, blk *skipchain.SkipBlock, execData *sys.ExecutionData) bool {

@@ -18,21 +18,6 @@ func NewClient(r *onet.Roster) *Client {
 	return &Client{Client: onet.NewClient(cothority.Suite, ServiceName), roster: r}
 }
 
-//func (c *Client) InitUnit(scCfg *sys.ScConfig, bStore *sys.BaseStorage, interval time.Duration, typeDur time.Duration) (*InitUnitReply, error) {
-//req := &InitUnitRequest{
-//Cfg: &sys.UnitConfig{
-//Roster:       c.roster,
-//ScCfg:        scCfg,
-//BaseStore:    bStore,
-//BlkInterval:  interval,
-//DurationType: typeDur,
-//},
-//}
-//reply := &InitUnitReply{}
-//err := c.SendProtobuf(c.roster.List[0], req, reply)
-//return reply, err
-//}
-
 func (c *Client) InitUnit(cfg *sys.UnitConfig) (*InitUnitReply, error) {
 	req := &InitUnitRequest{Cfg: cfg}
 	reply := &InitUnitReply{}
@@ -82,7 +67,7 @@ func (c *Client) CreateState(contractID string, kv []*KV, adminDarc darc.Darc, s
 	return reply, err
 }
 
-func (c *Client) UpdateState(contractID string, kv []*KV, instID byzcoin.InstanceID, signerCtr uint64, signer darc.Signer, wait int, ed *sys.ExecutionData) (*UpdateStateReply, error) {
+func (c *Client) UpdateState(contractID string, cmd string, kv []*KV, instID byzcoin.InstanceID, signerCtr uint64, signer darc.Signer, wait int, ed *sys.ExecutionData) (*UpdateStateReply, error) {
 	args := make(byzcoin.Arguments, len(kv))
 	for i, elt := range kv {
 		args[i] = byzcoin.Argument{Name: elt.Key, Value: elt.Value}
@@ -92,7 +77,7 @@ func (c *Client) UpdateState(contractID string, kv []*KV, instID byzcoin.Instanc
 			InstanceID: instID,
 			Invoke: &byzcoin.Invoke{
 				ContractID: contractID,
-				Command:    "update",
+				Command:    cmd,
 				Args:       args,
 			},
 			SignerCounter: []uint64{signerCtr},

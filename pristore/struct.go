@@ -15,8 +15,11 @@ const DARC = "SpawnDarc"
 const LTS = "CreateLTS"
 const WRITE = "AddWrite"
 const READ = "AddRead"
+const READBATCH = "AddReadBatch"
 const PROOF = "GetProof"
+const PROOFBATCH = "GetProofBatch"
 const DEC = "Decrypt"
+const DECBATCH = "DecryptBatch"
 
 type WriteData struct {
 	ltsID     byzcoin.InstanceID
@@ -85,6 +88,31 @@ type AddReadReply struct {
 	Sig        protocol.BlsSignature
 }
 
+type AddReadBatchReply struct {
+	InstanceIDs []byzcoin.InstanceID
+	Sig         protocol.BlsSignature
+}
+
+type GetProofRequest struct {
+	InstanceID byzcoin.InstanceID
+	ExecData   *sys.ExecutionData
+}
+
+type GetProofReply struct {
+	ProofResp *byzcoin.GetProofResponse
+	Sig       protocol.BlsSignature
+}
+
+type GetProofBatchRequest struct {
+	InstanceIDs []byzcoin.InstanceID
+	ExecData    *sys.ExecutionData
+}
+
+type GetProofBatchReply struct {
+	ProofResps []*byzcoin.GetProofResponse
+	Sig        protocol.BlsSignature
+}
+
 type DecryptRequest struct {
 	Request  *calypso.DecryptKey
 	ExecData *sys.ExecutionData
@@ -95,12 +123,12 @@ type DecryptReply struct {
 	Sig   protocol.BlsSignature
 }
 
-type GetProofRequest struct {
-	InstanceID byzcoin.InstanceID
-	ExecData   *sys.ExecutionData
+type DecryptBatchRequest struct {
+	Requests []*calypso.DecryptKey
+	ExecData *sys.ExecutionData
 }
 
-type GetProofReply struct {
-	*byzcoin.GetProofResponse
-	Sig protocol.BlsSignature
+type DecryptBatchReply struct {
+	Replies []*calypso.DecryptKeyReply
+	Sig     protocol.BlsSignature
 }

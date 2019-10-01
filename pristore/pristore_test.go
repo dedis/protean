@@ -79,7 +79,7 @@ func TestPristore_Multiple(t *testing.T) {
 	val := directory[unitName]
 	txns := utils.ReverseMap(val.Txns)
 
-	cfg := utils.GenerateUnitConfig(compRoster.ServicePublics(compiler.ServiceName), unitRoster, val.UnitID, unitName, txns)
+	cfg := utils.GenerateUnitConfig(compRoster.ServicePublics(compiler.ServiceName), unitRoster, val.UnitID, unitName, txns, 10)
 	initReply, err := root.InitUnit(&InitUnitRequest{Cfg: cfg})
 	require.Nil(t, err)
 	for _, svc := range pristoreSvcs {
@@ -179,28 +179,17 @@ func TestPristore_Multiple(t *testing.T) {
 	require.NotNil(t, readPlan.Signature)
 
 	psCl = NewClient(unitRoster)
-	//ed = &sys.ExecutionData{
-	//Index:       0,
-	//ExecPlan:    readPlan.ExecPlan,
-	//ClientSigs:  nil,
-	//CompilerSig: readPlan.Signature,
-	//UnitSigs:    make([]protocol.BlsSignature, len(readPlan.ExecPlan.Workflow.Nodes)),
-	//}
 	ed = cliutils.PrepareExecutionData(readPlan, nil)
 
 	readerCt := uint64(1)
-	//ctx, err = prepareReadTransaction(&wpr1.Proof, readers[0], readerCt)
-	//require.NoError(t, err)
-	//r1, err := root.AddRead(&AddReadRequest{Ctx: ctx, Wait: 0})
-	r1, err := psCl.AddRead(&wpr1.Proof, readers[0], readerCt, 0, ed)
+	//r1, err := psCl.AddRead(&wpr1.Proof, readers[0], readerCt, 0, ed)
+	r1, err := psCl.AddRead(&wpr1.ProofResp.Proof, readers[0], readerCt, 0, ed)
 	require.NoError(t, err)
 	readerCt++
 	ed.UnitSigs[ed.Index] = r1.Sig
 	ed.Index++
-	//ctx, err = prepareReadTransaction(&wpr2.Proof, readers[0], readerCt)
-	//require.NoError(t, err)
-	//r2, err := root.AddRead(&AddReadRequest{Ctx: ctx, Wait: 2})
-	r2, err := psCl.AddRead(&wpr2.Proof, readers[0], readerCt, 2, ed)
+	//r2, err := psCl.AddRead(&wpr2.Proof, readers[0], readerCt, 2, ed)
+	r2, err := psCl.AddRead(&wpr2.ProofResp.Proof, readers[0], readerCt, 2, ed)
 	require.NoError(t, err)
 	readerCt++
 	ed.UnitSigs[ed.Index] = r2.Sig
@@ -214,14 +203,18 @@ func TestPristore_Multiple(t *testing.T) {
 	require.NoError(t, err)
 	ed.UnitSigs[ed.Index] = rpr2.Sig
 	ed.Index++
-	require.True(t, rpr1.Proof.InclusionProof.Match(r1.InstanceID.Slice()))
-	require.True(t, rpr2.Proof.InclusionProof.Match(r2.InstanceID.Slice()))
+	//require.True(t, rpr1.Proof.InclusionProof.Match(r1.InstanceID.Slice()))
+	//require.True(t, rpr2.Proof.InclusionProof.Match(r2.InstanceID.Slice()))
+	require.True(t, rpr1.ProofResp.Proof.InclusionProof.Match(r1.InstanceID.Slice()))
+	require.True(t, rpr2.ProofResp.Proof.InclusionProof.Match(r2.InstanceID.Slice()))
 
-	dr1, err := psCl.Decrypt(wpr1.Proof, rpr1.Proof, ed)
+	//dr1, err := psCl.Decrypt(wpr1.Proof, rpr1.Proof, ed)
+	dr1, err := psCl.Decrypt(&wpr1.ProofResp.Proof, &rpr1.ProofResp.Proof, ed)
 	require.NoError(t, err)
 	ed.UnitSigs[ed.Index] = rpr2.Sig
 	ed.Index++
-	dr2, err := psCl.Decrypt(wpr2.Proof, rpr2.Proof, ed)
+	//dr2, err := psCl.Decrypt(wpr2.Proof, rpr2.Proof, ed)
+	dr2, err := psCl.Decrypt(&wpr2.ProofResp.Proof, &rpr2.ProofResp.Proof, ed)
 	require.NoError(t, err)
 	ed.UnitSigs[ed.Index] = rpr2.Sig
 	ed.Index++
@@ -265,32 +258,6 @@ func prepareReadTransaction(proof *byzcoin.Proof, signer darc.Signer, signerCtr 
 			Spawn: &byzcoin.Spawn{
 				ContractID: calypso.ContractReadID,
 				Args:       byzcoin.Arguments{{Name: "read", Value: readBuf}},
-			},
-			SignerCounter: []uint64{signerCtr},
-		}},
-	}
-	err = ctx.FillSignersAndSignWith(signer)
-	if err != nil {
-		log.Errorf("Sign transaction failed: %v", err)
-		return ctx, err
-	}
-	return ctx, nil
-}
-
-func prepareWriteTransaction(ltsReply *CreateLTSReply, data []byte, signer darc.Signer, signerCtr uint64, darc darc.Darc) (byzcoin.ClientTransaction, error) {
-	var ctx byzcoin.ClientTransaction
-	write := calypso.NewWrite(cothority.Suite, ltsReply.Reply.InstanceID, darc.GetBaseID(), ltsReply.Reply.X, data)
-	writeBuf, err := protobuf.Encode(write)
-	if err != nil {
-		return ctx, err
-	}
-	ctx = byzcoin.ClientTransaction{
-		Instructions: byzcoin.Instructions{{
-			InstanceID: byzcoin.NewInstanceID(darc.GetBaseID()),
-			Spawn: &byzcoin.Spawn{
-				ContractID: calypso.ContractWriteID,
-				Args: byzcoin.Arguments{{
-					Name: "write", Value: writeBuf}},
 			},
 			SignerCounter: []uint64{signerCtr},
 		}},
