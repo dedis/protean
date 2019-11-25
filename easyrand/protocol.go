@@ -104,7 +104,7 @@ func (p *SignProtocol) Dispatch() error {
 		sigMsg := <-p.sigChan
 		sigs[i] = sigMsg.ThresholdSig
 	}
-	// TODO fix the threshold
+	//Fixed the threshold
 	//finalSig, err := tbls.Recover(p.suite, p.pk, initMsg.Msg, sigs, n-1, n)
 	finalSig, err := tbls.Recover(p.suite, p.pk, initMsg.Msg, sigs, p.threshold, n)
 	if err != nil {

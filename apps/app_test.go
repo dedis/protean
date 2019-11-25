@@ -189,6 +189,7 @@ func Test_CalypsoLottery_Simple(t *testing.T) {
 	defer stCl.Close()
 	defer psCl.Close()
 
+	orgCtr = uint64(1)
 	gpReply, err := stCl.GetProof(iid, ed)
 	require.NoError(t, err)
 	require.True(t, gpReply.ProofResp.Proof.InclusionProof.Match(iid[:]))
@@ -196,23 +197,22 @@ func Test_CalypsoLottery_Simple(t *testing.T) {
 	storage := state.CalyLotteryStorage{}
 	err = protobuf.Decode(value, &storage)
 	require.NoError(t, err)
-	writeData := storage.WriteData
+	lotteryData := storage.LotteryData
 	ed.UnitSigs[ed.Index] = gpReply.Sig
 	ed.Index++
-	wrProofs, err := getWriteProofs(writeData)
-	require.NoError(t, err)
-	readReply, err := psCl.AddReadBatch(wrProofs, organizer, orgCtr, 3, ed)
+	wrProofs := getWriteProofs(lotteryData)
+	rbReply, err := psCl.AddReadBatch(wrProofs, organizer, orgCtr, 3, ed)
 	require.NoError(t, err)
 	orgCtr += uint64(len(wrProofs))
-	ed.UnitSigs[ed.Index] = readReply.Sig
+	ed.UnitSigs[ed.Index] = rbReply.Sig
 	ed.Index++
 
-	gpbReply, err := psCl.GetProofBatch(readReply.InstanceIDs, ed)
+	gpbReply, err := psCl.GetProofBatch(rbReply.IIDBatch, ed)
 	require.NoError(t, err)
-	rProofs := getReadProofs(gpbReply.ProofResps)
-	for i, pr := range rProofs {
-		require.True(t, pr.InclusionProof.Match(readReply.InstanceIDs[i].Slice()))
-	}
+	rProofs := getReadProofs(gpbReply.PrBatch)
+	//for i, pr := range rProofs {
+	//require.True(t, pr.InclusionProof.Match(rbReply.InstanceIDs[i].Slice()))
+	//}
 	ed.UnitSigs[ed.Index] = gpbReply.Sig
 	ed.Index++
 
@@ -223,28 +223,30 @@ func Test_CalypsoLottery_Simple(t *testing.T) {
 	// END FINALIZE WORKFLOW (LOTTERY ORGANIZER)
 }
 
-func getReadProofs(resps []*byzcoin.GetProofResponse) []*byzcoin.Proof {
-	sz := len(resps)
+func getReadProofs(prBatch []*pristore.GPR) []*byzcoin.Proof {
+	sz := len(prBatch)
 	proofs := make([]*byzcoin.Proof, sz)
-	for i, r := range resps {
-		proofs[i] = &r.Proof
+	for i, pr := range prBatch {
+		if pr.Valid {
+			proofs[i] = &pr.Resp.Proof
+		}
 	}
 	return proofs
 }
 
-func getWriteProofs(wd []state.KV) ([]*byzcoin.Proof, error) {
+func getWriteProofs(wd []state.KV) []*byzcoin.Proof {
 	sz := len(wd)
 	proofs := make([]*byzcoin.Proof, sz)
 	for i, data := range wd {
-		wdv := &state.WriteDataValue{}
+		wdv := &state.LotteryDataValue{}
 		err := protobuf.Decode(data.Value, wdv)
 		if err != nil {
 			log.Errorf("Protobuf decode error: %v", err)
-			return nil, err
+		} else {
+			proofs[i] = wdv.WrProof
 		}
-		proofs[i] = wdv.WrProof
 	}
-	return proofs, nil
+	return proofs
 }
 
 func runJoinWorkflow(t *testing.T, compRoster *onet.Roster, unitRoster *onet.Roster, directory map[string]*sys.UnitInfo, idx int, iid byzcoin.InstanceID, signer darc.Signer) error {
@@ -310,9 +312,10 @@ func prepareLotteryTicket() (*TicketData, error) {
 	//key := buf[:32]
 	//nonce := buf[32:]
 	key := make([]byte, 24)
-	random.Bytes(key, random.New())
 	nonce := make([]byte, 12)
+	random.Bytes(key, random.New())
 	random.Bytes(nonce, random.New())
+	// Encrypt ticket using a symmetric key
 	aes, err := aes.NewCipher(key)
 	if err != nil {
 		log.Errorf("Cannot initialize aes")
@@ -325,9 +328,11 @@ func prepareLotteryTicket() (*TicketData, error) {
 	}
 	c := aesgcm.Seal(nil, nonce, ticket, nil)
 	c = append(c, nonce...)
+	// Compute H(ticket)
 	h := sha256.New()
 	h.Write(ticket)
 	th := h.Sum(nil)
+	// Compute H(key)
 	h = sha256.New()
 	h.Write(key)
 	kh := h.Sum(nil)

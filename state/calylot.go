@@ -33,23 +33,18 @@ type CalyLotteryStorage struct {
 	//TODO: Removed sig from value. was it necessary?
 	//Value: proof + hash of ticket
 	SetupData SetupData
-	// Key: public key in hex format || Value: encoded WriteDataValue
-	WriteData []KV
-	ReadData  []KV
+	// Key: public key in hex format || Value: encoded LotteryDataValue
+	LotteryData []KV
 }
 
-type WriteDataValue struct {
+type LotteryDataValue struct {
 	// Index saves us from iterating over the array
 	Index      int
 	WrProof    *byzcoin.Proof
 	Ct         []byte // Encrypted ticket
 	KeyHash    []byte // Hash of the symmetric key
 	TicketHash []byte //Hash of the ticket
-}
-
-type ReadDataValue struct {
-	Index  int
-	RProof *byzcoin.Proof
+	RProof     *byzcoin.Proof
 }
 
 func contractCalyLotteryFromBytes(in []byte) (byzcoin.Contract, error) {
@@ -106,10 +101,10 @@ func (c *contractCalyLottery) Spawn(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.
 	// Create a KV entry for all the eligible lottery participants
 	for i, k := range keys.List {
 		var valBuf []byte
-		wdv := &WriteDataValue{Index: i}
-		valBuf, err = protobuf.Encode(wdv)
+		value := &LotteryDataValue{Index: i}
+		valBuf, err = protobuf.Encode(value)
 		if err != nil {
-			log.Errorf("[SPAWN] Protobuf encode failed: %v", err)
+			log.Errorf("Protobuf encode failed: %v", err)
 			return
 		}
 		kv := KV{
@@ -118,10 +113,8 @@ func (c *contractCalyLottery) Spawn(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.
 			Value:   valBuf,
 			Version: 0,
 		}
-		cls.WriteData = append(cls.WriteData, kv)
+		cls.LotteryData = append(cls.LotteryData, kv)
 	}
-	// Initialize ReadData
-	cls.ReadData = make([]KV, len(keys.List))
 	// Store LTSID
 	copy(cls.SetupData.LTSID[:], ltsIDBytes)
 	// Store Calypso public key
@@ -167,15 +160,15 @@ func (c *contractCalyLottery) Invoke(rst byzcoin.ReadOnlyStateTrie, inst byzcoin
 			log.Errorf("Missing version number")
 			return
 		}
-		wdv := &WriteDataValue{}
-		err = protobuf.Decode(valBuf, wdv)
+		val := &LotteryDataValue{}
+		err = protobuf.Decode(valBuf, val)
 		if err != nil {
 			log.Errorf("Protobuf decode failed: %v", err)
 			return
 		}
 		// 1- Check the version number
 		version := binary.LittleEndian.Uint32(verBuf)
-		kvPair := cls.WriteData[wdv.Index]
+		kvPair := cls.LotteryData[val.Index]
 		pkStr := kvPair.Key
 		if (kvPair.Version + 1) != version {
 			log.Errorf("New version number has to be %d, not %d", kvPair.Version+1, version)
@@ -187,8 +180,8 @@ func (c *contractCalyLottery) Invoke(rst byzcoin.ReadOnlyStateTrie, inst byzcoin
 			log.Errorf("Not authorized to update the value for key %v: %v", pkStr, err)
 			return
 		}
-		cls.WriteData[wdv.Index].Value = valBuf
-		cls.WriteData[wdv.Index].Version = version
+		cls.LotteryData[val.Index].Value = valBuf
+		cls.LotteryData[val.Index].Version = version
 		var clsBuf []byte
 		clsBuf, err = protobuf.Encode(&c.CalyLotteryStorage)
 		if err != nil {
@@ -200,40 +193,35 @@ func (c *contractCalyLottery) Invoke(rst byzcoin.ReadOnlyStateTrie, inst byzcoin
 		}
 		return
 	case "storeread":
-		lrBuf := inst.Invoke.Args.Search("data")
-		if lrBuf == nil {
-			log.Errorf("Missing logread data")
-			return
-		}
-		verBuf := inst.Invoke.Args.Search("version")
-		if verBuf == nil {
-			log.Errorf("Missing version number")
-			return
-		}
-		rdv := &ReadDataValue{}
-		err = protobuf.Decode(lrBuf, rdv)
-		if err != nil {
-			log.Errorf("Protobuf decode failed: %v", err)
-			return
-		}
-		// 1- Check the version number
-		version := binary.LittleEndian.Uint32(verBuf)
-		kvPair := cls.ReadData[rdv.Index]
-		if (kvPair.Version + 1) != version {
-			log.Errorf("New version number has to be %d, not %d", kvPair.Version+1, version)
-			return
-		}
-		cls.ReadData[rdv.Index].Value = lrBuf
-		cls.ReadData[rdv.Index].Version = version
-		var clsBuf []byte
-		clsBuf, err = protobuf.Encode(&c.CalyLotteryStorage)
-		if err != nil {
-			log.Errorf("Protobuf encode failed: %v", err)
-			return
-		}
-		sc = []byzcoin.StateChange{
-			byzcoin.NewStateChange(byzcoin.Update, inst.InstanceID, ContractCalyLotteryID, clsBuf, darcID),
-		}
+		//dataBuf := inst.Invoke.Args.Search("data")
+		//if dataBuf == nil {
+		//log.Errorf("Missing storeread data")
+		//return
+		//}
+		//proof := &byzcoin.Proof{}
+		//err = protobuf.Decode(lrBuf, rdv)
+		//if err != nil {
+		//log.Errorf("Protobuf decode failed: %v", err)
+		//return
+		//}
+		//// 1- Check the version number
+		//version := binary.LittleEndian.Uint32(verBuf)
+		//kvPair := cls.ReadData[rdv.Index]
+		//if (kvPair.Version + 1) != version {
+		//log.Errorf("New version number has to be %d, not %d", kvPair.Version+1, version)
+		//return
+		//}
+		//cls.ReadData[rdv.Index].Value = lrBuf
+		//cls.ReadData[rdv.Index].Version = version
+		//var clsBuf []byte
+		//clsBuf, err = protobuf.Encode(&c.CalyLotteryStorage)
+		//if err != nil {
+		//log.Errorf("Protobuf encode failed: %v", err)
+		//return
+		//}
+		//sc = []byzcoin.StateChange{
+		//byzcoin.NewStateChange(byzcoin.Update, inst.InstanceID, ContractCalyLotteryID, clsBuf, darcID),
+		//}
 		return
 	case "finalize":
 		tBuf := inst.Invoke.Args.Search("ticket")

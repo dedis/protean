@@ -21,27 +21,11 @@ import (
 type Client struct {
 	*onet.Client
 	roster *onet.Roster
-	//ltsReply *calypso.CreateLTSReply
 }
 
 func NewClient(r *onet.Roster) *Client {
 	return &Client{Client: onet.NewClient(cothority.Suite, ServiceName), roster: r}
 }
-
-//func (c *Client) InitUnit(scCfg *sys.ScConfig, bStore *sys.BaseStorage, interval time.Duration, typeDur time.Duration) (*InitUnitReply, error) {
-//req := &InitUnitRequest{
-//Cfg: &sys.UnitConfig{
-//Roster:       c.roster,
-//ScCfg:        scCfg,
-//BaseStore:    bStore,
-//BlkInterval:  interval,
-//DurationType: typeDur,
-//},
-//}
-//reply := &InitUnitReply{}
-//err := c.SendProtobuf(c.roster.List[0], req, reply)
-//return reply, err
-//}
 
 func (c *Client) InitUnit(cfg *sys.UnitConfig) (*InitUnitReply, error) {
 	req := &InitUnitRequest{Cfg: cfg}
@@ -69,9 +53,6 @@ func (c *Client) CreateLTS(ltsRoster *onet.Roster, wait int, ed *sys.ExecutionDa
 	}
 	reply := &CreateLTSReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)
-	//if err == nil {
-	//c.ltsReply = reply.Reply
-	//}
 	return reply, err
 }
 
@@ -160,42 +141,46 @@ func (c *Client) AddRead(proof *byzcoin.Proof, signer darc.Signer, signerCtr uin
 }
 
 func (c *Client) AddReadBatch(proofs []*byzcoin.Proof, signer darc.Signer, signerCtr uint64, wait int, ed *sys.ExecutionData) (*AddReadBatchReply, error) {
-	ctx := byzcoin.ClientTransaction{
-		Instructions: make([]byzcoin.Instruction, len(proofs)),
-	}
+	ctxs := make([]byzcoin.ClientTransaction, len(proofs))
 	for i, p := range proofs {
-		instID := p.InclusionProof.Key()
-		read := &calypso.Read{
-			Write: byzcoin.NewInstanceID(instID),
-			Xc:    signer.Ed25519.Point,
+		// Create a read transaction only if the write proof is
+		// available
+		if p != nil {
+			instID := p.InclusionProof.Key()
+			read := &calypso.Read{
+				Write: byzcoin.NewInstanceID(instID),
+				Xc:    signer.Ed25519.Point,
+			}
+			readBuf, err := protobuf.Encode(read)
+			if err != nil {
+				log.Errorf("Protobuf encode error: %v", err)
+				return nil, err
+			}
+			ctxs[i] = byzcoin.ClientTransaction{
+				Instructions: byzcoin.Instructions{{
+					InstanceID: byzcoin.NewInstanceID(instID),
+					Spawn: &byzcoin.Spawn{
+						ContractID: calypso.ContractReadID,
+						Args:       byzcoin.Arguments{{Name: "read", Value: readBuf}},
+					},
+					SignerCounter: []uint64{signerCtr},
+				}},
+			}
+			err = ctxs[i].FillSignersAndSignWith(signer)
+			if err != nil {
+				log.Errorf("Sign transaction failed: %v", err)
+				return nil, err
+			}
+			signerCtr++
 		}
-		readBuf, err := protobuf.Encode(read)
-		if err != nil {
-			log.Errorf("Protobuf encode error: %v", err)
-			return nil, err
-		}
-		ctx.Instructions[i] = byzcoin.Instruction{
-			InstanceID: byzcoin.NewInstanceID(instID),
-			Spawn: &byzcoin.Spawn{
-				ContractID: calypso.ContractReadID,
-				Args:       byzcoin.Arguments{{Name: "read", Value: readBuf}},
-			},
-			SignerCounter: []uint64{signerCtr},
-		}
-		signerCtr++
 	}
-	err := ctx.FillSignersAndSignWith(signer)
-	if err != nil {
-		log.Errorf("Sign transaction failed: %v", err)
-		return nil, err
-	}
-	req := &AddReadRequest{
-		Ctx:      ctx,
+	req := &AddReadBatchRequest{
+		Ctxs:     ctxs,
 		Wait:     wait,
 		ExecData: ed,
 	}
 	reply := &AddReadBatchReply{}
-	err = c.SendProtobuf(c.roster.List[0], req, reply)
+	err := c.SendProtobuf(c.roster.List[0], req, reply)
 	return reply, err
 }
 
@@ -209,10 +194,10 @@ func (c *Client) GetProof(instID byzcoin.InstanceID, ed *sys.ExecutionData) (*Ge
 	return reply, err
 }
 
-func (c *Client) GetProofBatch(instIDs []byzcoin.InstanceID, ed *sys.ExecutionData) (*GetProofBatchReply, error) {
+func (c *Client) GetProofBatch(iidBatch []*IID, ed *sys.ExecutionData) (*GetProofBatchReply, error) {
 	req := &GetProofBatchRequest{
-		InstanceIDs: instIDs,
-		ExecData:    ed,
+		IIDBatch: iidBatch,
+		ExecData: ed,
 	}
 	reply := &GetProofBatchReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)

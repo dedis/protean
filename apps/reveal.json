@@ -20,7 +20,7 @@
         {
                 "index": 3,
                 "uname": "PriStore",
-                "tname": "DecryptKeyBatch",
+                "tname": "DecryptBatch",
                 "deps" : [2]
         }
 ]

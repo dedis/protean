@@ -21,6 +21,16 @@ const PROOFBATCH = "GetProofBatch"
 const DEC = "Decrypt"
 const DECBATCH = "DecryptBatch"
 
+type IID struct {
+	Valid bool
+	ID    byzcoin.InstanceID
+}
+
+type GPR struct {
+	Valid bool
+	Resp  *byzcoin.GetProofResponse
+}
+
 type WriteData struct {
 	ltsID     byzcoin.InstanceID
 	writeDarc darc.ID
@@ -88,9 +98,15 @@ type AddReadReply struct {
 	Sig        protocol.BlsSignature
 }
 
+type AddReadBatchRequest struct {
+	Ctxs     []byzcoin.ClientTransaction
+	Wait     int
+	ExecData *sys.ExecutionData
+}
+
 type AddReadBatchReply struct {
-	InstanceIDs []byzcoin.InstanceID
-	Sig         protocol.BlsSignature
+	IIDBatch []*IID
+	Sig      protocol.BlsSignature
 }
 
 type GetProofRequest struct {
@@ -104,13 +120,13 @@ type GetProofReply struct {
 }
 
 type GetProofBatchRequest struct {
-	InstanceIDs []byzcoin.InstanceID
-	ExecData    *sys.ExecutionData
+	IIDBatch []*IID
+	ExecData *sys.ExecutionData
 }
 
 type GetProofBatchReply struct {
-	ProofResps []*byzcoin.GetProofResponse
-	Sig        protocol.BlsSignature
+	PrBatch []*GPR
+	Sig     protocol.BlsSignature
 }
 
 type DecryptRequest struct {

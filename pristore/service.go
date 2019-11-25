@@ -44,8 +44,8 @@ func init() {
 		&AuthorizeRequest{}, &AuthorizeReply{}, &CreateLTSRequest{},
 		&CreateLTSReply{}, &SpawnDarcRequest{}, &SpawnDarcReply{},
 		&AddWriteRequest{}, &AddWriteReply{}, &AddReadRequest{},
-		&AddReadReply{}, &AddReadBatchReply{}, &GetProofRequest{},
-		&GetProofReply{}, &GetProofBatchRequest{},
+		&AddReadReply{}, &AddReadBatchRequest{}, &AddReadBatchReply{},
+		&GetProofRequest{}, &GetProofReply{}, &GetProofBatchRequest{},
 		&GetProofBatchReply{}, &DecryptRequest{}, &DecryptReply{},
 		&DecryptBatchRequest{}, &DecryptBatchReply{})
 }
@@ -298,7 +298,7 @@ func (s *Service) AddRead(req *AddReadRequest) (*AddReadReply, error) {
 	return reply, nil
 }
 
-func (s *Service) AddReadBatch(req *AddReadRequest) (*AddReadBatchReply, error) {
+func (s *Service) AddReadBatch(req *AddReadBatchRequest) (*AddReadBatchReply, error) {
 	// First verify the execution request
 	db := s.scService.GetDB()
 	blk, err := db.GetLatest(db.GetByID(s.genesis))
@@ -312,15 +312,34 @@ func (s *Service) AddReadBatch(req *AddReadRequest) (*AddReadBatchReply, error) 
 		return nil, fmt.Errorf("Cannot verify execution plan")
 	}
 	// Add read
-	_, err = s.byzService.AddTransaction(&byzcoin.AddTxRequest{
-		Version:       byzcoin.CurrentVersion,
-		SkipchainID:   s.byzID,
-		Transaction:   req.Ctx,
-		InclusionWait: req.Wait,
-	})
-	if err != nil {
-		log.Errorf("Cannot add read -- Byzcoin add transaction error: %v", err)
-		return nil, err
+	sz := len(req.Ctxs)
+	iidBatch := make([]*IID, sz)
+	for i, tx := range req.Ctxs {
+		// Check if the txn is empty
+		iid := &IID{Valid: false}
+		if len(tx.Instructions) != 0 {
+			addReq := &byzcoin.AddTxRequest{
+				Version:     byzcoin.CurrentVersion,
+				SkipchainID: s.byzID,
+				Transaction: tx,
+			}
+			// Call AddTransaction with wait only on the last one
+			if i != sz-1 {
+				addReq.InclusionWait = 0
+			} else {
+				addReq.InclusionWait = req.Wait
+			}
+			_, err := s.byzService.AddTransaction(addReq)
+			if err != nil {
+				log.Errorf("Cannot add read -- Byzcoin add transaction error: %v", err)
+			} else {
+				iid.ID = tx.Instructions[0].DeriveID("")
+				iid.Valid = true
+			}
+		} else {
+			log.LLvlf1("No read transaction given for ticket %d", i)
+		}
+		iidBatch[i] = iid
 	}
 	// Collectively sign the execution plan
 	sig, err := s.signExecutionPlan(req.ExecData.ExecPlan)
@@ -329,11 +348,8 @@ func (s *Service) AddReadBatch(req *AddReadRequest) (*AddReadBatchReply, error) 
 		return nil, err
 	}
 	reply := &AddReadBatchReply{
-		InstanceIDs: make([]byzcoin.InstanceID, len(req.Ctx.Instructions)),
-		Sig:         sig,
-	}
-	for i, inst := range req.Ctx.Instructions {
-		reply.InstanceIDs[i] = inst.DeriveID("")
+		IIDBatch: iidBatch,
+		Sig:      sig,
 	}
 	return reply, nil
 }
@@ -384,18 +400,24 @@ func (s *Service) GetProofBatch(req *GetProofBatchRequest) (*GetProofBatchReply,
 		return nil, fmt.Errorf("Cannot verify execution plan")
 	}
 	// Get proofs
-	proofs := make([]*byzcoin.GetProofResponse, len(req.InstanceIDs))
-	for i, id := range req.InstanceIDs {
-		gpr, err := s.byzService.GetProof(&byzcoin.GetProof{
-			Version: byzcoin.CurrentVersion,
-			ID:      s.byzID,
-			Key:     id.Slice(),
-		})
-		if err != nil {
-			log.Errorf("GetProof request failed: %v", err)
-			return nil, err
+	sz := len(req.IIDBatch)
+	prBatch := make([]*GPR, sz)
+	for i, iid := range req.IIDBatch {
+		gpr := &GPR{Valid: false}
+		if iid.Valid {
+			resp, err := s.byzService.GetProof(&byzcoin.GetProof{
+				Version: byzcoin.CurrentVersion,
+				ID:      s.byzID,
+				Key:     iid.ID.Slice(),
+			})
+			if err != nil {
+				log.Errorf("GetProof request failed: %v", err)
+			} else {
+				gpr.Resp = resp
+			}
+		} else {
+			log.LLvlf1("Missing InstanceID for index %d", i)
 		}
-		proofs[i] = gpr
 	}
 	// Collectively sign the execution plan
 	sig, err := s.signExecutionPlan(req.ExecData.ExecPlan)
@@ -403,7 +425,7 @@ func (s *Service) GetProofBatch(req *GetProofBatchRequest) (*GetProofBatchReply,
 		log.Errorf("Cannot produce blscosi signature: %v", err)
 		return nil, err
 	}
-	return &GetProofBatchReply{ProofResps: proofs, Sig: sig}, nil
+	return &GetProofBatchReply{PrBatch: prBatch, Sig: sig}, nil
 }
 
 func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
@@ -515,7 +537,7 @@ func newService(c *onet.Context) (onet.Service, error) {
 		calyService:      c.Service(calypso.ServiceName).(*calypso.Service),
 		cosiService:      c.Service(blscosi.ServiceName).(*blscosi.Service),
 	}
-	err := s.RegisterHandlers(s.InitUnit, s.Authorize, s.CreateLTS, s.SpawnDarc, s.AddWrite, s.AddRead, s.Decrypt, s.GetProof)
+	err := s.RegisterHandlers(s.InitUnit, s.Authorize, s.CreateLTS, s.SpawnDarc, s.AddWrite, s.AddRead, s.AddReadBatch, s.GetProof, s.GetProofBatch, s.Decrypt, s.DecryptBatch)
 	if err != nil {
 		log.Errorf("Cannot register handlers: %v", err)
 		return nil, err
