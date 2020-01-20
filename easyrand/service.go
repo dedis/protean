@@ -199,7 +199,7 @@ func (s *EasyRand) verifyExecutionRequest(txnName string, blk *skipchain.SkipBlo
 	verifyProto.TxnName = txnName
 	verifyProto.Block = blk
 	verifyProto.ExecPlan = execData.ExecPlan
-	verifyProto.ClientSigs = execData.ClientSigs
+	//verifyProto.ClientSigs = execData.ClientSigs
 	verifyProto.CompilerSig = execData.CompilerSig
 	verifyProto.UnitSigs = execData.UnitSigs
 	err = verifyProto.Start()

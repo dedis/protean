@@ -58,22 +58,22 @@ func verifyPlan(v *Verify) bool {
 		log.Errorf("Cannot verify blscosi signature on the execution plan: %v", err)
 		return false
 	}
-	// STEP 4: Verify client signatures
-	wfHash, err := utils.ComputeWFHash(wf)
-	if err != nil {
-		log.Errorf("Error computing the workflow hash: %v", err)
-		return false
-	}
-	err = sys.VerifyAuthentication(wfHash, wf, v.ClientSigs)
-	if err != nil {
-		log.Errorf("Cannot verify that the request comes from an authorized user: %v", err)
-		return false
-	}
-	//STEP 5: Check the dependencies
+	// Verify client signatures
+	//wfHash, err := utils.ComputeWFHash(wf)
+	//if err != nil {
+	//log.Errorf("Error computing the workflow hash: %v", err)
+	//return false
+	//}
+	//err = sys.VerifyAuthentication(wfHash, v.Index, wf, v.ClientSigs)
+	//if err != nil {
+	//log.Errorf("Cannot verify that the request comes from an authorized user: %v", err)
+	//return false
+	//}
+	//STEP 4: Check the dependencies
 	for _, depIdx := range myWfNode.Deps {
 		depUID := wf.Nodes[depIdx].UID
 		sig := v.UnitSigs[depIdx]
-		err = sig.Verify(suite, epHash, v.ExecPlan.Publics[depUID].Keys)
+		err = sig.Verify(suite, epHash, v.ExecPlan.UnitPublics[depUID].Keys)
 		if err != nil {
 			log.Errorf("Cannot verify the signature of UID %s: %v", depUID, err)
 			return false

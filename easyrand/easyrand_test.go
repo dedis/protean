@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	cliutils "github.com/dedis/protean/client/utils"
 	"github.com/dedis/protean/compiler"
 	"github.com/dedis/protean/sys"
 	"github.com/dedis/protean/utils"
@@ -78,18 +77,18 @@ func TestRandom_Simple(t *testing.T) {
 	require.Nil(t, err)
 
 	// This part is done by the admin
-	wf, err := cliutils.PrepareWorkflow(&sname, directory, nil, false)
+	wf, err := compiler.PrepareWorkflow(&sname, directory)
 	require.NoError(t, err)
 	require.True(t, len(wf.Nodes) > 0)
 
-	planReply, err := compCl.GenerateExecutionPlan(wf, nil, nil)
+	planReply, err := compCl.GenerateExecutionPlan(wf)
 	require.NoError(t, err)
-	require.NotNil(t, planReply.ExecPlan.Publics)
+	require.NotNil(t, planReply.ExecPlan.UnitPublics)
 	require.NotNil(t, planReply.Signature)
 
 	////////
 	randCl := NewClient(unitRoster)
-	ed := cliutils.PrepareExecutionData(planReply, nil)
+	ed := compiler.PrepareExecutionData(planReply)
 	dkgReply, err := randCl.InitDKG(5, ed)
 	require.NoError(t, err)
 	require.NotNil(t, dkgReply.Public)
@@ -100,19 +99,19 @@ func TestRandom_Simple(t *testing.T) {
 	time.Sleep(time.Second * 2)
 	////////
 
-	rWf, err := cliutils.PrepareWorkflow(&rname, directory, nil, false)
+	rWf, err := compiler.PrepareWorkflow(&rname, directory)
 	require.NoError(t, err)
 	require.True(t, len(rWf.Nodes) > 0)
 
-	randPlan, err := compCl.GenerateExecutionPlan(rWf, nil, nil)
+	randPlan, err := compCl.GenerateExecutionPlan(rWf)
 	require.NoError(t, err)
-	require.NotNil(t, randPlan.ExecPlan.Publics)
+	require.NotNil(t, randPlan.ExecPlan.UnitPublics)
 	require.NotNil(t, randPlan.Signature)
 
 	randEd := &sys.ExecutionData{
-		Index:       0,
-		ExecPlan:    randPlan.ExecPlan,
-		ClientSigs:  nil,
+		Index:    0,
+		ExecPlan: randPlan.ExecPlan,
+		//ClientSigs:  nil,
 		CompilerSig: randPlan.Signature,
 		UnitSigs:    make([]protocol.BlsSignature, len(planReply.ExecPlan.Workflow.Nodes)),
 	}
@@ -137,45 +136,3 @@ func (c *Client) advanceRounds(t *testing.T, ed *sys.ExecutionData, count int) {
 		require.NoError(t, err)
 	}
 }
-
-//func TestService(t *testing.T) {
-//local := onet.NewTCPTest(cothority.Suite)
-//hosts, roster, _ := local.GenTree(5, true)
-//defer local.CloseAll()
-
-//services := local.GetServices(hosts, serviceID)
-//root := services[0].(*EasyRand)
-
-//initReq := generateInitRequest(roster)
-//_, err := root.InitUnit(initReq)
-//dkgReply, err := root.InitDKG(&InitDKGRequest{Timeout: 5})
-//require.NoError(t, err)
-
-//// wait for DKG to finish on all
-//time.Sleep(time.Second / 2)
-
-//// round 0 (genesis)
-//resp, err := root.Randomness(&RandomnessRequest{})
-//require.NoError(t, err)
-//require.NotNil(t, resp)
-//require.NoError(t, bls.Verify(suite, dkgReply.Public, resp.Prev, resp.Value))
-
-//// future rounds
-//var resps []*RandomnessReply
-//for i := 0; i < 3; i++ {
-//prev := createNextMsg(root.blocks)
-//resp, err := root.Randomness(&RandomnessRequest{})
-//require.NoError(t, err)
-//require.NotNil(t, resp)
-//require.NoError(t, bls.Verify(suite, dkgReply.Public, prev, resp.Value))
-//resps = append(resps, resp)
-//}
-
-//for _, resp := range resps {
-//err := bls.Verify(suite, dkgReply.Public, resp.Prev, resp.Value)
-//require.NoError(t, err)
-//}
-
-//}
-
-//Timeout: 2,

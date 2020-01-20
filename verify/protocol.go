@@ -23,11 +23,11 @@ func init() {
 
 type VP struct {
 	*onet.TreeNodeInstance
-	Index       int
-	TxnName     string
-	Block       *skipchain.SkipBlock
-	ExecPlan    *sys.ExecutionPlan
-	ClientSigs  map[string][]byte
+	Index    int
+	TxnName  string
+	Block    *skipchain.SkipBlock
+	ExecPlan *sys.ExecutionPlan
+	//ClientSigs  map[string][]byte
 	CompilerSig protocol.BlsSignature
 	UnitSigs    []protocol.BlsSignature
 
@@ -74,11 +74,11 @@ func (vp *VP) Start() error {
 		return fmt.Errorf("Signature map is missing")
 	}
 	v := &Verify{
-		Index:       vp.Index,
-		TxnName:     vp.TxnName,
-		Block:       vp.Block,
-		ExecPlan:    vp.ExecPlan,
-		ClientSigs:  vp.ClientSigs,
+		Index:    vp.Index,
+		TxnName:  vp.TxnName,
+		Block:    vp.Block,
+		ExecPlan: vp.ExecPlan,
+		//ClientSigs:  vp.ClientSigs,
 		CompilerSig: vp.CompilerSig,
 		UnitSigs:    vp.UnitSigs,
 	}

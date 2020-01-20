@@ -25,7 +25,7 @@ type CreateUnitsReply struct{}
 
 type ExecutionPlanRequest struct {
 	Workflow *sys.Workflow
-	SigMap   map[string][]byte
+	//SigMap   map[string][]byte
 }
 
 type ExecutionPlanReply struct {

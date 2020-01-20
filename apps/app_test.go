@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	cliutils "github.com/dedis/protean/client/utils"
 	"github.com/dedis/protean/compiler"
 	"github.com/dedis/protean/pristore"
 	"github.com/dedis/protean/state"
@@ -117,11 +116,13 @@ func Test_CalypsoLottery_Simple(t *testing.T) {
 	// END INITIALIZE UNITS
 
 	// BEGIN SETUP WORKFLOW (LOTTERY ORGANIZER)
-	setupWf, err := cliutils.PrepareWorkflow(&sname, directory, nil, false)
+	//setupWf, err := cliutils.PrepareWorkflow(&sname, directory, nil, false)
+	setupWf, err := compiler.PrepareWorkflow(&sname, directory)
 	require.NoError(t, err)
-	planReply, err := compCl.GenerateExecutionPlan(setupWf, nil, nil)
+	//planReply, err := compCl.GenerateExecutionPlan(setupWf, nil, nil)
+	planReply, err := compCl.GenerateExecutionPlan(setupWf)
 	require.NoError(t, err)
-	ed := cliutils.PrepareExecutionData(planReply, nil)
+	ed := compiler.PrepareExecutionData(planReply)
 
 	psCl = pristore.NewClient(unitRoster)
 	ltsReply, err := psCl.CreateLTS(unitRoster, 2, ed)
@@ -178,12 +179,14 @@ func Test_CalypsoLottery_Simple(t *testing.T) {
 
 	// BEGIN FINALIZE WORKFLOW (LOTTERY ORGANIZER)
 	compCl = compiler.NewClient(compRoster)
-	revealWf, err := cliutils.PrepareWorkflow(&rname, directory, nil, false)
+	//revealWf, err := cliutils.PrepareWorkflow(&rname, directory, nil, false)
+	revealWf, err := compiler.PrepareWorkflow(&rname, directory)
 	require.NoError(t, err)
-	revealPlan, err := compCl.GenerateExecutionPlan(revealWf, nil, nil)
+	//revealPlan, err := compCl.GenerateExecutionPlan(revealWf, nil, nil)
+	revealPlan, err := compCl.GenerateExecutionPlan(revealWf)
 	require.NoError(t, err)
 	compCl.Close()
-	ed = cliutils.PrepareExecutionData(revealPlan, nil)
+	ed = compiler.PrepareExecutionData(revealPlan)
 	stCl = state.NewClient(unitRoster)
 	psCl = pristore.NewClient(unitRoster)
 	defer stCl.Close()
@@ -238,12 +241,12 @@ func getWriteProofs(wd []state.KV) []*byzcoin.Proof {
 	sz := len(wd)
 	proofs := make([]*byzcoin.Proof, sz)
 	for i, data := range wd {
-		wdv := &state.LotteryDataValue{}
-		err := protobuf.Decode(data.Value, wdv)
+		ldv := &state.LotteryDataValue{}
+		err := protobuf.Decode(data.Value, ldv)
 		if err != nil {
 			log.Errorf("Protobuf decode error: %v", err)
 		} else {
-			proofs[i] = wdv.WrProof
+			proofs[i] = ldv.WrProof
 		}
 	}
 	return proofs
@@ -253,12 +256,14 @@ func runJoinWorkflow(t *testing.T, compRoster *onet.Roster, unitRoster *onet.Ros
 	// BEGIN JOIN WORKFLOW
 	log.Info("Begin join workflow")
 	compCl := compiler.NewClient(compRoster)
-	joinWf, err := cliutils.PrepareWorkflow(&jname, directory, nil, false)
+	//joinWf, err := cliutils.PrepareWorkflow(&jname, directory, nil, false)
+	joinWf, err := compiler.PrepareWorkflow(&jname, directory)
 	require.NoError(t, err)
-	joinPlan, err := compCl.GenerateExecutionPlan(joinWf, nil, nil)
+	//joinPlan, err := compCl.GenerateExecutionPlan(joinWf, nil, nil)
+	joinPlan, err := compCl.GenerateExecutionPlan(joinWf)
 	require.NoError(t, err)
 	compCl.Close()
-	ed := cliutils.PrepareExecutionData(joinPlan, nil)
+	ed := compiler.PrepareExecutionData(joinPlan)
 	stCl := state.NewClient(unitRoster)
 	psCl := pristore.NewClient(unitRoster)
 	defer stCl.Close()
@@ -340,15 +345,17 @@ func prepareLotteryTicket() (*TicketData, error) {
 }
 
 func prepareInvokeArgs(idx int, ticketData *TicketData, proof *byzcoin.Proof, sk kyber.Scalar) ([]*state.KV, error) {
-	// Prepare WriteDataValue struct
-	wdv := &state.WriteDataValue{
+	// Prepare LotteryDataValue struct
+	//wdv := &state.WriteDataValue{
+	//ldv := &state.WriteDataValue{
+	ldv := &state.LotteryDataValue{
 		Index:      idx,
 		WrProof:    proof,
 		Ct:         ticketData.C,
 		KeyHash:    ticketData.KHash,
 		TicketHash: ticketData.THash,
 	}
-	wdvBytes, err := protobuf.Encode(wdv)
+	ldvBytes, err := protobuf.Encode(ldv)
 	if err != nil {
 		log.Errorf("Protobuf encode failed: %v", err)
 		return nil, err
@@ -357,9 +364,9 @@ func prepareInvokeArgs(idx int, ticketData *TicketData, proof *byzcoin.Proof, sk
 	verBuf := make([]byte, 4)
 	version := uint32(1)
 	binary.LittleEndian.PutUint32(verBuf, version)
-	// Compute the hash of (WDV || Version)
+	// Compute the hash of (LDV || Version)
 	h := sha256.New()
-	h.Write(wdvBytes)
+	h.Write(ldvBytes)
 	h.Write(verBuf)
 	sigData := h.Sum(nil)
 	// Perform signing
@@ -369,7 +376,7 @@ func prepareInvokeArgs(idx int, ticketData *TicketData, proof *byzcoin.Proof, sk
 		return nil, err
 	}
 	kv := make([]*state.KV, 3)
-	kv[0] = &state.KV{Key: "data", Value: wdvBytes}
+	kv[0] = &state.KV{Key: "data", Value: ldvBytes}
 	kv[1] = &state.KV{Key: "sig", Value: sig}
 	kv[2] = &state.KV{Key: "version", Value: verBuf}
 	return kv, nil

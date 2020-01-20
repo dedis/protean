@@ -2,13 +2,10 @@ package sys
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"os"
 
-	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/blscosi"
-	"go.dedis.ch/kyber/v3/sign/schnorr"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
 )
@@ -51,38 +48,40 @@ func PrepareUnits(roster *onet.Roster, uFilePtr *string) ([]*FunctionalUnit, err
 	return units, nil
 }
 
-func VerifyAuthentication(mesg []byte, wf *Workflow, sigMap map[string][]byte) error {
-	if len(sigMap) == 0 {
-		log.LLvlf1("Workflow does not have authorized users")
-		return nil
-	}
-	if wf.All {
-		for id, authPub := range wf.AuthPublics {
-			sig, ok := sigMap[id]
-			if !ok {
-				return fmt.Errorf("Missing signature from %v", id)
-			}
-			err := schnorr.Verify(cothority.Suite, authPub, mesg, sig)
-			if err != nil {
-				return fmt.Errorf("Cannot verify signature from %v", id)
-			}
-		}
-	} else {
-		success := false
-		for id, sig := range sigMap {
-			pk, ok := wf.AuthPublics[id]
-			if !ok {
-				return fmt.Errorf("Cannot find %v in authenticated users", id)
-			}
-			err := schnorr.Verify(cothority.Suite, pk, mesg, sig)
-			if err == nil {
-				success = true
-				break
-			}
-		}
-		if !success {
-			return fmt.Errorf("Cannot verify a signature against the given authenticated users")
-		}
-	}
-	return nil
-}
+//func VerifyAuthentication(wfHash []byte, wf *Workflow, sigMap map[string][]byte) error {
+//if len(sigMap) == 0 {
+//log.LLvlf1("Workflow does not have authorized users")
+//return nil
+//}
+////data := append([]byte(strconv.Itoa(idx)), wfHash...)
+//if wf.All {
+//for id, authPub := range wf.AuthPublics {
+//sig, ok := sigMap[id]
+//if !ok {
+//return fmt.Errorf("Missing signature from %v", id)
+//}
+////err := schnorr.Verify(cothority.Suite, authPub, mesg, sig)
+//if err != nil {
+//return fmt.Errorf("Cannot verify signature from %v", id)
+//}
+//}
+//} else {
+//success := false
+//for id, sig := range sigMap {
+//pk, ok := wf.AuthPublics[id]
+//if !ok {
+//return fmt.Errorf("Cannot find %v in authenticated users", id)
+//}
+////err := schnorr.Verify(cothority.Suite, pk, mesg, sig)
+//err := schnorr.Verify(cothority.Suite, pk, data, sig)
+//if err == nil {
+//success = true
+//break
+//}
+//}
+//if !success {
+//return fmt.Errorf("Cannot verify a signature against the given authenticated users")
+//}
+//}
+//return nil
+//}

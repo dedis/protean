@@ -217,6 +217,25 @@ func (c *Client) Decrypt(wrProof *byzcoin.Proof, rProof *byzcoin.Proof, ed *sys.
 	return reply, err
 }
 
+func (c *Client) DecryptNT(wrProof *byzcoin.Proof, rProof *byzcoin.Proof, isReenc bool, ed *sys.ExecutionData) (*DecryptNTReply, error) {
+	dkid, err := generateDKID(wrProof, rProof)
+	if err != nil {
+		return nil, err
+	}
+	req := &DecryptNTRequest{
+		Request: &calypso.DecryptKeyNT{
+			DKID:    dkid,
+			IsReenc: isReenc,
+			Read:    *rProof,
+			Write:   *wrProof,
+		},
+		ExecData: ed,
+	}
+	reply := &DecryptNTReply{}
+	err = c.SendProtobuf(c.roster.List[0], req, reply)
+	return reply, err
+}
+
 func (c *Client) DecryptBatch(wrProofs []*byzcoin.Proof, rProofs []*byzcoin.Proof, ed *sys.ExecutionData) (*DecryptBatchReply, error) {
 	if len(wrProofs) != len(rProofs) {
 		return nil, fmt.Errorf("Number of write proofs does not match the number of read proofs")
@@ -236,7 +255,7 @@ func (c *Client) DecryptBatch(wrProofs []*byzcoin.Proof, rProofs []*byzcoin.Proo
 }
 
 func (dkr *DecryptReply) RecoverKey(reader darc.Signer) ([]byte, error) {
-	return dkr.Reply.RecoverKey(reader.Ed25519.Secret)
+	return dkr.CalyReply.RecoverKey(reader.Ed25519.Secret)
 }
 
 func CreateDarc(ownerID darc.Identity, name string) *darc.Darc {
@@ -261,4 +280,19 @@ func AddReadRule(d *darc.Darc, readers ...darc.Signer) error {
 
 func GetServiceID() onet.ServiceID {
 	return priStoreID
+}
+
+func generateDKID(wrProof *byzcoin.Proof, rProof *byzcoin.Proof) (string, error) {
+	var dkid string
+	var write calypso.Write
+	var read calypso.Read
+	err := wrProof.VerifyAndDecode(cothority.Suite, calypso.ContractWriteID, &write)
+	if err != nil {
+		return dkid, fmt.Errorf("Cannot get write instance: %v", err)
+	}
+	err = rProof.VerifyAndDecode(cothority.Suite, calypso.ContractReadID, &read)
+	if err != nil {
+		return dkid, fmt.Errorf("Cannot get read instance: %v", err)
+	}
+	return calypso.GenerateDKID(read.Write[:], read.Xc, write.U)
 }

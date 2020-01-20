@@ -22,11 +22,11 @@ var suite = pairing.NewSuiteBn256()
 //type VerifyExecPlan func(vs *Verify) bool
 
 type Verify struct {
-	Index       int
-	TxnName     string
-	Block       *skipchain.SkipBlock
-	ExecPlan    *sys.ExecutionPlan
-	ClientSigs  map[string][]byte
+	Index    int
+	TxnName  string
+	Block    *skipchain.SkipBlock
+	ExecPlan *sys.ExecutionPlan
+	//ClientSigs  map[string][]byte
 	CompilerSig protocol.BlsSignature
 	UnitSigs    []protocol.BlsSignature
 }

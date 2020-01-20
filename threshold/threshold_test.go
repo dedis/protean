@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	cliutils "github.com/dedis/protean/client/utils"
 	"github.com/dedis/protean/compiler"
 	"github.com/dedis/protean/sys"
 	"github.com/dedis/protean/utils"
@@ -73,13 +72,13 @@ func TestThreshold_Server(t *testing.T) {
 	require.Nil(t, err)
 
 	// This part is done by the client
-	wf, err := cliutils.PrepareWorkflow(&wname, directory, nil, false)
+	wf, err := compiler.PrepareWorkflow(&wname, directory)
 	require.NoError(t, err)
 	require.True(t, len(wf.Nodes) > 0)
 
-	planReply, err := compCl.GenerateExecutionPlan(wf, nil, nil)
+	planReply, err := compCl.GenerateExecutionPlan(wf)
 	require.NoError(t, err)
-	require.NotNil(t, planReply.ExecPlan.Publics)
+	require.NotNil(t, planReply.ExecPlan.UnitPublics)
 	require.NotNil(t, planReply.Signature)
 
 	thCl := NewClient(unitRoster)
@@ -90,7 +89,7 @@ func TestThreshold_Server(t *testing.T) {
 	//CompilerSig: planReply.Signature,
 	//UnitSigs:    make([]protocol.BlsSignature, len(planReply.ExecPlan.Workflow.Nodes)),
 	//}
-	ed := cliutils.PrepareExecutionData(planReply, nil)
+	ed := compiler.PrepareExecutionData(planReply)
 
 	ed.Index = idx
 	id := GenerateRandBytes()

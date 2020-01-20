@@ -20,6 +20,8 @@ const PROOF = "GetProof"
 const PROOFBATCH = "GetProofBatch"
 const DEC = "Decrypt"
 const DECBATCH = "DecryptBatch"
+const DECNT = "DecryptNT"
+const DECNTBATCH = "DecryptNTBatch"
 
 type IID struct {
 	Valid bool
@@ -135,9 +137,21 @@ type DecryptRequest struct {
 }
 
 type DecryptReply struct {
-	Reply *calypso.DecryptKeyReply
-	Sig   protocol.BlsSignature
+	CalyReply *calypso.DecryptKeyReply
+	Sig       protocol.BlsSignature
 }
+
+type DecryptNTRequest struct {
+	Request  *calypso.DecryptKeyNT
+	ExecData *sys.ExecutionData
+}
+
+type DecryptNTReply struct {
+	CalyReply *calypso.DecryptKeyNTReply
+	Sig       protocol.BlsSignature
+}
+
+// Batch requests
 
 type DecryptBatchRequest struct {
 	Requests []*calypso.DecryptKey
@@ -145,6 +159,13 @@ type DecryptBatchRequest struct {
 }
 
 type DecryptBatchReply struct {
-	Replies []*calypso.DecryptKeyReply
-	Sig     protocol.BlsSignature
+	CalyReplies []*calypso.DecryptKeyReply
+	Sig         protocol.BlsSignature
+}
+
+////
+
+type signReencData struct {
+	ID      string
+	XhatEnc kyber.Point
 }

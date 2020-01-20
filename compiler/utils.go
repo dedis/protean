@@ -7,11 +7,8 @@ import (
 	"strconv"
 
 	"github.com/dedis/protean/sys"
-	"github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/skipchain"
-	"go.dedis.ch/kyber/v3/sign/schnorr"
-	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/onet/v3/network"
 	"go.dedis.ch/protobuf"
 )
@@ -25,48 +22,48 @@ func prepareExecutionPlan(data *sbData, wf *sys.Workflow) (*sys.ExecutionPlan, e
 			return nil, fmt.Errorf("Functional unit does not exist")
 		}
 	}
-	return &sys.ExecutionPlan{Workflow: wf, Publics: publics}, nil
+	return &sys.ExecutionPlan{Workflow: wf, UnitPublics: publics}, nil
 }
 
-func verifyAuthentication(wf *sys.Workflow, sigMap map[string][]byte) error {
-	if len(sigMap) == 0 {
-		log.LLvlf1("Workflow does not have authorized users")
-		return nil
-	}
-	wfHash, err := utils.ComputeWFHash(wf)
-	if err != nil {
-		return err
-	}
-	if wf.All {
-		for id, authPub := range wf.AuthPublics {
-			sig, ok := sigMap[id]
-			if !ok {
-				return fmt.Errorf("Missing signature from %v", id)
-			}
-			err := schnorr.Verify(cothority.Suite, authPub, wfHash, sig)
-			if err != nil {
-				return fmt.Errorf("Cannot verify signature from %v", id)
-			}
-		}
-	} else {
-		success := false
-		for id, sig := range sigMap {
-			pk, ok := wf.AuthPublics[id]
-			if !ok {
-				return fmt.Errorf("Cannot find %v in authenticated users", id)
-			}
-			err := schnorr.Verify(cothority.Suite, pk, wfHash, sig)
-			if err == nil {
-				success = true
-				break
-			}
-		}
-		if !success {
-			return fmt.Errorf("Cannot verify a signature against the given authenticated users")
-		}
-	}
-	return nil
-}
+//func verifyAuthentication(wf *sys.Workflow, sigMap map[string][]byte) error {
+//if len(sigMap) == 0 {
+//log.LLvlf1("Workflow does not have authorized users")
+//return nil
+//}
+//wfHash, err := utils.ComputeWFHash(wf)
+//if err != nil {
+//return err
+//}
+//if wf.All {
+//for id, authPub := range wf.AuthPublics {
+//sig, ok := sigMap[id]
+//if !ok {
+//return fmt.Errorf("Missing signature from %v", id)
+//}
+//err := schnorr.Verify(cothority.Suite, authPub, wfHash, sig)
+//if err != nil {
+//return fmt.Errorf("Cannot verify signature from %v", id)
+//}
+//}
+//} else {
+//success := false
+//for id, sig := range sigMap {
+//pk, ok := wf.AuthPublics[id]
+//if !ok {
+//return fmt.Errorf("Cannot find %v in authenticated users", id)
+//}
+//err := schnorr.Verify(cothority.Suite, pk, wfHash, sig)
+//if err == nil {
+//success = true
+//break
+//}
+//}
+//if !success {
+//return fmt.Errorf("Cannot verify a signature against the given authenticated users")
+//}
+//}
+//return nil
+//}
 
 func verifyDag(wfNodes []*sys.WfNode) error {
 	var edges []*edge
@@ -158,16 +155,20 @@ func (req ExecutionPlanRequest) Hash() []byte {
 	return h.Sum(nil)
 }
 
-func generateUnitID(fu *sys.FunctionalUnit) string {
+func generateUnitID(fu *sys.FunctionalUnit) (string, error) {
+	rid, err := fu.Roster.GetID()
+	if err != nil {
+		return "", err
+	}
 	h := sha256.New()
+	h.Write([]byte(rid.String()))
 	h.Write([]byte(strconv.Itoa(fu.Type)))
-	h.Write([]byte(fu.Roster.ID.String()))
 	h.Write([]byte(fu.Name))
 	for _, t := range fu.Txns {
 		h.Write([]byte(t))
 	}
 	tmp := h.Sum(nil)
-	return hex.EncodeToString(tmp)
+	return hex.EncodeToString(tmp), nil
 }
 
 func generateTxnMap(tList []string) map[string]string {

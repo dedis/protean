@@ -60,7 +60,12 @@ func (s *Service) StoreGenesis(req *StoreGenesisRequest) (*StoreGenesisReply, er
 func (s *Service) CreateUnits(req *CreateUnitsRequest) (*CreateUnitsReply, error) {
 	sbd := make(map[string]*uv)
 	for _, unit := range req.Units {
-		uid := generateUnitID(unit)
+		//uid := generateUnitID(unit)
+		uid, err := generateUnitID(unit)
+		if err != nil {
+			log.Errorf("Error generating the unit ID for %s: %v", unit.Name, err)
+			return nil, err
+		}
 		txnMap := generateTxnMap(unit.Txns)
 		val := &uv{
 			N:    unit.Name,
@@ -92,18 +97,16 @@ func (s *Service) GenerateExecutionPlan(req *ExecutionPlanRequest) (*ExecutionPl
 	}
 	// We first check this to make sure we don't waste time preparing the
 	// execution plan
-	wfHash, err := utils.ComputeWFHash(req.Workflow)
-	if err != nil {
-		log.Errorf("Error computing the hash of workflow: %v", err)
-		return nil, err
-	}
-	//err = verifyAuthentication(req.Workflow, req.SigMap)
-	err = sys.VerifyAuthentication(wfHash, req.Workflow, req.SigMap)
-	if err != nil {
-		log.Errorf("Cannot verify that the request comes from an authorized user: %v", err)
-		return nil, err
-	}
-	//execPlan, err := prepareExecutionPlan(sbData, req)
+	//wfHash, err := utils.ComputeWFHash(req.Workflow)
+	//if err != nil {
+	//log.Errorf("Error computing the hash of workflow: %v", err)
+	//return nil, err
+	//}
+	//err = sys.VerifyAuthentication(wfHash, req.Workflow, req.SigMap)
+	//if err != nil {
+	//log.Errorf("Cannot verify that the request comes from an authorized user: %v", err)
+	//return nil, err
+	//}
 	execPlan, err := prepareExecutionPlan(sbData, req.Workflow)
 	if err != nil {
 		log.Errorf("Preparing the execution plan failed: %v", err)
@@ -122,8 +125,8 @@ func (s *Service) GenerateExecutionPlan(req *ExecutionPlanRequest) (*ExecutionPl
 		log.Errorf("Error computing the hash of the execution plan: %v", err)
 		return nil, err
 	}
-	//dataBuf, err := protobuf.Encode(&epData{Ep: execPlan, Sm: req.SigMap})
-	dataBuf, err := protobuf.Encode(&verifyEpData{Root: s.ServerIdentity().String(), Ep: execPlan, Sm: req.SigMap})
+	//dataBuf, err := protobuf.Encode(&verifyEpData{Root: s.ServerIdentity().String(), Ep: execPlan, Sm: req.SigMap})
+	dataBuf, err := protobuf.Encode(&verifyEpData{Root: s.ServerIdentity().String(), Ep: execPlan})
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +140,6 @@ func (s *Service) GenerateExecutionPlan(req *ExecutionPlanRequest) (*ExecutionPl
 		log.Errorf("SetNbrSubTree failed: %v", err)
 		return nil, err
 	}
-
 	err = cosiProto.Start()
 	if err != nil {
 		log.Errorf("Starting the cosi protocol failed: %v", err)
@@ -151,7 +153,6 @@ func (s *Service) GenerateExecutionPlan(req *ExecutionPlanRequest) (*ExecutionPl
 
 func (s *Service) verifyExecutionPlan(msg []byte, data []byte) bool {
 	log.LLvlf1("%s in verifyExecutionPlan", s.ServerIdentity())
-	//var epd epData
 	var epd verifyEpData
 	err := protobuf.Decode(data, &epd)
 	if err != nil {
@@ -192,17 +193,16 @@ func (s *Service) verifyExecutionPlan(msg []byte, data []byte) bool {
 			log.Errorf("Verify execution plan error: %v", err)
 			return false
 		}
-		wfHash, err := utils.ComputeWFHash(execPlan.Workflow)
-		if err != nil {
-			log.Errorf("Error computing the hash of workflow: %v", err)
-			return false
-		}
-		//err = verifyAuthentication(execPlan.Workflow, epd.Sm)
-		err = sys.VerifyAuthentication(wfHash, execPlan.Workflow, epd.Sm)
-		if err != nil {
-			log.Errorf("Verify execution plan error: %v", err)
-			return false
-		}
+		//wfHash, err := utils.ComputeWFHash(execPlan.Workflow)
+		//if err != nil {
+		//log.Errorf("Error computing the hash of workflow: %v", err)
+		//return false
+		//}
+		//err = sys.VerifyAuthentication(wfHash, execPlan.Workflow, epd.Sm)
+		//if err != nil {
+		//log.Errorf("Verify execution plan error: %v", err)
+		//return false
+		//}
 	} else {
 		log.LLvlf1("At %s - I'm the root node so I skip verification", s.ServerIdentity())
 	}

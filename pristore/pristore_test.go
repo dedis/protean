@@ -11,7 +11,6 @@ import (
 	"github.com/dedis/protean/sys"
 	"github.com/dedis/protean/utils"
 
-	cliutils "github.com/dedis/protean/client/utils"
 	"github.com/stretchr/testify/require"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/byzcoin"
@@ -89,12 +88,12 @@ func TestPristore_Multiple(t *testing.T) {
 	}
 
 	//////// ADMIN WORKFLOW BEGIN ////////
-	adminWf, err := cliutils.PrepareWorkflow(&aname, directory, nil, false)
+	adminWf, err := compiler.PrepareWorkflow(&aname, directory)
 	require.NoError(t, err)
 	require.True(t, len(adminWf.Nodes) > 0)
-	planReply, err := compCl.GenerateExecutionPlan(adminWf, nil, nil)
+	planReply, err := compCl.GenerateExecutionPlan(adminWf)
 	require.NoError(t, err)
-	require.NotNil(t, planReply.ExecPlan.Publics)
+	require.NotNil(t, planReply.ExecPlan.UnitPublics)
 	require.NotNil(t, planReply.Signature)
 
 	psCl := NewClient(unitRoster)
@@ -105,7 +104,7 @@ func TestPristore_Multiple(t *testing.T) {
 	//CompilerSig: planReply.Signature,
 	//UnitSigs:    make([]protocol.BlsSignature, len(planReply.ExecPlan.Workflow.Nodes)),
 	//}
-	ed := cliutils.PrepareExecutionData(planReply, nil)
+	ed := compiler.PrepareExecutionData(planReply)
 
 	// Admin (client) setting up Calyspo
 	ltsReply, err := psCl.CreateLTS(unitRoster, 2, ed)
@@ -128,12 +127,12 @@ func TestPristore_Multiple(t *testing.T) {
 	//////// ADMIN WORKFLOW END ////////
 
 	//////// WRITE WORKFLOW BEGIN ////////
-	writeWf, err := cliutils.PrepareWorkflow(&wname, directory, nil, false)
+	writeWf, err := compiler.PrepareWorkflow(&wname, directory)
 	require.NoError(t, err)
 	require.True(t, len(writeWf.Nodes) > 0)
-	writePlan, err := compCl.GenerateExecutionPlan(writeWf, nil, nil)
+	writePlan, err := compCl.GenerateExecutionPlan(writeWf)
 	require.NoError(t, err)
-	require.NotNil(t, writePlan.ExecPlan.Publics)
+	require.NotNil(t, writePlan.ExecPlan.UnitPublics)
 	require.NotNil(t, writePlan.Signature)
 
 	psCl = NewClient(unitRoster)
@@ -144,7 +143,7 @@ func TestPristore_Multiple(t *testing.T) {
 	//CompilerSig: writePlan.Signature,
 	//UnitSigs:    make([]protocol.BlsSignature, len(writePlan.ExecPlan.Workflow.Nodes)),
 	//}
-	ed = cliutils.PrepareExecutionData(writePlan, nil)
+	ed = compiler.PrepareExecutionData(writePlan)
 
 	data := []byte("mor daglar")
 	data2 := []byte("i remember mom")
@@ -170,16 +169,16 @@ func TestPristore_Multiple(t *testing.T) {
 	//////// WRITE WORKFLOW END ////////
 
 	//////// READ WORKFLOW END ////////
-	readWf, err := cliutils.PrepareWorkflow(&rname, directory, nil, false)
+	readWf, err := compiler.PrepareWorkflow(&rname, directory)
 	require.NoError(t, err)
 	require.True(t, len(readWf.Nodes) > 0)
-	readPlan, err := compCl.GenerateExecutionPlan(readWf, nil, nil)
+	readPlan, err := compCl.GenerateExecutionPlan(readWf)
 	require.NoError(t, err)
-	require.NotNil(t, readPlan.ExecPlan.Publics)
+	require.NotNil(t, readPlan.ExecPlan.UnitPublics)
 	require.NotNil(t, readPlan.Signature)
 
 	psCl = NewClient(unitRoster)
-	ed = cliutils.PrepareExecutionData(readPlan, nil)
+	ed = compiler.PrepareExecutionData(readPlan)
 
 	readerCt := uint64(1)
 	//r1, err := psCl.AddRead(&wpr1.Proof, readers[0], readerCt, 0, ed)

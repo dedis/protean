@@ -1,15 +1,17 @@
 package compiler
 
 import (
-	"fmt"
+	"encoding/json"
+	"errors"
+	"io/ioutil"
+	"os"
 
 	"github.com/dedis/protean/sys"
-	"github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3"
+	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/cothority/v3/skipchain"
-	"go.dedis.ch/kyber/v3"
-	"go.dedis.ch/kyber/v3/sign/schnorr"
 	"go.dedis.ch/onet/v3"
+	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/onet/v3/network"
 )
 
@@ -50,21 +52,22 @@ func (c *Client) CreateUnits(units []*sys.FunctionalUnit) (*CreateUnitsReply, er
 	return reply, err
 }
 
-func (c *Client) GenerateExecutionPlan(wf *sys.Workflow, keyStrs []string, sigs [][]byte) (*ExecutionPlanReply, error) {
-	sigMap := make(map[string][]byte)
-	if len(keyStrs) != len(sigs) {
-		return nil, fmt.Errorf("Number of keys and sigs do not match")
-	}
-	if len(keyStrs) == 0 {
-		sigMap = nil
-	} else {
-		for i, key := range keyStrs {
-			sigMap[key] = sigs[i]
-		}
-	}
+//func (c *Client) GenerateExecutionPlan(wf *sys.Workflow, keyStrs []string, sigs [][]byte) (*ExecutionPlanReply, error) {
+func (c *Client) GenerateExecutionPlan(wf *sys.Workflow) (*ExecutionPlanReply, error) {
+	//sigMap := make(map[string][]byte)
+	//if len(keyStrs) != len(sigs) {
+	//return nil, fmt.Errorf("Number of keys and sigs do not match")
+	//}
+	//if len(keyStrs) == 0 {
+	//sigMap = nil
+	//} else {
+	//for i, key := range keyStrs {
+	//sigMap[key] = sigs[i]
+	//}
+	//}
 	req := &ExecutionPlanRequest{
 		Workflow: wf,
-		SigMap:   sigMap,
+		//SigMap:   sigMap,
 	}
 	reply := &ExecutionPlanReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)
@@ -78,16 +81,65 @@ func (c *Client) GetDirectoryInfo() (*DirectoryInfoReply, error) {
 	return reply, err
 }
 
-func SignWorkflow(wf *sys.Workflow, sk kyber.Scalar) ([]byte, error) {
-	wfHash, err := utils.ComputeWFHash(wf)
+func PrepareWorkflow(wFilePtr *string, dirInfo map[string]*sys.UnitInfo) (*sys.Workflow, error) {
+	var tmpWf []sys.WfJSON
+	fh, err := os.Open(*wFilePtr)
 	if err != nil {
-		return nil, fmt.Errorf("Sign workflow failed with protobuf error: %v", err)
+		log.Errorf("Cannot open file %s: %v", *wFilePtr, err)
+		return nil, err
 	}
-	sig, err := schnorr.Sign(cothority.Suite, sk, wfHash)
+	defer fh.Close()
+	buf, err := ioutil.ReadAll(fh)
 	if err != nil {
-		return nil, fmt.Errorf("Cannot sign the workflow: %v", err)
+		log.Errorf("Error reading file %s: %v", *wFilePtr, err)
+		return nil, err
 	}
-	return sig, nil
+	err = json.Unmarshal(buf, &tmpWf)
+	if err != nil {
+		log.Errorf("Cannot unmarshal json value: %v", err)
+		return nil, err
+	}
+	sz := len(tmpWf)
+	wfNodes := make([]*sys.WfNode, sz)
+	for i := 0; i < sz; i++ {
+		tmp := tmpWf[i]
+		unitInfo, ok := dirInfo[tmp.UnitName]
+		if ok {
+			tid, found := unitInfo.Txns[tmp.TxnName]
+			if found {
+				wfNodes[i] = &sys.WfNode{
+					UID:  unitInfo.UnitID,
+					TID:  tid,
+					Deps: tmp.Deps,
+				}
+			} else {
+				log.Errorf("Txn %v not found for unit %v", tmp.TxnName, tmp.UnitName)
+				return nil, errors.New("No transaction found for the given unit")
+			}
+		} else {
+			log.Errorf("Unit does not exist")
+			return nil, errors.New("Unit does not exist")
+		}
+	}
+
+	//var authPublics map[string]kyber.Point
+	//if publics != nil {
+	//authPublics = make(map[string]kyber.Point)
+	//for _, pk := range publics {
+	//authPublics[pk.String()] = pk
+	//}
+	//}
+	//return &sys.Workflow{Nodes: wfNodes, AuthPublics: authPublics, All: all}, nil
+	return &sys.Workflow{Nodes: wfNodes}, nil
+}
+
+func PrepareExecutionData(planReply *ExecutionPlanReply) *sys.ExecutionData {
+	return &sys.ExecutionData{
+		Index:       0,
+		ExecPlan:    planReply.ExecPlan,
+		CompilerSig: planReply.Signature,
+		UnitSigs:    make([]protocol.BlsSignature, len(planReply.ExecPlan.Workflow.Nodes)),
+	}
 }
 
 func GetServiceID() onet.ServiceID {

@@ -65,32 +65,32 @@ func VerifyBLSSignature(s interface{}, sig protocol.BlsSignature, publics []kybe
 	return sig.Verify(ps, h.Sum(nil), publics)
 }
 
-func ComputeWFHash(wf *sys.Workflow) ([]byte, error) {
-	authBytes := SerializeAuthKeys(wf.AuthPublics)
-	serialWf := &sys.SerializedWf{
-		Nodes:       wf.Nodes,
-		AuthPublics: authBytes,
-		All:         wf.All,
-	}
-	buf, err := protobuf.Encode(serialWf)
-	if err != nil {
-		return nil, err
-	}
-	h := sha256.New()
-	h.Write(buf)
-	return h.Sum(nil), err
-}
+//func ComputeWFHash(wf *sys.Workflow) ([]byte, error) {
+//authBytes := serializeAuthKeys(wf.AuthPublics)
+//serialWf := &sys.SerializedWf{
+//Nodes:       wf.Nodes,
+//AuthPublics: authBytes,
+//All:         wf.All,
+//}
+//buf, err := protobuf.Encode(serialWf)
+//if err != nil {
+//return nil, err
+//}
+//h := sha256.New()
+//h.Write(buf)
+//return h.Sum(nil), err
+//}
 
 func ComputeEPHash(ep *sys.ExecutionPlan) ([]byte, error) {
-	authBytes := SerializeAuthKeys(ep.Workflow.AuthPublics)
-	pubBytes := SerializeUnitKeys(ep.Publics)
+	//authBytes := serializeAuthKeys(ep.Workflow.AuthPublics)
+	pubBytes := serializeUnitKeys(ep.UnitPublics)
 	serialEp := &sys.SerializedEp{
 		Swf: &sys.SerializedWf{
-			Nodes:       ep.Workflow.Nodes,
-			AuthPublics: authBytes,
-			All:         ep.Workflow.All,
+			Nodes: ep.Workflow.Nodes,
+			//AuthPublics: authBytes,
+			//All:         ep.Workflow.All,
 		},
-		Publics: pubBytes,
+		UnitPublics: pubBytes,
 	}
 	buf, err := protobuf.Encode(serialEp)
 	if err != nil {
@@ -101,7 +101,7 @@ func ComputeEPHash(ep *sys.ExecutionPlan) ([]byte, error) {
 	return h.Sum(nil), nil
 }
 
-func SerializeUnitKeys(keyMap map[string]*sys.UnitIdentity) []byte {
+func serializeUnitKeys(keyMap map[string]*sys.UnitIdentity) []byte {
 	sz := len(keyMap)
 	sortedKeys := make([]string, sz)
 	idx := 0
@@ -122,22 +122,22 @@ func SerializeUnitKeys(keyMap map[string]*sys.UnitIdentity) []byte {
 	return h.Sum(nil)
 }
 
-func SerializeAuthKeys(keyMap map[string]kyber.Point) []byte {
-	sortedKeys := make([]string, len(keyMap))
-	idx := 0
-	for k, _ := range keyMap {
-		sortedKeys[idx] = k
-		idx++
-	}
-	sort.Strings(sortedKeys)
-	h := sha256.New()
-	for _, key := range sortedKeys {
-		authKey := keyMap[key]
-		h.Write([]byte(key))
-		h.Write([]byte(authKey.String()))
-	}
-	return h.Sum(nil)
-}
+//func serializeAuthKeys(keyMap map[string]kyber.Point) []byte {
+//sortedKeys := make([]string, len(keyMap))
+//idx := 0
+//for k, _ := range keyMap {
+//sortedKeys[idx] = k
+//idx++
+//}
+//sort.Strings(sortedKeys)
+//h := sha256.New()
+//for _, key := range sortedKeys {
+//authKey := keyMap[key]
+//h.Write([]byte(key))
+//h.Write([]byte(authKey.String()))
+//}
+//return h.Sum(nil)
+//}
 
 func ReverseMap(m map[string]string) map[string]string {
 	revMap := make(map[string]string)
