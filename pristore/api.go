@@ -217,25 +217,6 @@ func (c *Client) Decrypt(wrProof *byzcoin.Proof, rProof *byzcoin.Proof, ed *sys.
 	return reply, err
 }
 
-func (c *Client) DecryptNT(wrProof *byzcoin.Proof, rProof *byzcoin.Proof, isReenc bool, ed *sys.ExecutionData) (*DecryptNTReply, error) {
-	dkid, err := generateDKID(wrProof, rProof)
-	if err != nil {
-		return nil, err
-	}
-	req := &DecryptNTRequest{
-		Request: &calypso.DecryptKeyNT{
-			DKID:    dkid,
-			IsReenc: isReenc,
-			Read:    *rProof,
-			Write:   *wrProof,
-		},
-		ExecData: ed,
-	}
-	reply := &DecryptNTReply{}
-	err = c.SendProtobuf(c.roster.List[0], req, reply)
-	return reply, err
-}
-
 func (c *Client) DecryptBatch(wrProofs []*byzcoin.Proof, rProofs []*byzcoin.Proof, ed *sys.ExecutionData) (*DecryptBatchReply, error) {
 	if len(wrProofs) != len(rProofs) {
 		return nil, fmt.Errorf("Number of write proofs does not match the number of read proofs")
@@ -251,6 +232,25 @@ func (c *Client) DecryptBatch(wrProofs []*byzcoin.Proof, rProofs []*byzcoin.Proo
 	req := &DecryptBatchRequest{Requests: dks, ExecData: ed}
 	reply := &DecryptBatchReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)
+	return reply, err
+}
+
+func (c *Client) DecryptNT(wrProof *byzcoin.Proof, rProof *byzcoin.Proof, isReenc bool, ed *sys.ExecutionData) (*DecryptNTReply, error) {
+	dkid, err := GenerateDKID(wrProof, rProof)
+	if err != nil {
+		return nil, err
+	}
+	req := &DecryptNTRequest{
+		Request: &calypso.DecryptKeyNT{
+			DKID:    dkid,
+			IsReenc: isReenc,
+			Write:   *wrProof,
+			Read:    *rProof,
+		},
+		ExecData: ed,
+	}
+	reply := &DecryptNTReply{}
+	err = c.SendProtobuf(c.roster.List[0], req, reply)
 	return reply, err
 }
 
@@ -278,11 +278,7 @@ func AddReadRule(d *darc.Darc, readers ...darc.Signer) error {
 	return d.Rules.AddRule(darc.Action("spawn:"+calypso.ContractReadID), expression.InitOrExpr(ids...))
 }
 
-func GetServiceID() onet.ServiceID {
-	return priStoreID
-}
-
-func generateDKID(wrProof *byzcoin.Proof, rProof *byzcoin.Proof) (string, error) {
+func GenerateDKID(wrProof *byzcoin.Proof, rProof *byzcoin.Proof) (string, error) {
 	var dkid string
 	var write calypso.Write
 	var read calypso.Read
@@ -296,3 +292,7 @@ func generateDKID(wrProof *byzcoin.Proof, rProof *byzcoin.Proof) (string, error)
 	}
 	return calypso.GenerateDKID(read.Write[:], read.Xc, write.U)
 }
+
+//func GetServiceID() onet.ServiceID {
+//return priStoreID
+//}

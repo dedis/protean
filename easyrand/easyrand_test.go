@@ -7,11 +7,11 @@ import (
 	"time"
 
 	"github.com/dedis/protean/compiler"
+	"github.com/dedis/protean/libtest"
 	"github.com/dedis/protean/sys"
 	"github.com/dedis/protean/utils"
 	"github.com/stretchr/testify/require"
 	"go.dedis.ch/cothority/v3"
-	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/kyber/v3/sign/bls"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
@@ -25,23 +25,6 @@ func init() {
 	flag.StringVar(&uname, "unit", "", "JSON file")
 	flag.StringVar(&sname, "setup", "", "JSON file")
 	flag.StringVar(&rname, "rand", "", "JSON file")
-}
-
-func initCompilerUnit(t *testing.T, local *onet.LocalTest, total int, roster *onet.Roster, hosts []*onet.Server, units []*sys.FunctionalUnit) {
-	compServices := local.GetServices(hosts[:total], compiler.GetServiceID())
-	compNodes := make([]*compiler.Service, len(compServices))
-	for i := 0; i < len(compServices); i++ {
-		compNodes[i] = compServices[i].(*compiler.Service)
-	}
-	root := compNodes[0]
-	initReply, err := root.InitUnit(&compiler.InitUnitRequest{Roster: roster, ScCfg: &sys.ScConfig{MHeight: 2, BHeight: 2}})
-	require.NoError(t, err)
-	for _, n := range compNodes {
-		_, err = n.StoreGenesis(&compiler.StoreGenesisRequest{Genesis: initReply.Genesis})
-		require.NoError(t, err)
-	}
-	_, err = root.CreateUnits(&compiler.CreateUnitsRequest{Units: units})
-	require.NoError(t, err)
 }
 
 func TestMain(m *testing.M) {
@@ -60,7 +43,8 @@ func TestRandom_Simple(t *testing.T) {
 	units, err := sys.PrepareUnits(unitRoster, &uname)
 	require.Nil(t, err)
 
-	initCompilerUnit(t, local, compTotal, compRoster, hosts[:compTotal], units)
+	err = libtest.InitCompilerUnit(local, compTotal, compRoster, hosts[:compTotal], units)
+	require.NoError(t, err)
 	compCl := compiler.NewClient(compRoster)
 	reply, err := compCl.GetDirectoryInfo()
 	require.NoError(t, err)
@@ -108,13 +92,13 @@ func TestRandom_Simple(t *testing.T) {
 	require.NotNil(t, randPlan.ExecPlan.UnitPublics)
 	require.NotNil(t, randPlan.Signature)
 
-	randEd := &sys.ExecutionData{
-		Index:    0,
-		ExecPlan: randPlan.ExecPlan,
-		//ClientSigs:  nil,
-		CompilerSig: randPlan.Signature,
-		UnitSigs:    make([]protocol.BlsSignature, len(planReply.ExecPlan.Workflow.Nodes)),
-	}
+	//randEd := &sys.ExecutionData{
+	//Index:    0,
+	//ExecPlan: randPlan.ExecPlan,
+	//CompilerSig: randPlan.Signature,
+	//UnitSigs:    make([]protocol.BlsSignature, len(planReply.ExecPlan.Workflow.Nodes)),
+	//}
+	randEd := compiler.PrepareExecutionData(randPlan)
 	/// Advance rounds
 	randCl.advanceRounds(t, randEd, 4)
 	///////

@@ -62,6 +62,6 @@ func (c *Client) Randomness(ed *sys.ExecutionData) (*RandomnessReply, error) {
 	return reply, err
 }
 
-func GetServiceID() onet.ServiceID {
-	return easyrandID
-}
+//func GetServiceID() onet.ServiceID {
+//return easyrandID
+//}

@@ -90,6 +90,6 @@ func Verify(prf []byte, G, H kyber.Point, x, y, xbar, ybar []kyber.Point) error 
 	return proof.HashVerify(cothority.Suite, "", verifier, prf)
 }
 
-func GetServiceID() onet.ServiceID {
-	return easyneffID
-}
+//func GetServiceID() onet.ServiceID {
+//return easyneffID
+//}

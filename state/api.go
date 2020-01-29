@@ -108,6 +108,6 @@ func (c *Client) GetProof(instID byzcoin.InstanceID, ed *sys.ExecutionData) (*Ge
 	return reply, err
 }
 
-func GetServiceID() onet.ServiceID {
-	return stateID
-}
+//func GetServiceID() onet.ServiceID {
+//return stateID
+//}

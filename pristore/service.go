@@ -3,7 +3,6 @@ package pristore
 import (
 	"crypto/sha256"
 	"fmt"
-	"math"
 
 	"github.com/dedis/protean/sys"
 	"github.com/dedis/protean/utils"
@@ -57,7 +56,8 @@ func init() {
 		&AddReadReply{}, &AddReadBatchRequest{}, &AddReadBatchReply{},
 		&GetProofRequest{}, &GetProofReply{}, &GetProofBatchRequest{},
 		&GetProofBatchReply{}, &DecryptRequest{}, &DecryptReply{},
-		&DecryptNTRequest{}, &DecryptNTReply{}, &DecryptBatchRequest{}, &DecryptBatchReply{})
+		&DecryptBatchRequest{}, &DecryptBatchReply{}, &DecryptNTRequest{},
+		&DecryptNTReply{})
 }
 
 func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
@@ -466,64 +466,6 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 	return &DecryptReply{CalyReply: dkr, Sig: sig}, nil
 }
 
-func (s *Service) DecryptNT(req *DecryptNTRequest) (*DecryptNTReply, error) {
-	// First verify the execution request
-	db := s.scService.GetDB()
-	blk, err := db.GetLatest(db.GetByID(s.genesis))
-	if err != nil {
-		log.Errorf("Cannot get the latest block: %v", err)
-		return nil, err
-	}
-	verified := s.verifyExecutionRequest(DECNT, blk, req.ExecData)
-	if !verified {
-		log.Errorf("Cannot verify execution plan")
-		return nil, fmt.Errorf("Cannot verify execution plan")
-	}
-	// Perform decrypt
-	//dkr, err := s.calyService.DecryptKey(req.Request)
-	dkr, err := s.calyService.DecryptKeyNT(req.Request)
-	if err != nil {
-		log.Errorf("Decrypt error: %v", err)
-		return nil, err
-	}
-	// Start BLSCOSI to sign the result of reencryption
-	numNodes := len(s.roster.List)
-	tree := s.roster.GenerateNaryTreeWithRoot(numNodes, s.ServerIdentity())
-	pi, err := s.CreateProtocol(signReencFtCosi, tree)
-	if err != nil {
-		log.Errorf("Create protocol error: %v", err)
-		return nil, err
-	}
-	msgBuf, dataBuf, err := getBlscosiData(req.Request.DKID, dkr.XhatEnc)
-	if err != nil {
-		log.Errorf("Error generating blscosi data: %v", err)
-		return nil, err
-	}
-	cosiProto := pi.(*protocol.BlsCosi)
-	cosiProto.Msg = msgBuf
-	cosiProto.Data = dataBuf
-	cosiProto.CreateProtocol = s.CreateProtocol
-	cosiProto.Threshold = numNodes - (numNodes-1)/3
-	err = cosiProto.SetNbrSubTree(int(math.Pow(float64(numNodes), 1.0/3.0)))
-	if err != nil {
-		log.Errorf("Error setting up subtrees: %v", err)
-		return nil, err
-	}
-	err = cosiProto.Start()
-	if err != nil {
-		log.Errorf("Error starting blscosi")
-		return nil, err
-	}
-	dkr.Signature = <-cosiProto.FinalSignature
-	// Collectively sign the execution plan
-	sig, err := s.signExecutionPlan(req.ExecData.ExecPlan)
-	if err != nil {
-		log.Errorf("Cannot produce blscosi signature: %v", err)
-		return nil, err
-	}
-	return &DecryptNTReply{CalyReply: dkr, Sig: sig}, nil
-}
-
 func (s *Service) DecryptBatch(req *DecryptBatchRequest) (*DecryptBatchReply, error) {
 	// First verify the execution request
 	db := s.scService.GetDB()
@@ -554,6 +496,65 @@ func (s *Service) DecryptBatch(req *DecryptBatchRequest) (*DecryptBatchReply, er
 		return nil, err
 	}
 	return &DecryptBatchReply{CalyReplies: calyReplies, Sig: sig}, nil
+}
+
+func (s *Service) DecryptNT(req *DecryptNTRequest) (*DecryptNTReply, error) {
+	// First verify the execution request
+	db := s.scService.GetDB()
+	blk, err := db.GetLatest(db.GetByID(s.genesis))
+	if err != nil {
+		log.Errorf("Cannot get the latest block: %v", err)
+		return nil, err
+	}
+	verified := s.verifyExecutionRequest(DECNT, blk, req.ExecData)
+	if !verified {
+		log.Errorf("Cannot verify execution plan")
+		return nil, fmt.Errorf("Cannot verify execution plan")
+	}
+	// Perform decrypt
+	dkr, err := s.calyService.DecryptKeyNT(req.Request)
+	if err != nil {
+		log.Errorf("Decrypt error: %v", err)
+		return nil, err
+	}
+
+	// Start BLSCOSI to sign the result of reencryption
+	//numNodes := len(s.roster.List)
+	//tree := s.roster.GenerateNaryTreeWithRoot(numNodes, s.ServerIdentity())
+	//pi, err := s.CreateProtocol(signReencFtCosi, tree)
+	//if err != nil {
+	//log.Errorf("Create protocol error: %v", err)
+	//return nil, err
+	//}
+	//msgBuf, dataBuf, err := getBlscosiData(req.Request.DKID, dkr.XhatEnc)
+	//if err != nil {
+	//log.Errorf("Error generating blscosi data: %v", err)
+	//return nil, err
+	//}
+	//cosiProto := pi.(*protocol.BlsCosi)
+	//cosiProto.Msg = msgBuf
+	//cosiProto.Data = dataBuf
+	//cosiProto.CreateProtocol = s.CreateProtocol
+	//cosiProto.Threshold = numNodes - (numNodes-1)/3
+	//err = cosiProto.SetNbrSubTree(int(math.Pow(float64(numNodes), 1.0/3.0)))
+	//if err != nil {
+	//log.Errorf("Error setting up subtrees: %v", err)
+	//return nil, err
+	//}
+	//err = cosiProto.Start()
+	//if err != nil {
+	//log.Errorf("Error starting blscosi")
+	//return nil, err
+	//}
+	//dkr.Signature = <-cosiProto.FinalSignature
+
+	// Collectively sign the execution plan
+	sig, err := s.signExecutionPlan(req.ExecData.ExecPlan)
+	if err != nil {
+		log.Errorf("Cannot produce blscosi signature: %v", err)
+		return nil, err
+	}
+	return &DecryptNTReply{CalyReply: dkr, Sig: sig}, nil
 }
 
 func (s *Service) verifySignRequest(msg []byte, data []byte) bool {

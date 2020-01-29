@@ -62,6 +62,6 @@ func (c *Client) Decrypt(id []byte, gen []byte, ct *Ciphertext, xc kyber.Point, 
 	return reply, err
 }
 
-func GetServiceID() onet.ServiceID {
-	return tdhID
-}
+//func GetServiceID() onet.ServiceID {
+//return tdhID
+//}

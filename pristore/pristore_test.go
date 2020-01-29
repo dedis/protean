@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/dedis/protean/compiler"
+	"github.com/dedis/protean/libtest"
 	"github.com/dedis/protean/sys"
 	"github.com/dedis/protean/utils"
 
@@ -33,23 +34,6 @@ func init() {
 	flag.StringVar(&rname, "read", "", "JSON file")
 }
 
-func initCompilerUnit(t *testing.T, local *onet.LocalTest, total int, roster *onet.Roster, hosts []*onet.Server, units []*sys.FunctionalUnit) {
-	compServices := local.GetServices(hosts[:total], compiler.GetServiceID())
-	compNodes := make([]*compiler.Service, len(compServices))
-	for i := 0; i < len(compServices); i++ {
-		compNodes[i] = compServices[i].(*compiler.Service)
-	}
-	root := compNodes[0]
-	initReply, err := root.InitUnit(&compiler.InitUnitRequest{Roster: roster, ScCfg: &sys.ScConfig{MHeight: 2, BHeight: 2}})
-	require.NoError(t, err)
-	for _, n := range compNodes {
-		_, err = n.StoreGenesis(&compiler.StoreGenesisRequest{Genesis: initReply.Genesis})
-		require.NoError(t, err)
-	}
-	_, err = root.CreateUnits(&compiler.CreateUnitsRequest{Units: units})
-	require.NoError(t, err)
-}
-
 func TestMain(m *testing.M) {
 	log.MainTest(m)
 }
@@ -66,7 +50,8 @@ func TestPristore_Multiple(t *testing.T) {
 	units, err := sys.PrepareUnits(unitRoster, &uname)
 	require.Nil(t, err)
 
-	initCompilerUnit(t, local, compTotal, compRoster, hosts[:compTotal], units)
+	err = libtest.InitCompilerUnit(local, compTotal, compRoster, hosts[:compTotal], units)
+	require.NoError(t, err)
 	compCl := compiler.NewClient(compRoster)
 	reply, err := compCl.GetDirectoryInfo()
 	require.NoError(t, err)

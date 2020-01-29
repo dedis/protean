@@ -49,10 +49,9 @@ func TestRequest(n int, msg []byte) (ShuffleRequest, kyber.Scalar, kyber.Point) 
 	}, secret, public
 }
 
-func GenerateRequest(n int, msg []byte, key kyber.Point) ShuffleRequest {
+func GenerateRequest(n int, msg []byte, key kyber.Point, ed *sys.ExecutionData) ShuffleRequest {
 	var public kyber.Point
 	r := random.New()
-	//pairs := make([]ElGamalPair, n)
 	pairs := make([]utils.ElGamalPair, n)
 	for i := range pairs {
 		if key != nil {
@@ -62,13 +61,13 @@ func GenerateRequest(n int, msg []byte, key kyber.Point) ShuffleRequest {
 			public = cothority.Suite.Point().Mul(secret, nil)
 		}
 		c := utils.ElGamalEncrypt(public, msg)
-		//pairs[i] = ElGamalPair{C1: c.K, C2: c.C}
 		pairs[i] = utils.ElGamalPair{K: c.K, C: c.C}
 	}
 
 	return ShuffleRequest{
-		Pairs: pairs,
-		G:     cothority.Suite.Point().Base(),
-		H:     cothority.Suite.Point().Pick(r),
+		Pairs:    pairs,
+		G:        cothority.Suite.Point().Base(),
+		H:        cothority.Suite.Point().Pick(r),
+		ExecData: ed,
 	}
 }

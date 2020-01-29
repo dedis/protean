@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/dedis/protean/compiler"
+	"github.com/dedis/protean/libtest"
 	"github.com/dedis/protean/pristore"
 	"github.com/dedis/protean/state"
 	"github.com/dedis/protean/sys"
@@ -47,23 +48,6 @@ func init() {
 	flag.StringVar(&rname, "reveal", "", "JSON file")
 }
 
-func initCompilerUnit(t *testing.T, local *onet.LocalTest, total int, roster *onet.Roster, hosts []*onet.Server, units []*sys.FunctionalUnit) {
-	compServices := local.GetServices(hosts[:total], compiler.GetServiceID())
-	compNodes := make([]*compiler.Service, len(compServices))
-	for i := 0; i < len(compServices); i++ {
-		compNodes[i] = compServices[i].(*compiler.Service)
-	}
-	root := compNodes[0]
-	initReply, err := root.InitUnit(&compiler.InitUnitRequest{Roster: roster, ScCfg: &sys.ScConfig{MHeight: 2, BHeight: 2}})
-	require.NoError(t, err)
-	for _, n := range compNodes {
-		_, err = n.StoreGenesis(&compiler.StoreGenesisRequest{Genesis: initReply.Genesis})
-		require.NoError(t, err)
-	}
-	_, err = root.CreateUnits(&compiler.CreateUnitsRequest{Units: units})
-	require.NoError(t, err)
-}
-
 func TestMain(m *testing.M) {
 	log.MainTest(m)
 }
@@ -80,7 +64,8 @@ func Test_CalypsoLottery_Simple(t *testing.T) {
 	units, err := sys.PrepareUnits(unitRoster, &uname)
 	require.NoError(t, err)
 
-	initCompilerUnit(t, local, unitCnt, compRoster, hosts[:unitCnt], units)
+	err = libtest.InitCompilerUnit(local, unitCnt, compRoster, hosts[:unitCnt], units)
+	require.NoError(t, err)
 
 	// BEGIN INITIALIZE UNITS
 	// Get directory information from the compiler unit
@@ -130,8 +115,8 @@ func Test_CalypsoLottery_Simple(t *testing.T) {
 	ed.UnitSigs[ed.Index] = ltsReply.Sig
 	ed.Index++
 
-	writers := generateWriters(4)
-	readers := generateReaders(1)
+	writers := libtest.GenerateWriters(4)
+	readers := libtest.GenerateReaders(1)
 	lotDarc := pristore.CreateDarc(readers[0].Identity(), "lotterydarc")
 	err = pristore.AddWriteRule(lotDarc, writers...)
 	require.NoError(t, err)
@@ -403,20 +388,4 @@ func prepareSpawnArgs(ltsReply *pristore.CreateLTSReply, writers []darc.Signer, 
 	kv[2] = &state.KV{Key: "keylist", Value: klBytes}
 	kv[3] = &state.KV{Key: "calydarc", Value: darcBytes}
 	return kv, nil
-}
-
-func generateWriters(count int) []darc.Signer {
-	writers := make([]darc.Signer, count)
-	for i := 0; i < count; i++ {
-		writers[i] = darc.NewSignerEd25519(nil, nil)
-	}
-	return writers
-}
-
-func generateReaders(count int) []darc.Signer {
-	readers := make([]darc.Signer, count)
-	for i := 0; i < count; i++ {
-		readers[i] = darc.NewSignerEd25519(nil, nil)
-	}
-	return readers
 }

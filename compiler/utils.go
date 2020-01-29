@@ -25,46 +25,6 @@ func prepareExecutionPlan(data *sbData, wf *sys.Workflow) (*sys.ExecutionPlan, e
 	return &sys.ExecutionPlan{Workflow: wf, UnitPublics: publics}, nil
 }
 
-//func verifyAuthentication(wf *sys.Workflow, sigMap map[string][]byte) error {
-//if len(sigMap) == 0 {
-//log.LLvlf1("Workflow does not have authorized users")
-//return nil
-//}
-//wfHash, err := utils.ComputeWFHash(wf)
-//if err != nil {
-//return err
-//}
-//if wf.All {
-//for id, authPub := range wf.AuthPublics {
-//sig, ok := sigMap[id]
-//if !ok {
-//return fmt.Errorf("Missing signature from %v", id)
-//}
-//err := schnorr.Verify(cothority.Suite, authPub, wfHash, sig)
-//if err != nil {
-//return fmt.Errorf("Cannot verify signature from %v", id)
-//}
-//}
-//} else {
-//success := false
-//for id, sig := range sigMap {
-//pk, ok := wf.AuthPublics[id]
-//if !ok {
-//return fmt.Errorf("Cannot find %v in authenticated users", id)
-//}
-//err := schnorr.Verify(cothority.Suite, pk, wfHash, sig)
-//if err == nil {
-//success = true
-//break
-//}
-//}
-//if !success {
-//return fmt.Errorf("Cannot verify a signature against the given authenticated users")
-//}
-//}
-//return nil
-//}
-
 func verifyDag(wfNodes []*sys.WfNode) error {
 	var edges []*edge
 	//levels := make(map[int]int)
@@ -120,7 +80,6 @@ func hasIncomingEdge(node int, edges []*edge) bool {
 	return false
 }
 
-//func findNoIncoming(nodes map[int]bool, edges []*edge, levels map[int]int) []int {
 func findNoIncoming(nodes map[int]bool, edges []*edge) []int {
 	var noIncoming []int
 	for _, edge := range edges {
@@ -129,7 +88,6 @@ func findNoIncoming(nodes map[int]bool, edges []*edge) []int {
 	for k, v := range nodes {
 		if v == true {
 			noIncoming = append(noIncoming, k)
-			//levels[k] = 0
 		}
 	}
 	return noIncoming
@@ -144,15 +102,6 @@ func getBlockData(db *skipchain.SkipBlockDB, genesis []byte) (*sbData, error) {
 	err = protobuf.DecodeWithConstructors(latest.Data, data, network.DefaultConstructors(cothority.Suite))
 	return data, err
 
-}
-
-func (req ExecutionPlanRequest) Hash() []byte {
-	h := sha256.New()
-	for _, wfn := range req.Workflow.Nodes {
-		h.Write([]byte(wfn.UID))
-		h.Write([]byte(wfn.TID))
-	}
-	return h.Sum(nil)
 }
 
 func generateUnitID(fu *sys.FunctionalUnit) (string, error) {
@@ -179,3 +128,12 @@ func generateTxnMap(tList []string) map[string]string {
 	}
 	return txns
 }
+
+//func (req ExecutionPlanRequest) Hash() []byte {
+//h := sha256.New()
+//for _, wfn := range req.Workflow.Nodes {
+//h.Write([]byte(wfn.UID))
+//h.Write([]byte(wfn.TID))
+//}
+//return h.Sum(nil)
+//}
