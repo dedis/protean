@@ -2,18 +2,14 @@ package tdh
 
 import (
 	"crypto/sha256"
-	"time"
 
-	"github.com/dedis/protean/sys"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/suites"
 	"go.dedis.ch/kyber/v3/util/random"
 	"go.dedis.ch/kyber/v3/xof/keccak"
-	"go.dedis.ch/onet/v3"
 )
 
-//func (c *Client) Encrypt(suite suites.Suite, genData []byte, X kyber.Point, mesg []byte) *Ciphertext {
 func Encrypt(suite suites.Suite, genData []byte, X kyber.Point, mesg []byte) *Ciphertext {
 	ctext := &Ciphertext{}
 	r := suite.Scalar().Pick(suite.RandomStream())
@@ -43,7 +39,6 @@ func Encrypt(suite suites.Suite, genData []byte, X kyber.Point, mesg []byte) *Ci
 	return ctext
 }
 
-//func (c *Client) RecoverPlaintext(reply *DecryptReply, xc kyber.Scalar) ([]byte, error) {
 func RecoverPlaintext(reply *DecryptReply, xc kyber.Scalar) ([]byte, error) {
 	var data []byte
 	var err error
@@ -60,27 +55,6 @@ func RecoverPlaintext(reply *DecryptReply, xc kyber.Scalar) ([]byte, error) {
 		data, err = xHatInv.Data()
 	}
 	return data, err
-}
-
-func GenerateInitRequest(roster *onet.Roster) *InitUnitRequest {
-	scCfg := &sys.ScConfig{
-		MHeight: 2,
-		BHeight: 2,
-	}
-	uData := &sys.BaseStorage{
-		UnitID:   "tdh",
-		UnitName: "tdhUnit",
-		Txns:     map[string]string{"a": "b", "c": "d"},
-	}
-	return &InitUnitRequest{
-		Cfg: &sys.UnitConfig{
-			Roster:       roster,
-			ScCfg:        scCfg,
-			BaseStore:    uData,
-			BlkInterval:  10,
-			DurationType: time.Second,
-		},
-	}
 }
 
 //func GenerateMesgs(count int, m string, key kyber.Point) ([][]byte, []*utils.ElGamalPair) {

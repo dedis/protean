@@ -63,15 +63,22 @@ func main() {
 	//testEmbedLen()
 	//testProtobuf()
 	//testbyz()
-	testIdentity()
+	//testIdentity()
 	//testReencryption()
 	//testencode()
 	//testproof()
+	//testBytes()
+	testShuffle()
 }
 
 type Abbas struct {
 	A []string
 	//A []*IID
+}
+
+func testBytes() {
+	aa := "On Wisconsin!"
+	fmt.Println([]byte(aa))
 }
 
 func testencode() {
@@ -417,12 +424,12 @@ func testShuffle() {
 					C: Ybar[j],
 				}
 				pt := utils.ElGamalDecrypt(h, *egp)
-				fmt.Println("Orig:", c)
+				fmt.Println("Orig:", string(c))
 				plain, err := pt.Data()
 				if err != nil {
 					fmt.Println("decryption error:", err)
 				} else {
-					fmt.Println("Plain:", plain)
+					fmt.Println("Plain:", string(plain))
 				}
 
 			}

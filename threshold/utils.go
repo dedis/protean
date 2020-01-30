@@ -3,7 +3,6 @@ package threshold
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
 
 	"github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3"
@@ -43,18 +42,6 @@ func VerifyDecProof(sh kyber.Point, ei kyber.Scalar, fi kyber.Scalar, u kyber.Po
 	hiHat.MarshalTo(hash)
 	e := cothority.Suite.Scalar().SetBytes(hash.Sum(nil))
 	return e.Equal(ei)
-}
-
-func GenerateMesgs(count int, m string, key kyber.Point) ([][]byte, []*utils.ElGamalPair) {
-	mesgs := make([][]byte, count)
-	cs := make([]*utils.ElGamalPair, count)
-	for i := 0; i < count; i++ {
-		s := fmt.Sprintf("%s%s%d%s", m, " -- ", i, "!")
-		mesgs[i] = []byte(s)
-		c := utils.ElGamalEncrypt(key, mesgs[i])
-		cs[i] = &c
-	}
-	return mesgs, cs
 }
 
 func GenerateRandBytes() []byte {

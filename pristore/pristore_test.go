@@ -82,13 +82,6 @@ func TestPristore_Multiple(t *testing.T) {
 	require.NotNil(t, planReply.Signature)
 
 	psCl := NewClient(unitRoster)
-	//ed := &sys.ExecutionData{
-	//Index:       0,
-	//ExecPlan:    planReply.ExecPlan,
-	//ClientSigs:  nil,
-	//CompilerSig: planReply.Signature,
-	//UnitSigs:    make([]protocol.BlsSignature, len(planReply.ExecPlan.Workflow.Nodes)),
-	//}
 	ed := compiler.PrepareExecutionData(planReply)
 
 	// Admin (client) setting up Calyspo
