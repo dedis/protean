@@ -195,16 +195,14 @@ func (bct *bcTest) createInstance(t *testing.T, svd *SigVerData) byzcoin.Instanc
 			Value: buf,
 		},
 	}
-	ctx := byzcoin.ClientTransaction{
-		Instructions: []byzcoin.Instruction{{
-			InstanceID:    byzcoin.NewInstanceID(bct.gDarc.GetBaseID()),
-			SignerCounter: []uint64{bct.ct},
-			Spawn: &byzcoin.Spawn{
-				ContractID: ContractSigVerID,
-				Args:       args,
-			},
-		}},
-	}
+	ctx := byzcoin.NewClientTransaction(byzcoin.CurrentVersion, byzcoin.Instruction{
+		InstanceID:    byzcoin.NewInstanceID(bct.gDarc.GetBaseID()),
+		SignerCounter: []uint64{bct.ct},
+		Spawn: &byzcoin.Spawn{
+			ContractID: ContractSigVerID,
+			Args:       args,
+		},
+	})
 	bct.ct++
 	// And we need to sign the instruction with the signer that has his
 	// public key stored in the darc.
@@ -226,17 +224,15 @@ func (bct *bcTest) updateInstance(t *testing.T, instID byzcoin.InstanceID, svd *
 			Value: buf,
 		},
 	}
-	ctx := byzcoin.ClientTransaction{
-		Instructions: []byzcoin.Instruction{{
-			InstanceID:    instID,
-			SignerCounter: []uint64{bct.ct},
-			Invoke: &byzcoin.Invoke{
-				ContractID: ContractSigVerID,
-				Command:    "bls",
-				Args:       args,
-			},
-		}},
-	}
+	ctx := byzcoin.NewClientTransaction(byzcoin.CurrentVersion, byzcoin.Instruction{
+		InstanceID:    instID,
+		SignerCounter: []uint64{bct.ct},
+		Invoke: &byzcoin.Invoke{
+			ContractID: ContractSigVerID,
+			Command:    "bls",
+			Args:       args,
+		},
+	})
 	bct.ct++
 	// And we need to sign the instruction with the signer that has his
 	// public key stored in the darc.

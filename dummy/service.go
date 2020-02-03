@@ -86,19 +86,17 @@ func (s *Service) SpawnDarc(req *SpawnDarcRequest) (*SpawnDarcReply, error) {
 		log.Errorf("Cannot convert darc to protobuf: %v", err)
 		return nil, err
 	}
-	ctx := byzcoin.ClientTransaction{
-		Instructions: []byzcoin.Instruction{{
-			InstanceID: byzcoin.NewInstanceID(s.gMsg.GenesisDarc.GetBaseID()),
-			Spawn: &byzcoin.Spawn{
-				ContractID: byzcoin.ContractDarcID,
-				Args: []byzcoin.Argument{{
-					Name:  "darc",
-					Value: darcBuf,
-				}},
-			},
-			SignerCounter: []uint64{s.signerCtr},
-		}},
-	}
+	ctx := byzcoin.NewClientTransaction(byzcoin.CurrentVersion, byzcoin.Instruction{
+		InstanceID: byzcoin.NewInstanceID(s.gMsg.GenesisDarc.GetBaseID()),
+		Spawn: &byzcoin.Spawn{
+			ContractID: byzcoin.ContractDarcID,
+			Args: []byzcoin.Argument{{
+				Name:  "darc",
+				Value: darcBuf,
+			}},
+		},
+		SignerCounter: []uint64{s.signerCtr},
+	})
 	err = ctx.FillSignersAndSignWith(s.signer)
 	if err != nil {
 		log.Errorf("Sign transaction failed: %v", err)

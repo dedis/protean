@@ -31,17 +31,15 @@ func (c *Client) UpdateState(contractID string, kv []*KV, instID byzcoin.Instanc
 	for i, elt := range kv {
 		args[i] = byzcoin.Argument{Name: elt.Key, Value: elt.Value}
 	}
-	ctx := byzcoin.ClientTransaction{
-		Instructions: []byzcoin.Instruction{{
-			InstanceID: instID,
-			Invoke: &byzcoin.Invoke{
-				ContractID: contractID,
-				Command:    "update",
-				Args:       args,
-			},
-			SignerCounter: []uint64{signerCtr},
-		}},
-	}
+	ctx := byzcoin.NewClientTransaction(byzcoin.CurrentVersion, byzcoin.Instruction{
+		InstanceID: instID,
+		Invoke: &byzcoin.Invoke{
+			ContractID: contractID,
+			Command:    "update",
+			Args:       args,
+		},
+		SignerCounter: []uint64{signerCtr},
+	})
 	err := ctx.FillSignersAndSignWith(signer)
 	if err != nil {
 		log.Errorf("Sign transaction failed: %v", err)
@@ -66,16 +64,14 @@ func (c *Client) CreateState(contractID string, kv []*KV, adminDarc darc.Darc, s
 	for i, elt := range kv {
 		args[i] = byzcoin.Argument{Name: elt.Key, Value: elt.Value}
 	}
-	ctx := byzcoin.ClientTransaction{
-		Instructions: []byzcoin.Instruction{{
-			InstanceID: byzcoin.NewInstanceID(adminDarc.GetBaseID()),
-			Spawn: &byzcoin.Spawn{
-				ContractID: contractID,
-				Args:       args,
-			},
-			SignerCounter: []uint64{signerCtr},
-		}},
-	}
+	ctx := byzcoin.NewClientTransaction(byzcoin.CurrentVersion, byzcoin.Instruction{
+		InstanceID: byzcoin.NewInstanceID(adminDarc.GetBaseID()),
+		Spawn: &byzcoin.Spawn{
+			ContractID: contractID,
+			Args:       args,
+		},
+		SignerCounter: []uint64{signerCtr},
+	})
 	err := ctx.FillSignersAndSignWith(signer)
 	if err != nil {
 		log.Errorf("Sign transaction failed: %v", err)

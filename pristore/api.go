@@ -67,7 +67,7 @@ func (c *Client) SpawnDarc(spawnDarc darc.Darc, wait int, ed *sys.ExecutionData)
 	return reply, err
 }
 
-func (c *Client) AddWrite(data []byte, ltsID byzcoin.InstanceID, X kyber.Point, signer darc.Signer, signerCtr uint64, darc darc.Darc, wait int, ed *sys.ExecutionData) (*AddWriteReply, error) {
+func (c *Client) AddWrite(ltsID byzcoin.InstanceID, data []byte, X kyber.Point, signer darc.Signer, signerCtr uint64, darc darc.Darc, wait int, ed *sys.ExecutionData) (*AddWriteReply, error) {
 	write := calypso.NewWrite(cothority.Suite, ltsID, darc.GetBaseID(), X, data)
 	if write == nil {
 		log.Errorf("Cannot create Calypso write")
@@ -77,17 +77,15 @@ func (c *Client) AddWrite(data []byte, ltsID byzcoin.InstanceID, X kyber.Point, 
 	if err != nil {
 		return nil, err
 	}
-	ctx := byzcoin.ClientTransaction{
-		Instructions: byzcoin.Instructions{{
-			InstanceID: byzcoin.NewInstanceID(darc.GetBaseID()),
-			Spawn: &byzcoin.Spawn{
-				ContractID: calypso.ContractWriteID,
-				Args: byzcoin.Arguments{{
-					Name: "write", Value: writeBuf}},
-			},
-			SignerCounter: []uint64{signerCtr},
-		}},
-	}
+	ctx := byzcoin.NewClientTransaction(byzcoin.CurrentVersion, byzcoin.Instruction{
+		InstanceID: byzcoin.NewInstanceID(darc.GetBaseID()),
+		Spawn: &byzcoin.Spawn{
+			ContractID: calypso.ContractWriteID,
+			Args: byzcoin.Arguments{{
+				Name: "write", Value: writeBuf}},
+		},
+		SignerCounter: []uint64{signerCtr},
+	})
 	err = ctx.FillSignersAndSignWith(signer)
 	if err != nil {
 		log.Errorf("Sign transaction failed: %v", err)
@@ -115,16 +113,14 @@ func (c *Client) AddRead(proof *byzcoin.Proof, signer darc.Signer, signerCtr uin
 		return nil, err
 	}
 	log.Infof("In AddRead sending txn to %s contract", calypso.ContractReadID)
-	ctx := byzcoin.ClientTransaction{
-		Instructions: byzcoin.Instructions{{
-			InstanceID: byzcoin.NewInstanceID(instID),
-			Spawn: &byzcoin.Spawn{
-				ContractID: calypso.ContractReadID,
-				Args:       byzcoin.Arguments{{Name: "read", Value: readBuf}},
-			},
-			SignerCounter: []uint64{signerCtr},
-		}},
-	}
+	ctx := byzcoin.NewClientTransaction(byzcoin.CurrentVersion, byzcoin.Instruction{
+		InstanceID: byzcoin.NewInstanceID(instID),
+		Spawn: &byzcoin.Spawn{
+			ContractID: calypso.ContractReadID,
+			Args:       byzcoin.Arguments{{Name: "read", Value: readBuf}},
+		},
+		SignerCounter: []uint64{signerCtr},
+	})
 	err = ctx.FillSignersAndSignWith(signer)
 	if err != nil {
 		log.Errorf("Sign transaction failed: %v", err)
@@ -156,16 +152,14 @@ func (c *Client) AddReadBatch(proofs []*byzcoin.Proof, signer darc.Signer, signe
 				log.Errorf("Protobuf encode error: %v", err)
 				return nil, err
 			}
-			ctxs[i] = byzcoin.ClientTransaction{
-				Instructions: byzcoin.Instructions{{
-					InstanceID: byzcoin.NewInstanceID(instID),
-					Spawn: &byzcoin.Spawn{
-						ContractID: calypso.ContractReadID,
-						Args:       byzcoin.Arguments{{Name: "read", Value: readBuf}},
-					},
-					SignerCounter: []uint64{signerCtr},
-				}},
-			}
+			ctxs[i] = byzcoin.NewClientTransaction(byzcoin.CurrentVersion, byzcoin.Instruction{
+				InstanceID: byzcoin.NewInstanceID(instID),
+				Spawn: &byzcoin.Spawn{
+					ContractID: calypso.ContractReadID,
+					Args:       byzcoin.Arguments{{Name: "read", Value: readBuf}},
+				},
+				SignerCounter: []uint64{signerCtr},
+			})
 			err = ctxs[i].FillSignersAndSignWith(signer)
 			if err != nil {
 				log.Errorf("Sign transaction failed: %v", err)
@@ -194,9 +188,10 @@ func (c *Client) GetProof(instID byzcoin.InstanceID, ed *sys.ExecutionData) (*Ge
 	return reply, err
 }
 
-func (c *Client) GetProofBatch(iidBatch []*IID, ed *sys.ExecutionData) (*GetProofBatchReply, error) {
+func (c *Client) GetProofBatch(iidBatch []*IID, iidValid []bool, ed *sys.ExecutionData) (*GetProofBatchReply, error) {
 	req := &GetProofBatchRequest{
 		IIDBatch: iidBatch,
+		IIDValid: iidValid,
 		ExecData: ed,
 	}
 	reply := &GetProofBatchReply{}

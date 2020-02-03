@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"flag"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -135,9 +136,11 @@ func Test_CalypsoLottery_Simple(t *testing.T) {
 	}
 	stCl = state.NewClient(unitRoster)
 	orgDarc := darc.NewDarc(darc.InitRules([]darc.Identity{organizer.Identity()}, []darc.Identity{organizer.Identity()}), []byte("organizer"))
-	orgDarc.Rules.AddRule(darc.Action("spawn:"+state.ContractCalyLotteryID), expression.InitOrExpr(organizer.Identity().String()))
-	orgDarc.Rules.AddRule(darc.Action("invoke:"+state.ContractCalyLotteryID+".storejoin"), expression.InitOrExpr(writerIDs...))
-	sd, err := stCl.SpawnDarc(*orgDarc, 3, ed)
+	err = orgDarc.Rules.AddRule(darc.Action("spawn:"+state.ContractCalyLotteryID), expression.InitOrExpr(organizer.Identity().String()))
+	require.NoError(t, err)
+	err = orgDarc.Rules.AddRule(darc.Action("invoke:"+state.ContractCalyLotteryID+".storejoin"), expression.InitOrExpr(writerIDs...))
+	require.NoError(t, err)
+	sd, err := stCl.SpawnDarc(*orgDarc, 2, ed)
 	require.NoError(t, err)
 	ed.UnitSigs[ed.Index] = sd.Sig
 	ed.Index++
@@ -150,6 +153,9 @@ func Test_CalypsoLottery_Simple(t *testing.T) {
 	ed.UnitSigs[ed.Index] = csr.Sig
 	ed.Index++
 	// END SETUP WORKFLOW
+
+	// csr.InstanceID: Uniquely identifies a Byzcoin smart contract
+	// instance. ~ to the location of the address space of the contract
 
 	// This is the equivalent of either (1) the organizer putting the CIID
 	// information to the workflow beforehand, or (2) the organizer
@@ -188,35 +194,61 @@ func Test_CalypsoLottery_Simple(t *testing.T) {
 	lotteryData := storage.LotteryData
 	ed.UnitSigs[ed.Index] = gpReply.Sig
 	ed.Index++
+
+	fmt.Println("Printing out bunch of stuff:", storage.SetupData.LTSID, storage.SetupData.X.String())
+	for _, kv := range storage.LotteryData {
+		fmt.Println("Key:", kv.Key, " -- Value:", kv.Value, " -- Version:", kv.Version)
+	}
+
 	wrProofs := getWriteProofs(lotteryData)
-	rbReply, err := psCl.AddReadBatch(wrProofs, organizer, orgCtr, 3, ed)
+	log.Info("Sending batch read request")
+	rbReply, err := psCl.AddReadBatch(wrProofs, organizer, orgCtr, 2, ed)
 	require.NoError(t, err)
 	orgCtr += uint64(len(wrProofs))
 	ed.UnitSigs[ed.Index] = rbReply.Sig
 	ed.Index++
 
-	gpbReply, err := psCl.GetProofBatch(rbReply.IIDBatch, ed)
+	gpbReply, err := psCl.GetProofBatch(rbReply.IIDBatch, rbReply.IIDValid, ed)
 	require.NoError(t, err)
-	rProofs := getReadProofs(gpbReply.PrBatch)
+	//rProofs := getReadProofs(gpbReply.PrBatch)
+	rProofs := getReadProofs(gpbReply.PrBatch, gpbReply.PrValid)
 	//for i, pr := range rProofs {
 	//require.True(t, pr.InclusionProof.Match(rbReply.InstanceIDs[i].Slice()))
 	//}
+	idx := 0
+	for i, pr := range rProofs {
+		if pr == nil {
+			require.True(t, !rbReply.IIDValid[i] || !gpbReply.PrValid[i])
+		} else {
+			require.True(t, rbReply.IIDValid[i] && gpbReply.PrValid[i])
+			require.True(t, pr.InclusionProof.Match(rbReply.IIDBatch[idx].ID.Slice()))
+			idx++
+		}
+	}
 	ed.UnitSigs[ed.Index] = gpbReply.Sig
 	ed.Index++
 
-	decReply, err := psCl.DecryptBatch(wrProofs, rProofs, ed)
-	require.NoError(t, err)
-	ed.UnitSigs[ed.Index] = decReply.Sig
-	ed.Index++
+	//decReply, err := psCl.DecryptBatch(wrProofs, rProofs, ed)
+	//require.NoError(t, err)
+	//ed.UnitSigs[ed.Index] = decReply.Sig
+	//ed.Index++
 	// END FINALIZE WORKFLOW (LOTTERY ORGANIZER)
 }
 
-func getReadProofs(prBatch []*pristore.GPR) []*byzcoin.Proof {
-	sz := len(prBatch)
+func getReadProofs(prBatch []*byzcoin.GetProofResponse, prValid []bool) []*byzcoin.Proof {
+	//sz := len(prBatch)
+	//for i, pr := range prBatch {
+	//if pr.Valid {
+	//proofs[i] = &pr.Resp.Proof
+	//}
+	//}
+	idx := 0
+	sz := len(prValid)
 	proofs := make([]*byzcoin.Proof, sz)
-	for i, pr := range prBatch {
-		if pr.Valid {
-			proofs[i] = &pr.Resp.Proof
+	for i, valid := range prValid {
+		if valid {
+			proofs[i] = &prBatch[idx].Proof
+			idx++
 		}
 	}
 	return proofs
@@ -241,10 +273,8 @@ func runJoinWorkflow(t *testing.T, compRoster *onet.Roster, unitRoster *onet.Ros
 	// BEGIN JOIN WORKFLOW
 	log.Info("Begin join workflow")
 	compCl := compiler.NewClient(compRoster)
-	//joinWf, err := cliutils.PrepareWorkflow(&jname, directory, nil, false)
 	joinWf, err := compiler.PrepareWorkflow(&jname, directory)
 	require.NoError(t, err)
-	//joinPlan, err := compCl.GenerateExecutionPlan(joinWf, nil, nil)
 	joinPlan, err := compCl.GenerateExecutionPlan(joinWf)
 	require.NoError(t, err)
 	compCl.Close()
@@ -270,8 +300,13 @@ func runJoinWorkflow(t *testing.T, compRoster *onet.Roster, unitRoster *onet.Ros
 	require.NoError(t, err)
 	log.Info("Adding write to Calypso")
 	//wr, err := psCl.AddWrite(ticketData.K, calyData.LTSID, calyData.X, writers[0], 1, *calyData.CalyDarc, 2, ed)
-	log.Info(ticketData.K, calyData.LTSID)
-	wr, err := psCl.AddWrite(ticketData.K, calyData.LTSID, calyData.X, signer, 1, *calyData.CalyDarc, 1, ed)
+	// data: symmetric key that is used for encrypting client's lottery
+	// ticket. this key will be encrypted with the LTS key.
+	// signer: sign the Byzcoin transaction with signer's secret key (sent
+	// with the corresponding signerCtr, which is 1 in this case)
+	// CalyDarc: lotDarc created above. this is the DARC created for
+	// PriStore.
+	wr, err := psCl.AddWrite(calyData.LTSID, ticketData.K, calyData.X, signer, 1, *calyData.CalyDarc, 1, ed)
 	require.NoError(t, err)
 	ed.UnitSigs[ed.Index] = wr.Sig
 	ed.Index++
@@ -281,12 +316,11 @@ func runJoinWorkflow(t *testing.T, compRoster *onet.Roster, unitRoster *onet.Ros
 	ed.UnitSigs[ed.Index] = wrPr.Sig
 	ed.Index++
 
-	//args, err = prepareInvokeArgs(0, ticketData, wrPr.Proof, writers[0].Ed25519.Secret)
 	//args, err := prepareInvokeArgs(idx, ticketData, &wrPr.Proof, signer.Ed25519.Secret)
-	args, err := prepareInvokeArgs(idx, ticketData, &wrPr.ProofResp.Proof, signer.Ed25519.Secret)
+	versionNum := storage.LotteryData[idx].Version
+	args, err := prepareInvokeArgs(idx, ticketData, versionNum, &wrPr.ProofResp.Proof, signer.Ed25519.Secret)
 	require.NoError(t, err)
-	//updReply, err := stCl.UpdateState(state.ContractCalyLotteryID, args, iid, 1, writers[0], 2, ed)
-	updReply, err := stCl.UpdateState(state.ContractCalyLotteryID, "storejoin", args, iid, 1, signer, 1, ed)
+	updReply, err := stCl.UpdateState(state.ContractCalyLotteryID, "storejoin", iid, args, signer, 1, 3, ed)
 	require.NoError(t, err)
 	ed.UnitSigs[ed.Index] = updReply.Sig
 	ed.Index++
@@ -329,10 +363,8 @@ func prepareLotteryTicket() (*TicketData, error) {
 	return &TicketData{C: c, T: ticket, THash: th, K: key, KHash: kh}, nil
 }
 
-func prepareInvokeArgs(idx int, ticketData *TicketData, proof *byzcoin.Proof, sk kyber.Scalar) ([]*state.KV, error) {
+func prepareInvokeArgs(idx int, ticketData *TicketData, currVer uint32, proof *byzcoin.Proof, sk kyber.Scalar) ([]*state.KV, error) {
 	// Prepare LotteryDataValue struct
-	//wdv := &state.WriteDataValue{
-	//ldv := &state.WriteDataValue{
 	ldv := &state.LotteryDataValue{
 		Index:      idx,
 		WrProof:    proof,
@@ -346,9 +378,9 @@ func prepareInvokeArgs(idx int, ticketData *TicketData, proof *byzcoin.Proof, sk
 		return nil, err
 	}
 	// Encode KV version number
+	//version := uint32(1)
 	verBuf := make([]byte, 4)
-	version := uint32(1)
-	binary.LittleEndian.PutUint32(verBuf, version)
+	binary.LittleEndian.PutUint32(verBuf, currVer+1)
 	// Compute the hash of (LDV || Version)
 	h := sha256.New()
 	h.Write(ldvBytes)
@@ -367,6 +399,14 @@ func prepareInvokeArgs(idx int, ticketData *TicketData, proof *byzcoin.Proof, sk
 	return kv, nil
 }
 
+// Prepares the arguments that will be passed to the lottery contract on
+// Byzcoin.
+// Input:
+//   - ltsReply: reply from the CreateLTS call. it contains the ltsid and the
+//   collecitve public key X of the corresponding LTS group.
+//   - writers: identities of the eligible writers. pk of the eligible writers
+//   are sent to the lottery contract so that whenever a client wants to add a
+//   lottery ticket, they are authenticated against this key
 func prepareSpawnArgs(ltsReply *pristore.CreateLTSReply, writers []darc.Signer, darc *darc.Darc) ([]*state.KV, error) {
 	keyList := make([]string, len(writers))
 	for i, w := range writers {

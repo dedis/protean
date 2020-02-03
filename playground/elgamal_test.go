@@ -143,16 +143,14 @@ func (egt *egTest) createInstance(t *testing.T, numNodes int, cs []*utils.ElGama
 			Value: buf,
 		},
 	}
-	ctx := byzcoin.ClientTransaction{
-		Instructions: []byzcoin.Instruction{{
-			InstanceID:    byzcoin.NewInstanceID(egt.gDarc.GetBaseID()),
-			SignerCounter: []uint64{egt.ct},
-			Spawn: &byzcoin.Spawn{
-				ContractID: ContractElGamalID,
-				Args:       args,
-			},
-		}},
-	}
+	ctx := byzcoin.NewClientTransaction(byzcoin.CurrentVersion, byzcoin.Instruction{
+		InstanceID:    byzcoin.NewInstanceID(egt.gDarc.GetBaseID()),
+		SignerCounter: []uint64{egt.ct},
+		Spawn: &byzcoin.Spawn{
+			ContractID: ContractElGamalID,
+			Args:       args,
+		},
+	})
 	egt.ct++
 	require.NoError(t, ctx.FillSignersAndSignWith(egt.signer))
 	_, err = egt.cl.AddTransactionAndWait(ctx, 5)

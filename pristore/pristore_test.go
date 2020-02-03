@@ -126,11 +126,11 @@ func TestPristore_Multiple(t *testing.T) {
 	data := []byte("mor daglar")
 	data2 := []byte("i remember mom")
 	require.NoError(t, err)
-	wr1, err := psCl.AddWrite(data, ltsReply.Reply.InstanceID, ltsReply.Reply.X, writers[0], 1, *darc1, 0, ed)
+	wr1, err := psCl.AddWrite(ltsReply.Reply.InstanceID, data, ltsReply.Reply.X, writers[0], 1, *darc1, 0, ed)
 	require.NoError(t, err)
 	ed.UnitSigs[ed.Index] = wr1.Sig
 	ed.Index++
-	wr2, err := psCl.AddWrite(data2, ltsReply.Reply.InstanceID, ltsReply.Reply.X, writers[1], 1, *darc1, 2, ed)
+	wr2, err := psCl.AddWrite(ltsReply.Reply.InstanceID, data2, ltsReply.Reply.X, writers[1], 1, *darc1, 2, ed)
 	require.NoError(t, err)
 	ed.UnitSigs[ed.Index] = wr2.Sig
 	ed.Index++
@@ -229,16 +229,14 @@ func prepareReadTransaction(proof *byzcoin.Proof, signer darc.Signer, signerCtr 
 		log.Errorf("Protobuf encode error: %v", err)
 		return ctx, err
 	}
-	ctx = byzcoin.ClientTransaction{
-		Instructions: byzcoin.Instructions{{
-			InstanceID: byzcoin.NewInstanceID(instID),
-			Spawn: &byzcoin.Spawn{
-				ContractID: calypso.ContractReadID,
-				Args:       byzcoin.Arguments{{Name: "read", Value: readBuf}},
-			},
-			SignerCounter: []uint64{signerCtr},
-		}},
-	}
+	ctx = byzcoin.NewClientTransaction(byzcoin.CurrentVersion, byzcoin.Instruction{
+		InstanceID: byzcoin.NewInstanceID(instID),
+		Spawn: &byzcoin.Spawn{
+			ContractID: calypso.ContractReadID,
+			Args:       byzcoin.Arguments{{Name: "read", Value: readBuf}},
+		},
+		SignerCounter: []uint64{signerCtr},
+	})
 	err = ctx.FillSignersAndSignWith(signer)
 	if err != nil {
 		log.Errorf("Sign transaction failed: %v", err)

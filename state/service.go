@@ -80,7 +80,8 @@ func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 	/////// Now setup byzcoin //////
 	s.signer = darc.NewSignerEd25519(nil, nil)
 	s.signerCtr = uint64(1)
-	s.gMsg, err = byzcoin.DefaultGenesisMsg(byzcoin.CurrentVersion, s.roster, []string{"spawn:" + ContractKeyValueID, "invoke:" + ContractKeyValueID}, s.signer.Identity())
+	//s.gMsg, err = byzcoin.DefaultGenesisMsg(byzcoin.CurrentVersion, s.roster, []string{"spawn:" + ContractKeyValueID, "invoke:" + ContractKeyValueID}, s.signer.Identity())
+	s.gMsg, err = byzcoin.DefaultGenesisMsg(byzcoin.CurrentVersion, s.roster, nil, s.signer.Identity())
 	if err != nil {
 		log.Errorf("Cannot create the default genesis message for Byzcoin: %v", err)
 		return nil, err
@@ -132,8 +133,6 @@ func (s *Service) CreateState(req *CreateStateRequest) (*CreateStateReply, error
 	return reply, nil
 }
 
-//TODO: Update state probably needs to return something more than an error.
-//Maybe something about the state update? (e.g. proof?)
 func (s *Service) UpdateState(req *UpdateStateRequest) (*UpdateStateReply, error) {
 	// Before we send Byzcoin transactions to update state, we need to make
 	// sure that the execution request is valid
@@ -180,24 +179,22 @@ func (s *Service) SpawnDarc(req *SpawnDarcRequest) (*SpawnDarcReply, error) {
 		log.Errorf("Cannot verify execution plan")
 		return nil, fmt.Errorf("Cannot verify the execution plan")
 	}
+	log.Info("Darc rules:", req.Darc.Rules.List)
 	darcBuf, err := req.Darc.ToProto()
 	if err != nil {
 		log.Errorf("Cannot convert darc to protobuf: %v", err)
 		return nil, err
 	}
-	ctx := byzcoin.ClientTransaction{
-		Instructions: []byzcoin.Instruction{{
-			InstanceID: byzcoin.NewInstanceID(s.gMsg.GenesisDarc.GetBaseID()),
-			Spawn: &byzcoin.Spawn{
-				ContractID: byzcoin.ContractDarcID,
-				Args: []byzcoin.Argument{{
-					Name:  "darc",
-					Value: darcBuf,
-				}},
-			},
-			SignerCounter: []uint64{s.signerCtr},
-		}},
-	}
+	ctx := byzcoin.NewClientTransaction(byzcoin.CurrentVersion, byzcoin.Instruction{
+		InstanceID: byzcoin.NewInstanceID(s.gMsg.GenesisDarc.GetBaseID()),
+		Spawn: &byzcoin.Spawn{
+			ContractID: byzcoin.ContractDarcID,
+			Args: []byzcoin.Argument{{
+				Name:  "darc",
+				Value: darcBuf,
+			}},
+		},
+		SignerCounter: []uint64{s.signerCtr}})
 	err = ctx.FillSignersAndSignWith(s.signer)
 	if err != nil {
 		log.Errorf("Sign transaction failed: %v", err)

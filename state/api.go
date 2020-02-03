@@ -42,16 +42,14 @@ func (c *Client) CreateState(contractID string, kv []*KV, adminDarc darc.Darc, s
 	for i, elt := range kv {
 		args[i] = byzcoin.Argument{Name: elt.Key, Value: elt.Value}
 	}
-	ctx := byzcoin.ClientTransaction{
-		Instructions: []byzcoin.Instruction{{
-			InstanceID: byzcoin.NewInstanceID(adminDarc.GetBaseID()),
-			Spawn: &byzcoin.Spawn{
-				ContractID: contractID,
-				Args:       args,
-			},
-			SignerCounter: []uint64{signerCtr},
-		}},
-	}
+	ctx := byzcoin.NewClientTransaction(byzcoin.CurrentVersion, byzcoin.Instruction{
+		InstanceID: byzcoin.NewInstanceID(adminDarc.GetBaseID()),
+		Spawn: &byzcoin.Spawn{
+			ContractID: contractID,
+			Args:       args,
+		},
+		SignerCounter: []uint64{signerCtr},
+	})
 	err := ctx.FillSignersAndSignWith(signer)
 	if err != nil {
 		log.Errorf("Sign transaction failed: %v", err)
@@ -67,22 +65,21 @@ func (c *Client) CreateState(contractID string, kv []*KV, adminDarc darc.Darc, s
 	return reply, err
 }
 
-func (c *Client) UpdateState(contractID string, cmd string, kv []*KV, instID byzcoin.InstanceID, signerCtr uint64, signer darc.Signer, wait int, ed *sys.ExecutionData) (*UpdateStateReply, error) {
+func (c *Client) UpdateState(contractID string, cmd string, instID byzcoin.InstanceID, kv []*KV, signer darc.Signer, signerCtr uint64, wait int, ed *sys.ExecutionData) (*UpdateStateReply, error) {
+	log.Info("In UpdateState:", contractID, cmd, instID.String(), signer.Identity().String())
 	args := make(byzcoin.Arguments, len(kv))
 	for i, elt := range kv {
 		args[i] = byzcoin.Argument{Name: elt.Key, Value: elt.Value}
 	}
-	ctx := byzcoin.ClientTransaction{
-		Instructions: []byzcoin.Instruction{{
-			InstanceID: instID,
-			Invoke: &byzcoin.Invoke{
-				ContractID: contractID,
-				Command:    cmd,
-				Args:       args,
-			},
-			SignerCounter: []uint64{signerCtr},
-		}},
-	}
+	ctx := byzcoin.NewClientTransaction(byzcoin.CurrentVersion, byzcoin.Instruction{
+		InstanceID: instID,
+		Invoke: &byzcoin.Invoke{
+			ContractID: contractID,
+			Command:    cmd,
+			Args:       args,
+		},
+		SignerCounter: []uint64{signerCtr},
+	})
 	err := ctx.FillSignersAndSignWith(signer)
 	if err != nil {
 		log.Errorf("Sign transaction failed: %v", err)

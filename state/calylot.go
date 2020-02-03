@@ -65,6 +65,7 @@ func (c *contractCalyLottery) Spawn(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.
 		log.Errorf("GetValues failed: %v", err)
 		return
 	}
+	log.LLvl1("================= IN SPAWN ==================")
 	cls := &c.CalyLotteryStorage
 	ltsIDBytes := inst.Spawn.Args.Search("ltsid")
 	if ltsIDBytes == nil {
@@ -135,6 +136,7 @@ func (c *contractCalyLottery) Spawn(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.
 }
 
 func (c *contractCalyLottery) Invoke(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Instruction, coins []byzcoin.Coin) (sc []byzcoin.StateChange, cout []byzcoin.Coin, err error) {
+	log.LLvl1("========== IN INVOKE ============")
 	cout = coins
 	var darcID darc.ID
 	_, _, _, darcID, err = rst.GetValues(inst.InstanceID.Slice())
@@ -174,12 +176,14 @@ func (c *contractCalyLottery) Invoke(rst byzcoin.ReadOnlyStateTrie, inst byzcoin
 			log.Errorf("New version number has to be %d, not %d", kvPair.Version+1, version)
 			return
 		}
+		log.LLvl1("Version is:", version)
 		// 2- Make sure that the client is updating the correct key
 		err = c.authorizeAccess(pkStr, valBuf, verBuf, sig)
 		if err != nil {
 			log.Errorf("Not authorized to update the value for key %v: %v", pkStr, err)
 			return
 		}
+		log.LLvl1("Authorized access successfully")
 		cls.LotteryData[val.Index].Value = valBuf
 		cls.LotteryData[val.Index].Version = version
 		var clsBuf []byte

@@ -24,14 +24,14 @@ const DECNT = "DecryptNT"
 const DECNTBATCH = "DecryptNTBatch"
 
 type IID struct {
-	Valid bool
-	ID    byzcoin.InstanceID
+	//Valid bool
+	ID byzcoin.InstanceID
 }
 
-type GPR struct {
-	Valid bool
-	Resp  *byzcoin.GetProofResponse
-}
+//type GPR struct {
+//Valid bool
+//Resp *byzcoin.GetProofResponse
+//}
 
 type WriteData struct {
 	ltsID     byzcoin.InstanceID
@@ -108,6 +108,7 @@ type AddReadBatchRequest struct {
 
 type AddReadBatchReply struct {
 	IIDBatch []*IID
+	IIDValid []bool
 	Sig      protocol.BlsSignature
 }
 
@@ -123,11 +124,14 @@ type GetProofReply struct {
 
 type GetProofBatchRequest struct {
 	IIDBatch []*IID
+	IIDValid []bool
 	ExecData *sys.ExecutionData
 }
 
 type GetProofBatchReply struct {
-	PrBatch []*GPR
+	//PrBatch []*GPR
+	PrBatch []*byzcoin.GetProofResponse
+	PrValid []bool
 	Sig     protocol.BlsSignature
 }
 
@@ -141,18 +145,6 @@ type DecryptReply struct {
 	Sig       protocol.BlsSignature
 }
 
-type DecryptNTRequest struct {
-	Request  *calypso.DecryptKeyNT
-	ExecData *sys.ExecutionData
-}
-
-type DecryptNTReply struct {
-	CalyReply *calypso.DecryptKeyNTReply
-	Sig       protocol.BlsSignature
-}
-
-// Batch requests
-
 type DecryptBatchRequest struct {
 	Requests []*calypso.DecryptKey
 	ExecData *sys.ExecutionData
@@ -161,6 +153,16 @@ type DecryptBatchRequest struct {
 type DecryptBatchReply struct {
 	CalyReplies []*calypso.DecryptKeyReply
 	Sig         protocol.BlsSignature
+}
+
+type DecryptNTRequest struct {
+	Request  *calypso.DecryptKeyNT
+	ExecData *sys.ExecutionData
+}
+
+type DecryptNTReply struct {
+	CalyReply *calypso.DecryptKeyNTReply
+	Sig       protocol.BlsSignature
 }
 
 ////

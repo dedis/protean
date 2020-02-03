@@ -128,18 +128,16 @@ func (s *Service) CreateLTS(req *CreateLTSRequest) (*CreateLTSReply, error) {
 		log.Errorf("Protobuf encode error: %v", err)
 		return nil, err
 	}
-	ctx := byzcoin.ClientTransaction{
-		Instructions: []byzcoin.Instruction{{
-			InstanceID: byzcoin.NewInstanceID(s.gMsg.GenesisDarc.GetBaseID()),
-			Spawn: &byzcoin.Spawn{
-				ContractID: calypso.ContractLongTermSecretID,
-				Args: []byzcoin.Argument{
-					{Name: "lts_instance_info", Value: buf},
-				},
+	ctx := byzcoin.NewClientTransaction(byzcoin.CurrentVersion, byzcoin.Instruction{
+		InstanceID: byzcoin.NewInstanceID(s.gMsg.GenesisDarc.GetBaseID()),
+		Spawn: &byzcoin.Spawn{
+			ContractID: calypso.ContractLongTermSecretID,
+			Args: []byzcoin.Argument{
+				{Name: "lts_instance_info", Value: buf},
 			},
-			SignerCounter: []uint64{s.signerCtr},
-		}},
-	}
+		},
+		SignerCounter: []uint64{s.signerCtr},
+	})
 	err = ctx.FillSignersAndSignWith(s.signer)
 	if err != nil {
 		log.Errorf("Sign transaction failed: %v", err)
@@ -196,19 +194,17 @@ func (s *Service) SpawnDarc(req *SpawnDarcRequest) (*SpawnDarcReply, error) {
 		log.Errorf("Cannot convert darc to protobuf: %v", err)
 		return nil, err
 	}
-	ctx := byzcoin.ClientTransaction{
-		Instructions: []byzcoin.Instruction{{
-			InstanceID: byzcoin.NewInstanceID(s.gMsg.GenesisDarc.GetBaseID()),
-			Spawn: &byzcoin.Spawn{
-				ContractID: byzcoin.ContractDarcID,
-				Args: []byzcoin.Argument{{
-					Name:  "darc",
-					Value: darcBuf,
-				}},
-			},
-			SignerCounter: []uint64{s.signerCtr},
-		}},
-	}
+	ctx := byzcoin.NewClientTransaction(byzcoin.CurrentVersion, byzcoin.Instruction{
+		InstanceID: byzcoin.NewInstanceID(s.gMsg.GenesisDarc.GetBaseID()),
+		Spawn: &byzcoin.Spawn{
+			ContractID: byzcoin.ContractDarcID,
+			Args: []byzcoin.Argument{{
+				Name:  "darc",
+				Value: darcBuf,
+			}},
+		},
+		SignerCounter: []uint64{s.signerCtr},
+	})
 	err = ctx.FillSignersAndSignWith(s.signer)
 	if err != nil {
 		log.Errorf("Sign transaction failed: %v", err)
@@ -324,9 +320,9 @@ func (s *Service) AddReadBatch(req *AddReadBatchRequest) (*AddReadBatchReply, er
 	// Add read
 	sz := len(req.Ctxs)
 	iidBatch := make([]*IID, sz)
+	iidValid := make([]bool, sz)
 	for i, tx := range req.Ctxs {
 		// Check if the txn is empty
-		iid := &IID{Valid: false}
 		if len(tx.Instructions) != 0 {
 			addReq := &byzcoin.AddTxRequest{
 				Version:     byzcoin.CurrentVersion,
@@ -343,13 +339,12 @@ func (s *Service) AddReadBatch(req *AddReadBatchRequest) (*AddReadBatchReply, er
 			if err != nil {
 				log.Errorf("Cannot add read -- Byzcoin add transaction error: %v", err)
 			} else {
-				iid.ID = tx.Instructions[0].DeriveID("")
-				iid.Valid = true
+				iidBatch[i].ID = tx.Instructions[0].DeriveID("")
+				iidValid[i] = true
 			}
 		} else {
 			log.LLvlf1("No read transaction given for ticket %d", i)
 		}
-		iidBatch[i] = iid
 	}
 	// Collectively sign the execution plan
 	sig, err := s.signExecutionPlan(req.ExecData.ExecPlan)
@@ -359,6 +354,7 @@ func (s *Service) AddReadBatch(req *AddReadBatchRequest) (*AddReadBatchReply, er
 	}
 	reply := &AddReadBatchReply{
 		IIDBatch: iidBatch,
+		IIDValid: iidValid,
 		Sig:      sig,
 	}
 	return reply, nil
@@ -410,32 +406,52 @@ func (s *Service) GetProofBatch(req *GetProofBatchRequest) (*GetProofBatchReply,
 		return nil, fmt.Errorf("Cannot verify execution plan")
 	}
 	// Get proofs
-	sz := len(req.IIDBatch)
-	prBatch := make([]*GPR, sz)
-	for i, iid := range req.IIDBatch {
-		gpr := &GPR{Valid: false}
-		if iid.Valid {
+	idx := 0
+	sz := len(req.IIDValid)
+	prBatch := make([]*byzcoin.GetProofResponse, sz)
+	prValid := make([]bool, sz)
+	for i, valid := range req.IIDValid {
+		if valid {
 			resp, err := s.byzService.GetProof(&byzcoin.GetProof{
 				Version: byzcoin.CurrentVersion,
 				ID:      s.byzID,
-				Key:     iid.ID.Slice(),
+				Key:     req.IIDBatch[idx].ID.Slice(),
 			})
 			if err != nil {
 				log.Errorf("GetProof request failed: %v", err)
 			} else {
-				gpr.Resp = resp
+				prBatch[i] = resp
+				prValid[i] = true
 			}
+			idx++
 		} else {
 			log.LLvlf1("Missing InstanceID for index %d", i)
 		}
 	}
+	//for i, iid := range req.IIDBatch {
+	//gpr := &GPR{Valid: false}
+	//if iid.Valid {
+	//resp, err := s.byzService.GetProof(&byzcoin.GetProof{
+	//Version: byzcoin.CurrentVersion,
+	//ID:      s.byzID,
+	//Key:     iid.ID.Slice(),
+	//})
+	//if err != nil {
+	//log.Errorf("GetProof request failed: %v", err)
+	//} else {
+	//gpr.Resp = resp
+	//}
+	//} else {
+	//log.LLvlf1("Missing InstanceID for index %d", i)
+	//}
+	//}
 	// Collectively sign the execution plan
 	sig, err := s.signExecutionPlan(req.ExecData.ExecPlan)
 	if err != nil {
 		log.Errorf("Cannot produce blscosi signature: %v", err)
 		return nil, err
 	}
-	return &GetProofBatchReply{PrBatch: prBatch, Sig: sig}, nil
+	return &GetProofBatchReply{PrBatch: prBatch, PrValid: prValid, Sig: sig}, nil
 }
 
 func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {

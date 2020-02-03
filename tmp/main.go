@@ -27,9 +27,18 @@ type IID struct {
 	ID InstanceID
 }
 
+type SIID struct {
+	Valid bool
+	ID    byzcoin.InstanceID
+}
+
 type Boo struct {
 	B  []*IID
 	Es []bool
+}
+
+type Doo struct {
+	S []*SIID
 }
 
 type Goo struct {
@@ -61,19 +70,20 @@ func main() {
 	//testState()
 	//testPoint()
 	//testEmbedLen()
-	//testProtobuf()
+	testProtobuf()
 	//testbyz()
 	//testIdentity()
 	//testReencryption()
 	//testencode()
 	//testproof()
 	//testBytes()
-	testShuffle()
+	//testShuffle()
+	//testDooProtobuf()
 }
 
 type Abbas struct {
-	A []string
-	//A []*IID
+	//A []string
+	A []*IID
 }
 
 func testBytes() {
@@ -82,17 +92,19 @@ func testBytes() {
 }
 
 func testencode() {
-	//var r [32]byte
-	//temp := make([]byte, 32)
-	//rand.Read(temp)
-	//copy(r[:], temp[:32])
-	l := make([]string, 10)
-	//l := make([]*IID, 10)
+	var r [32]byte
+	temp := make([]byte, 32)
+	rand.Read(temp)
+	copy(r[:], temp[:32])
+	//l := make([]string, 10)
+	l := make([]*IID, 10)
 	for i := 0; i < 10; i++ {
 		if i%2 == 0 {
 			//if i < 8 {
-			l[i] = "haydar"
-			//l[i] = &IID{ID: r}
+			//l[i] = "haydar"
+			l[i] = &IID{ID: r}
+		} else {
+			l[i] = nil
 		}
 	}
 	abbas := &Abbas{A: l}
@@ -101,8 +113,8 @@ func testencode() {
 	dd := &Abbas{}
 	protobuf.Decode(buf, dd)
 	for i, ll := range dd.A {
-		//fmt.Println(i, ll.ID)
-		fmt.Println(i, ll)
+		fmt.Println(i, ll.ID)
+		//fmt.Println(i, ll)
 	}
 }
 
@@ -247,31 +259,23 @@ func testProtobuf() {
 		}
 	}
 
+	fmt.Println(iids, es)
 	bb := &Boo{B: iids, Es: es}
-	dd, err := protobuf.Encode(bb)
-	fmt.Println(err)
+	dd, _ := protobuf.Encode(bb)
 	fmt.Println("Byte count:", len(dd))
 	fmt.Println(dd)
 	ff := &Boo{}
 	protobuf.Decode(dd, ff)
 
-	//fmt.Println(len(ff.B))
-	//for i, s := range ff.B {
-	//fmt.Println(i, s.ID)
-	//}
 	newarr := make([]InstanceID, 10)
 	idx := 0
 	for i, valid := range ff.Es {
-		//if id == nil {
-		//fmt.Println("nil")
-		//} else {
-		//fmt.Println("not nil")
-		//}
 		if valid {
 			newarr[i] = ff.B[idx].ID
 			idx++
 		}
 	}
+	fmt.Println("======= PRINTING AFTER RECONSTRUCTION ========")
 	for _, na := range newarr {
 		fmt.Println(na)
 	}
@@ -435,4 +439,31 @@ func testShuffle() {
 			}
 		}
 	}
+}
+
+func testDooProtobuf() {
+	var r [32]byte
+	temp := make([]byte, 32)
+	rand.Read(temp)
+	copy(r[:], temp[:32])
+
+	siids := make([]*SIID, 10)
+	for i := 0; i < 10; i++ {
+		if i == 0 || i == 3 || i == 5 || i == 6 {
+			siids[i] = &SIID{Valid: true, ID: r}
+		} else {
+			siids[i] = &SIID{Valid: false}
+		}
+	}
+
+	d := &Doo{S: siids}
+	dd, _ := protobuf.Encode(d)
+	fmt.Println("Byte count:", len(dd))
+	ddec := &Doo{}
+	protobuf.Decode(dd, ddec)
+
+	for i, siid := range ddec.S {
+		fmt.Println(i, siid.Valid, siid.ID)
+	}
+
 }
