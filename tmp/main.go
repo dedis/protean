@@ -70,7 +70,7 @@ func main() {
 	//testState()
 	//testPoint()
 	//testEmbedLen()
-	testProtobuf()
+	//testProtobuf()
 	//testbyz()
 	//testIdentity()
 	//testReencryption()
@@ -79,6 +79,11 @@ func main() {
 	//testBytes()
 	//testShuffle()
 	//testDooProtobuf()
+	//x := 5
+	//testPointer(&x)
+	//fmt.Println(x)
+	//testtest()
+	testValid()
 }
 
 type Abbas struct {
@@ -465,5 +470,70 @@ func testDooProtobuf() {
 	for i, siid := range ddec.S {
 		fmt.Println(i, siid.Valid, siid.ID)
 	}
+}
 
+func testPointer(f *int) {
+	*f++
+}
+
+type KK struct {
+	ID [32]byte
+}
+
+type K struct {
+	LL []*KK
+}
+
+func testtest() {
+	var r [32]byte
+	temp := make([]byte, 32)
+	rand.Read(temp)
+	copy(r[:], temp[:32])
+
+	ll := make([]*KK, 10)
+	for i := 0; i < 10; i++ {
+		if i == 0 || i == 3 || i == 5 || i == 7 {
+			ll[i] = &KK{ID: r}
+		} else {
+			ll[i] = nil
+		}
+	}
+	k := &K{LL: ll}
+	kb, _ := protobuf.Encode(k)
+	kdec := &K{}
+	protobuf.Decode(kb, kdec)
+	for i, ll := range kdec.LL {
+		fmt.Println(i, ll.ID)
+	}
+}
+
+type AAA struct {
+	Vld []byte
+}
+
+func testValid() {
+	valid := make([]byte, 10)
+	for i := 0; i < 10; i++ {
+		if valid[i] == 0 {
+			fmt.Println(valid[i])
+		}
+	}
+	valid[0] = 1
+	valid[2] = 1
+	valid[5] = 1
+	aaa := &AAA{Vld: valid}
+	abytes, _ := protobuf.Encode(aaa)
+	aaaDec := &AAA{}
+	protobuf.Decode(abytes, aaaDec)
+	//fmt.Println(aaaDec)
+	for i, v := range aaaDec.Vld {
+		//fmt.Println("AFAFAFAF", i, v)
+		if v == 0 {
+			fmt.Println("Not valid", i, v)
+		} else if v == 1 {
+			fmt.Println("Valid", i, v)
+		} else {
+			fmt.Println("Should not happen")
+		}
+	}
 }

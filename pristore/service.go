@@ -57,7 +57,7 @@ func init() {
 		&GetProofRequest{}, &GetProofReply{}, &GetProofBatchRequest{},
 		&GetProofBatchReply{}, &DecryptRequest{}, &DecryptReply{},
 		&DecryptBatchRequest{}, &DecryptBatchReply{}, &DecryptNTRequest{},
-		&DecryptNTReply{})
+		&DecryptNTReply{}, &DecryptNTBatchRequest{}, &DecryptNTBatchReply{})
 }
 
 func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
@@ -323,6 +323,7 @@ func (s *Service) AddReadBatch(req *AddReadBatchRequest) (*AddReadBatchReply, er
 	iidValid := make([]bool, sz)
 	for i, tx := range req.Ctxs {
 		// Check if the txn is empty
+		//log.LLvlf1("Transaction %d is %x and length is %d", i, tx.Instructions.Hash(), len(tx.Instructions))
 		if len(tx.Instructions) != 0 {
 			addReq := &byzcoin.AddTxRequest{
 				Version:     byzcoin.CurrentVersion,
@@ -339,13 +340,14 @@ func (s *Service) AddReadBatch(req *AddReadBatchRequest) (*AddReadBatchReply, er
 			if err != nil {
 				log.Errorf("Cannot add read -- Byzcoin add transaction error: %v", err)
 			} else {
-				iidBatch[i].ID = tx.Instructions[0].DeriveID("")
+				iidBatch[i] = &IID{ID: tx.Instructions[0].DeriveID("")}
 				iidValid[i] = true
 			}
 		} else {
 			log.LLvlf1("No read transaction given for ticket %d", i)
 		}
 	}
+	log.LLvl1("Before signing the execution plan")
 	// Collectively sign the execution plan
 	sig, err := s.signExecutionPlan(req.ExecData.ExecPlan)
 	if err != nil {
@@ -409,9 +411,11 @@ func (s *Service) GetProofBatch(req *GetProofBatchRequest) (*GetProofBatchReply,
 	idx := 0
 	sz := len(req.IIDValid)
 	prBatch := make([]*byzcoin.GetProofResponse, sz)
-	prValid := make([]bool, sz)
-	for i, valid := range req.IIDValid {
-		if valid {
+	//prValid := make([]bool, sz)
+	//for i, valid := range req.IIDValid {
+	for i := 0; i < sz; i++ {
+		//if valid {
+		if req.IIDValid[i] {
 			resp, err := s.byzService.GetProof(&byzcoin.GetProof{
 				Version: byzcoin.CurrentVersion,
 				ID:      s.byzID,
@@ -419,39 +423,23 @@ func (s *Service) GetProofBatch(req *GetProofBatchRequest) (*GetProofBatchReply,
 			})
 			if err != nil {
 				log.Errorf("GetProof request failed: %v", err)
+				req.IIDValid[i] = false
 			} else {
 				prBatch[i] = resp
-				prValid[i] = true
+				//prValid[i] = true
 			}
 			idx++
 		} else {
 			log.LLvlf1("Missing InstanceID for index %d", i)
 		}
 	}
-	//for i, iid := range req.IIDBatch {
-	//gpr := &GPR{Valid: false}
-	//if iid.Valid {
-	//resp, err := s.byzService.GetProof(&byzcoin.GetProof{
-	//Version: byzcoin.CurrentVersion,
-	//ID:      s.byzID,
-	//Key:     iid.ID.Slice(),
-	//})
-	//if err != nil {
-	//log.Errorf("GetProof request failed: %v", err)
-	//} else {
-	//gpr.Resp = resp
-	//}
-	//} else {
-	//log.LLvlf1("Missing InstanceID for index %d", i)
-	//}
-	//}
-	// Collectively sign the execution plan
 	sig, err := s.signExecutionPlan(req.ExecData.ExecPlan)
 	if err != nil {
 		log.Errorf("Cannot produce blscosi signature: %v", err)
 		return nil, err
 	}
-	return &GetProofBatchReply{PrBatch: prBatch, PrValid: prValid, Sig: sig}, nil
+	//return &GetProofBatchReply{PrBatch: prBatch, PrValid: prValid, Sig: sig}, nil
+	return &GetProofBatchReply{PrBatch: prBatch, PrValid: req.IIDValid, Sig: sig}, nil
 }
 
 func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
@@ -496,15 +484,29 @@ func (s *Service) DecryptBatch(req *DecryptBatchRequest) (*DecryptBatchReply, er
 		return nil, fmt.Errorf("Cannot verify execution plan")
 	}
 	// Perform decrypt
-	calyReplies := make([]*calypso.DecryptKeyReply, len(req.Requests))
-	for i, dkr := range req.Requests {
-		reply, err := s.calyService.DecryptKey(dkr)
-		if err != nil {
-			log.Errorf("Decrypt error: %v", err)
-			return nil, err
+	idx := 0
+	sz := len(req.Requests)
+	calyReplies := make([]*calypso.DecryptKeyReply, sz)
+	for i := 0; i < sz; i++ {
+		if req.Valid[i] {
+			reply, err := s.calyService.DecryptKey(req.Requests[idx])
+			if err != nil {
+				req.Valid[i] = false
+				log.Errorf("Decrypt error: %v", err)
+			} else {
+				calyReplies[i] = reply
+			}
+			idx++
 		}
-		calyReplies[i] = reply
 	}
+	//for i, dkr := range req.Requests {
+	//reply, err := s.calyService.DecryptKey(dkr)
+	//if err != nil {
+	//log.Errorf("Decrypt error: %v", err)
+	//return nil, err
+	//}
+	//calyReplies[i] = reply
+	//}
 	// Collectively sign the execution plan
 	sig, err := s.signExecutionPlan(req.ExecData.ExecPlan)
 	if err != nil {
@@ -534,36 +536,6 @@ func (s *Service) DecryptNT(req *DecryptNTRequest) (*DecryptNTReply, error) {
 		return nil, err
 	}
 
-	// Start BLSCOSI to sign the result of reencryption
-	//numNodes := len(s.roster.List)
-	//tree := s.roster.GenerateNaryTreeWithRoot(numNodes, s.ServerIdentity())
-	//pi, err := s.CreateProtocol(signReencFtCosi, tree)
-	//if err != nil {
-	//log.Errorf("Create protocol error: %v", err)
-	//return nil, err
-	//}
-	//msgBuf, dataBuf, err := getBlscosiData(req.Request.DKID, dkr.XhatEnc)
-	//if err != nil {
-	//log.Errorf("Error generating blscosi data: %v", err)
-	//return nil, err
-	//}
-	//cosiProto := pi.(*protocol.BlsCosi)
-	//cosiProto.Msg = msgBuf
-	//cosiProto.Data = dataBuf
-	//cosiProto.CreateProtocol = s.CreateProtocol
-	//cosiProto.Threshold = numNodes - (numNodes-1)/3
-	//err = cosiProto.SetNbrSubTree(int(math.Pow(float64(numNodes), 1.0/3.0)))
-	//if err != nil {
-	//log.Errorf("Error setting up subtrees: %v", err)
-	//return nil, err
-	//}
-	//err = cosiProto.Start()
-	//if err != nil {
-	//log.Errorf("Error starting blscosi")
-	//return nil, err
-	//}
-	//dkr.Signature = <-cosiProto.FinalSignature
-
 	// Collectively sign the execution plan
 	sig, err := s.signExecutionPlan(req.ExecData.ExecPlan)
 	if err != nil {
@@ -571,6 +543,44 @@ func (s *Service) DecryptNT(req *DecryptNTRequest) (*DecryptNTReply, error) {
 		return nil, err
 	}
 	return &DecryptNTReply{CalyReply: dkr, Sig: sig}, nil
+}
+
+func (s *Service) DecryptNTBatch(req *DecryptNTBatchRequest) (*DecryptNTBatchReply, error) {
+	// First verify the execution request
+	db := s.scService.GetDB()
+	blk, err := db.GetLatest(db.GetByID(s.genesis))
+	if err != nil {
+		log.Errorf("Cannot get the latest block: %v", err)
+		return nil, err
+	}
+	verified := s.verifyExecutionRequest(DECNTBATCH, blk, req.ExecData)
+	if !verified {
+		log.Errorf("Cannot verify execution plan")
+		return nil, fmt.Errorf("Cannot verify execution plan")
+	}
+	// Perform decrypt
+	idx := 0
+	sz := len(req.Requests)
+	calyReplies := make([]*calypso.DecryptKeyNTReply, sz)
+	for i := 0; i < sz; i++ {
+		if req.Valid[i] {
+			reply, err := s.calyService.DecryptKeyNT(req.Requests[idx])
+			if err != nil {
+				req.Valid[i] = false
+				log.Errorf("Decrypt error: %v", err)
+			} else {
+				calyReplies[i] = reply
+			}
+			idx++
+		}
+	}
+	// Collectively sign the execution plan
+	sig, err := s.signExecutionPlan(req.ExecData.ExecPlan)
+	if err != nil {
+		log.Errorf("Cannot produce blscosi signature: %v", err)
+		return nil, err
+	}
+	return &DecryptNTBatchReply{Valid: req.Valid, CalyReplies: calyReplies, Sig: sig}, nil
 }
 
 func (s *Service) verifySignRequest(msg []byte, data []byte) bool {
@@ -644,7 +654,10 @@ func newService(c *onet.Context) (onet.Service, error) {
 		calyService:      c.Service(calypso.ServiceName).(*calypso.Service),
 		cosiService:      c.Service(blscosi.ServiceName).(*blscosi.Service),
 	}
-	err := s.RegisterHandlers(s.InitUnit, s.Authorize, s.CreateLTS, s.SpawnDarc, s.AddWrite, s.AddRead, s.AddReadBatch, s.GetProof, s.GetProofBatch, s.Decrypt, s.DecryptBatch)
+	err := s.RegisterHandlers(s.InitUnit, s.Authorize, s.CreateLTS,
+		s.SpawnDarc, s.AddWrite, s.AddRead, s.AddReadBatch, s.GetProof,
+		s.GetProofBatch, s.Decrypt, s.DecryptBatch, s.DecryptNT,
+		s.DecryptNTBatch)
 	if err != nil {
 		log.Errorf("Cannot register handlers: %v", err)
 		return nil, err

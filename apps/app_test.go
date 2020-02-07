@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"flag"
-	"fmt"
 	"strings"
 	"testing"
 
@@ -19,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/byzcoin"
+	"go.dedis.ch/cothority/v3/calypso"
 	"go.dedis.ch/cothority/v3/darc"
 	"go.dedis.ch/cothority/v3/darc/expression"
 	"go.dedis.ch/kyber/v3"
@@ -79,7 +79,7 @@ func Test_CalypsoLottery_Simple(t *testing.T) {
 	psName := strings.Replace(pristore.ServiceName, "Service", "", 1)
 	val := directory[psName]
 	psTxns := utils.ReverseMap(val.Txns)
-	cfg := utils.GenerateUnitConfig(compRoster.ServicePublics(compiler.ServiceName), unitRoster, val.UnitID, psName, psTxns, 10)
+	cfg := utils.GenerateUnitConfig(compRoster.ServicePublics(compiler.ServiceName), unitRoster, val.UnitID, psName, psTxns, 7)
 
 	psCl := pristore.NewClient(unitRoster)
 	initReply, err := psCl.InitUnit(cfg)
@@ -94,7 +94,7 @@ func Test_CalypsoLottery_Simple(t *testing.T) {
 	stName := strings.Replace(state.ServiceName, "Service", "", 1)
 	val = directory[stName]
 	stTxns := utils.ReverseMap(val.Txns)
-	cfg = utils.GenerateUnitConfig(compRoster.ServicePublics(compiler.ServiceName), unitRoster, val.UnitID, stName, stTxns, 10)
+	cfg = utils.GenerateUnitConfig(compRoster.ServicePublics(compiler.ServiceName), unitRoster, val.UnitID, stName, stTxns, 7)
 
 	stCl := state.NewClient(unitRoster)
 	_, err = stCl.InitUnit(cfg)
@@ -111,7 +111,7 @@ func Test_CalypsoLottery_Simple(t *testing.T) {
 	ed := compiler.PrepareExecutionData(planReply)
 
 	psCl = pristore.NewClient(unitRoster)
-	ltsReply, err := psCl.CreateLTS(unitRoster, 2, ed)
+	ltsReply, err := psCl.CreateLTS(unitRoster, 1, ed)
 	require.NoError(t, err)
 	ed.UnitSigs[ed.Index] = ltsReply.Sig
 	ed.Index++
@@ -123,7 +123,7 @@ func Test_CalypsoLottery_Simple(t *testing.T) {
 	require.NoError(t, err)
 	err = pristore.AddReadRule(lotDarc, readers...)
 	require.NoError(t, err)
-	sdReply, err := psCl.SpawnDarc(*lotDarc, 2, ed)
+	sdReply, err := psCl.SpawnDarc(*lotDarc, 1, ed)
 	require.NoError(t, err)
 	ed.UnitSigs[ed.Index] = sdReply.Sig
 	ed.Index++
@@ -140,16 +140,20 @@ func Test_CalypsoLottery_Simple(t *testing.T) {
 	require.NoError(t, err)
 	err = orgDarc.Rules.AddRule(darc.Action("invoke:"+state.ContractCalyLotteryID+".storejoin"), expression.InitOrExpr(writerIDs...))
 	require.NoError(t, err)
+	err = orgDarc.Rules.AddRule(darc.Action("invoke:"+state.ContractCalyLotteryID+".storeread"), expression.InitOrExpr(organizer.Identity().String()))
+	require.NoError(t, err)
+	err = orgDarc.Rules.AddRule(darc.Action("invoke:"+state.ContractCalyLotteryID+".finalize"), expression.InitOrExpr(organizer.Identity().String()))
+	require.NoError(t, err)
 	sd, err := stCl.SpawnDarc(*orgDarc, 2, ed)
 	require.NoError(t, err)
 	ed.UnitSigs[ed.Index] = sd.Sig
 	ed.Index++
 	args, err := prepareSpawnArgs(ltsReply, writers, lotDarc)
 	require.NoError(t, err)
-	orgCtr := uint64(1)
-	csr, err := stCl.CreateState(state.ContractCalyLotteryID, args, *orgDarc, orgCtr, organizer, 3, ed)
+	stateCtr := uint64(1)
+	csr, err := stCl.CreateState(state.ContractCalyLotteryID, args, *orgDarc, stateCtr, organizer, 1, ed)
 	require.NoError(t, err)
-	orgCtr++
+	stateCtr++
 	ed.UnitSigs[ed.Index] = csr.Sig
 	ed.Index++
 	// END SETUP WORKFLOW
@@ -170,10 +174,8 @@ func Test_CalypsoLottery_Simple(t *testing.T) {
 
 	// BEGIN FINALIZE WORKFLOW (LOTTERY ORGANIZER)
 	compCl = compiler.NewClient(compRoster)
-	//revealWf, err := cliutils.PrepareWorkflow(&rname, directory, nil, false)
 	revealWf, err := compiler.PrepareWorkflow(&rname, directory)
 	require.NoError(t, err)
-	//revealPlan, err := compCl.GenerateExecutionPlan(revealWf, nil, nil)
 	revealPlan, err := compCl.GenerateExecutionPlan(revealWf)
 	require.NoError(t, err)
 	compCl.Close()
@@ -183,7 +185,8 @@ func Test_CalypsoLottery_Simple(t *testing.T) {
 	defer stCl.Close()
 	defer psCl.Close()
 
-	orgCtr = uint64(1)
+	// TODO: Lottery organizer does not need this
+	psCtr := uint64(1)
 	gpReply, err := stCl.GetProof(iid, ed)
 	require.NoError(t, err)
 	require.True(t, gpReply.ProofResp.Proof.InclusionProof.Match(iid[:]))
@@ -191,20 +194,14 @@ func Test_CalypsoLottery_Simple(t *testing.T) {
 	storage := state.CalyLotteryStorage{}
 	err = protobuf.Decode(value, &storage)
 	require.NoError(t, err)
-	lotteryData := storage.LotteryData
+	lotteryJoinData := storage.LotteryJoinData
 	ed.UnitSigs[ed.Index] = gpReply.Sig
 	ed.Index++
 
-	fmt.Println("Printing out bunch of stuff:", storage.SetupData.LTSID, storage.SetupData.X.String())
-	for _, kv := range storage.LotteryData {
-		fmt.Println("Key:", kv.Key, " -- Value:", kv.Value, " -- Version:", kv.Version)
-	}
-
-	wrProofs := getWriteProofs(lotteryData)
+	wrProofs := getWriteProofs(lotteryJoinData)
 	log.Info("Sending batch read request")
-	rbReply, err := psCl.AddReadBatch(wrProofs, organizer, orgCtr, 2, ed)
+	rbReply, err := psCl.AddReadBatch(wrProofs, organizer, &psCtr, 1, ed)
 	require.NoError(t, err)
-	orgCtr += uint64(len(wrProofs))
 	ed.UnitSigs[ed.Index] = rbReply.Sig
 	ed.Index++
 
@@ -228,10 +225,28 @@ func Test_CalypsoLottery_Simple(t *testing.T) {
 	ed.UnitSigs[ed.Index] = gpbReply.Sig
 	ed.Index++
 
-	//decReply, err := psCl.DecryptBatch(wrProofs, rProofs, ed)
-	//require.NoError(t, err)
-	//ed.UnitSigs[ed.Index] = decReply.Sig
-	//ed.Index++
+	log.LLvl1("============= Before storing read =========== ")
+
+	args, err = prepareStoreReadArgs(rProofs)
+	require.NoError(t, err)
+	updReply, err := stCl.UpdateState(state.ContractCalyLotteryID, "storeread", iid, args, organizer, stateCtr, 1, ed)
+	require.NoError(t, err)
+	stateCtr++
+	ed.UnitSigs[ed.Index] = updReply.Sig
+	ed.Index++
+
+	dr, err := psCl.DecryptNTBatch(wrProofs, rProofs, false, ed)
+	require.NoError(t, err)
+	ed.UnitSigs[ed.Index] = dr.Sig
+	ed.Index++
+
+	args, err = prepareFinalizeArgs(dr.Valid, dr.CalyReplies)
+	require.NoError(t, err)
+	updReply, err = stCl.UpdateState(state.ContractCalyLotteryID, "finalize", iid, args, organizer, stateCtr, 1, ed)
+	require.NoError(t, err)
+	ed.UnitSigs[ed.Index] = dr.Sig
+	ed.Index++
+	stateCtr++
 	// END FINALIZE WORKFLOW (LOTTERY ORGANIZER)
 }
 
@@ -258,7 +273,7 @@ func getWriteProofs(wd []state.KV) []*byzcoin.Proof {
 	sz := len(wd)
 	proofs := make([]*byzcoin.Proof, sz)
 	for i, data := range wd {
-		ldv := &state.LotteryDataValue{}
+		ldv := &state.LotteryJoinDataValue{}
 		err := protobuf.Decode(data.Value, ldv)
 		if err != nil {
 			log.Errorf("Protobuf decode error: %v", err)
@@ -317,10 +332,10 @@ func runJoinWorkflow(t *testing.T, compRoster *onet.Roster, unitRoster *onet.Ros
 	ed.Index++
 
 	//args, err := prepareInvokeArgs(idx, ticketData, &wrPr.Proof, signer.Ed25519.Secret)
-	versionNum := storage.LotteryData[idx].Version
-	args, err := prepareInvokeArgs(idx, ticketData, versionNum, &wrPr.ProofResp.Proof, signer.Ed25519.Secret)
+	versionNum := storage.LotteryJoinData[idx].Version
+	args, err := prepareStoreJoinArgs(idx, ticketData, versionNum, &wrPr.ProofResp.Proof, signer.Ed25519.Secret)
 	require.NoError(t, err)
-	updReply, err := stCl.UpdateState(state.ContractCalyLotteryID, "storejoin", iid, args, signer, 1, 3, ed)
+	updReply, err := stCl.UpdateState(state.ContractCalyLotteryID, "storejoin", iid, args, signer, 1, 1, ed)
 	require.NoError(t, err)
 	ed.UnitSigs[ed.Index] = updReply.Sig
 	ed.Index++
@@ -363,9 +378,57 @@ func prepareLotteryTicket() (*TicketData, error) {
 	return &TicketData{C: c, T: ticket, THash: th, K: key, KHash: kh}, nil
 }
 
-func prepareInvokeArgs(idx int, ticketData *TicketData, currVer uint32, proof *byzcoin.Proof, sk kyber.Scalar) ([]*state.KV, error) {
-	// Prepare LotteryDataValue struct
-	ldv := &state.LotteryDataValue{
+func prepareFinalizeArgs(valid []bool, replies []*calypso.DecryptKeyNTReply) ([]*state.KV, error) {
+	idx := 0
+	sz := len(valid)
+	vldBytes := make([]byte, sz)
+	rd := &state.StructRevealData{Rs: make([]*state.LotteryRevealData, sz)}
+	for i, v := range valid {
+		if v {
+			r := replies[idx]
+			rd.Rs[i] = &state.LotteryRevealData{
+				DKID:      r.DKID,
+				C:         r.C,
+				XhatEnc:   r.XhatEnc,
+				Signature: r.Signature,
+			}
+			vldBytes[i] = 1
+			idx++
+		}
+	}
+	buf, err := protobuf.Encode(rd)
+	if err != nil {
+		log.Errorf("Protobuf encode failed: %v", err)
+		return nil, err
+	}
+	kv := make([]*state.KV, 2)
+	kv[0] = &state.KV{Key: "valid", Value: vldBytes}
+	kv[1] = &state.KV{Key: "data", Value: buf}
+	return kv, nil
+}
+
+func prepareStoreReadArgs(ps []*byzcoin.Proof) ([]*state.KV, error) {
+	valid := make([]byte, len(ps))
+	for i, p := range ps {
+		if p != nil {
+			valid[i] = 1
+		}
+	}
+	pd := &state.StructProofData{Ps: ps}
+	pdBytes, err := protobuf.Encode(pd)
+	if err != nil {
+		log.Errorf("Protobuf encode failed: %v", err)
+		return nil, err
+	}
+	kv := make([]*state.KV, 2)
+	kv[0] = &state.KV{Key: "valid", Value: valid}
+	kv[1] = &state.KV{Key: "proofs", Value: pdBytes}
+	return kv, nil
+}
+
+func prepareStoreJoinArgs(idx int, ticketData *TicketData, currVer uint32, proof *byzcoin.Proof, sk kyber.Scalar) ([]*state.KV, error) {
+	// Prepare LotteryJoinDataValue struct
+	ldv := &state.LotteryJoinDataValue{
 		Index:      idx,
 		WrProof:    proof,
 		Ct:         ticketData.C,

@@ -136,7 +136,9 @@ func (c *Client) AddRead(proof *byzcoin.Proof, signer darc.Signer, signerCtr uin
 	return reply, err
 }
 
-func (c *Client) AddReadBatch(proofs []*byzcoin.Proof, signer darc.Signer, signerCtr uint64, wait int, ed *sys.ExecutionData) (*AddReadBatchReply, error) {
+//func (c *Client) AddReadBatch(proofs []*byzcoin.Proof, signer darc.Signer, signerCtr uint64, wait int, ed *sys.ExecutionData) (*AddReadBatchReply, error) {
+func (c *Client) AddReadBatch(proofs []*byzcoin.Proof, signer darc.Signer, signerCtr *uint64, wait int, ed *sys.ExecutionData) (*AddReadBatchReply, error) {
+	log.Info("Number of write proofs is", len(proofs))
 	ctxs := make([]byzcoin.ClientTransaction, len(proofs))
 	for i, p := range proofs {
 		// Create a read transaction only if the write proof is
@@ -158,15 +160,16 @@ func (c *Client) AddReadBatch(proofs []*byzcoin.Proof, signer darc.Signer, signe
 					ContractID: calypso.ContractReadID,
 					Args:       byzcoin.Arguments{{Name: "read", Value: readBuf}},
 				},
-				SignerCounter: []uint64{signerCtr},
+				SignerCounter: []uint64{*signerCtr},
 			})
 			err = ctxs[i].FillSignersAndSignWith(signer)
 			if err != nil {
 				log.Errorf("Sign transaction failed: %v", err)
 				return nil, err
 			}
-			signerCtr++
+			*signerCtr++
 		}
+		log.LLvlf1("Transaction %d is %x", i, ctxs[i].Instructions.Hash())
 	}
 	req := &AddReadBatchRequest{
 		Ctxs:     ctxs,
@@ -217,14 +220,18 @@ func (c *Client) DecryptBatch(wrProofs []*byzcoin.Proof, rProofs []*byzcoin.Proo
 		return nil, fmt.Errorf("Number of write proofs does not match the number of read proofs")
 	}
 	sz := len(wrProofs)
+	valid := make([]bool, sz)
 	dks := make([]*calypso.DecryptKey, sz)
 	for i := 0; i < sz; i++ {
-		dks[i] = &calypso.DecryptKey{
-			Read:  *rProofs[i],
-			Write: *wrProofs[i],
+		if wrProofs[i] != nil && rProofs[i] != nil {
+			dks[i] = &calypso.DecryptKey{
+				Read:  *rProofs[i],
+				Write: *wrProofs[i],
+			}
+			valid[i] = true
 		}
 	}
-	req := &DecryptBatchRequest{Requests: dks, ExecData: ed}
+	req := &DecryptBatchRequest{Valid: valid, Requests: dks, ExecData: ed}
 	reply := &DecryptBatchReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)
 	return reply, err
@@ -246,6 +253,35 @@ func (c *Client) DecryptNT(wrProof *byzcoin.Proof, rProof *byzcoin.Proof, isReen
 	}
 	reply := &DecryptNTReply{}
 	err = c.SendProtobuf(c.roster.List[0], req, reply)
+	return reply, err
+}
+
+func (c *Client) DecryptNTBatch(wrProofs []*byzcoin.Proof, rProofs []*byzcoin.Proof, isReenc bool, ed *sys.ExecutionData) (*DecryptNTBatchReply, error) {
+	if len(wrProofs) != len(rProofs) {
+		return nil, fmt.Errorf("Number of write proofs does not match the number of read proofs")
+	}
+	sz := len(wrProofs)
+	valid := make([]bool, sz)
+	dks := make([]*calypso.DecryptKeyNT, sz)
+	for i := 0; i < sz; i++ {
+		if wrProofs[i] != nil && rProofs[i] != nil {
+			dkid, err := GenerateDKID(wrProofs[i], rProofs[i])
+			if err != nil {
+				log.Errorf("Error generating DKID: %v", err)
+				return nil, err
+			}
+			dks[i] = &calypso.DecryptKeyNT{
+				DKID:    dkid,
+				IsReenc: isReenc,
+				Read:    *rProofs[i],
+				Write:   *wrProofs[i],
+			}
+			valid[i] = true
+		}
+	}
+	req := &DecryptNTBatchRequest{Valid: valid, Requests: dks, ExecData: ed}
+	reply := &DecryptNTBatchReply{}
+	err := c.SendProtobuf(c.roster.List[0], req, reply)
 	return reply, err
 }
 

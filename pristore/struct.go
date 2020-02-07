@@ -146,11 +146,13 @@ type DecryptReply struct {
 }
 
 type DecryptBatchRequest struct {
+	Valid    []bool
 	Requests []*calypso.DecryptKey
 	ExecData *sys.ExecutionData
 }
 
 type DecryptBatchReply struct {
+	Valid       []bool
 	CalyReplies []*calypso.DecryptKeyReply
 	Sig         protocol.BlsSignature
 }
@@ -163,6 +165,18 @@ type DecryptNTRequest struct {
 type DecryptNTReply struct {
 	CalyReply *calypso.DecryptKeyNTReply
 	Sig       protocol.BlsSignature
+}
+
+type DecryptNTBatchRequest struct {
+	Valid    []bool
+	Requests []*calypso.DecryptKeyNT
+	ExecData *sys.ExecutionData
+}
+
+type DecryptNTBatchReply struct {
+	Valid       []bool
+	CalyReplies []*calypso.DecryptKeyNTReply
+	Sig         protocol.BlsSignature
 }
 
 ////

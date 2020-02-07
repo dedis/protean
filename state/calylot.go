@@ -6,9 +6,11 @@ import (
 	"fmt"
 
 	"go.dedis.ch/cothority/v3"
+	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/darc"
 	"go.dedis.ch/kyber/v3"
+	"go.dedis.ch/kyber/v3/pairing"
 	"go.dedis.ch/kyber/v3/sign/schnorr"
 	"go.dedis.ch/kyber/v3/util/encoding"
 	"go.dedis.ch/onet/v3/log"
@@ -17,34 +19,50 @@ import (
 
 const ContractCalyLotteryID = "calyLottery"
 
+// Used for communication between the client-side and Calylot contract
+type StructProofData struct {
+	Ps []*byzcoin.Proof
+}
+
+type StructRevealData struct {
+	Rs []*LotteryRevealData
+}
+
 type contractCalyLottery struct {
 	byzcoin.BasicContract
 	CalyLotteryStorage
+}
+
+type CalyLotteryStorage struct {
+	SetupData SetupData
+	Valid     []byte
+	// Key: public key in hex format || Value: encoded LotteryJoinDataValue
+	LotteryJoinData []KV
+	RProofs         []*byzcoin.Proof
+	RevealData      []LotteryRevealData
 }
 
 type SetupData struct {
 	LTSID    byzcoin.InstanceID
 	X        kyber.Point
 	CalyDarc *darc.Darc
+	//DummyKeys []kyber.Point
 }
 
-type CalyLotteryStorage struct {
-	//Key: public key of the participant
-	//TODO: Removed sig from value. was it necessary?
-	//Value: proof + hash of ticket
-	SetupData SetupData
-	// Key: public key in hex format || Value: encoded LotteryDataValue
-	LotteryData []KV
-}
-
-type LotteryDataValue struct {
+type LotteryJoinDataValue struct {
 	// Index saves us from iterating over the array
 	Index      int
 	WrProof    *byzcoin.Proof
 	Ct         []byte // Encrypted ticket
 	KeyHash    []byte // Hash of the symmetric key
 	TicketHash []byte //Hash of the ticket
-	RProof     *byzcoin.Proof
+}
+
+type LotteryRevealData struct {
+	DKID      string
+	C         kyber.Point
+	XhatEnc   kyber.Point
+	Signature protocol.BlsSignature
 }
 
 func contractCalyLotteryFromBytes(in []byte) (byzcoin.Contract, error) {
@@ -65,7 +83,6 @@ func (c *contractCalyLottery) Spawn(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.
 		log.Errorf("GetValues failed: %v", err)
 		return
 	}
-	log.LLvl1("================= IN SPAWN ==================")
 	cls := &c.CalyLotteryStorage
 	ltsIDBytes := inst.Spawn.Args.Search("ltsid")
 	if ltsIDBytes == nil {
@@ -102,7 +119,7 @@ func (c *contractCalyLottery) Spawn(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.
 	// Create a KV entry for all the eligible lottery participants
 	for i, k := range keys.List {
 		var valBuf []byte
-		value := &LotteryDataValue{Index: i}
+		value := &LotteryJoinDataValue{Index: i}
 		valBuf, err = protobuf.Encode(value)
 		if err != nil {
 			log.Errorf("Protobuf encode failed: %v", err)
@@ -114,7 +131,7 @@ func (c *contractCalyLottery) Spawn(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.
 			Value:   valBuf,
 			Version: 0,
 		}
-		cls.LotteryData = append(cls.LotteryData, kv)
+		cls.LotteryJoinData = append(cls.LotteryJoinData, kv)
 	}
 	// Store LTSID
 	copy(cls.SetupData.LTSID[:], ltsIDBytes)
@@ -124,6 +141,7 @@ func (c *contractCalyLottery) Spawn(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.
 	// Store Calypso darc
 	cls.SetupData.CalyDarc = darc
 	// Encode state change
+	cls.Valid = make([]byte, len(keys.List))
 	clsBuf, err := protobuf.Encode(&c.CalyLotteryStorage)
 	if err != nil {
 		log.Errorf("Protobuf encode failed: %v", err)
@@ -136,7 +154,6 @@ func (c *contractCalyLottery) Spawn(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.
 }
 
 func (c *contractCalyLottery) Invoke(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Instruction, coins []byzcoin.Coin) (sc []byzcoin.StateChange, cout []byzcoin.Coin, err error) {
-	log.LLvl1("========== IN INVOKE ============")
 	cout = coins
 	var darcID darc.ID
 	_, _, _, darcID, err = rst.GetValues(inst.InstanceID.Slice())
@@ -162,7 +179,7 @@ func (c *contractCalyLottery) Invoke(rst byzcoin.ReadOnlyStateTrie, inst byzcoin
 			log.Errorf("Missing version number")
 			return
 		}
-		val := &LotteryDataValue{}
+		val := &LotteryJoinDataValue{}
 		err = protobuf.Decode(valBuf, val)
 		if err != nil {
 			log.Errorf("Protobuf decode failed: %v", err)
@@ -170,22 +187,21 @@ func (c *contractCalyLottery) Invoke(rst byzcoin.ReadOnlyStateTrie, inst byzcoin
 		}
 		// 1- Check the version number
 		version := binary.LittleEndian.Uint32(verBuf)
-		kvPair := cls.LotteryData[val.Index]
+		kvPair := cls.LotteryJoinData[val.Index]
 		pkStr := kvPair.Key
 		if (kvPair.Version + 1) != version {
 			log.Errorf("New version number has to be %d, not %d", kvPair.Version+1, version)
 			return
 		}
-		log.LLvl1("Version is:", version)
 		// 2- Make sure that the client is updating the correct key
 		err = c.authorizeAccess(pkStr, valBuf, verBuf, sig)
 		if err != nil {
 			log.Errorf("Not authorized to update the value for key %v: %v", pkStr, err)
 			return
 		}
-		log.LLvl1("Authorized access successfully")
-		cls.LotteryData[val.Index].Value = valBuf
-		cls.LotteryData[val.Index].Version = version
+		cls.LotteryJoinData[val.Index].Value = valBuf
+		cls.LotteryJoinData[val.Index].Version = version
+		cls.Valid[val.Index] = 1
 		var clsBuf []byte
 		clsBuf, err = protobuf.Encode(&c.CalyLotteryStorage)
 		if err != nil {
@@ -197,42 +213,41 @@ func (c *contractCalyLottery) Invoke(rst byzcoin.ReadOnlyStateTrie, inst byzcoin
 		}
 		return
 	case "storeread":
-		//dataBuf := inst.Invoke.Args.Search("data")
-		//if dataBuf == nil {
-		//log.Errorf("Missing storeread data")
-		//return
-		//}
-		//proof := &byzcoin.Proof{}
-		//err = protobuf.Decode(lrBuf, rdv)
-		//if err != nil {
-		//log.Errorf("Protobuf decode failed: %v", err)
-		//return
-		//}
-		//// 1- Check the version number
-		//version := binary.LittleEndian.Uint32(verBuf)
-		//kvPair := cls.ReadData[rdv.Index]
-		//if (kvPair.Version + 1) != version {
-		//log.Errorf("New version number has to be %d, not %d", kvPair.Version+1, version)
-		//return
-		//}
-		//cls.ReadData[rdv.Index].Value = lrBuf
-		//cls.ReadData[rdv.Index].Version = version
-		//var clsBuf []byte
-		//clsBuf, err = protobuf.Encode(&c.CalyLotteryStorage)
-		//if err != nil {
-		//log.Errorf("Protobuf encode failed: %v", err)
-		//return
-		//}
-		//sc = []byzcoin.StateChange{
-		//byzcoin.NewStateChange(byzcoin.Update, inst.InstanceID, ContractCalyLotteryID, clsBuf, darcID),
-		//}
-		return
-	case "finalize":
-		tBuf := inst.Invoke.Args.Search("ticket")
-		if tBuf == nil {
-			log.Errorf("Key:ticket has no value")
+		log.LLvl1("In storeread")
+		valid := inst.Invoke.Args.Search("valid")
+		if valid == nil {
+			log.Errorf("Missing valid")
 			return
 		}
+		pBuf := inst.Invoke.Args.Search("proofs")
+		if pBuf == nil {
+			log.Errorf("Missing storeread data")
+			return
+		}
+		pd := &StructProofData{}
+		err = protobuf.Decode(pBuf, pd)
+		if err != nil {
+			log.Errorf("Protobuf decode failed: %v", err)
+			return
+		}
+		cls.Valid = valid
+		cls.RProofs = pd.Ps
+		var clsBuf []byte
+		clsBuf, err = protobuf.Encode(&c.CalyLotteryStorage)
+		if err != nil {
+			log.Errorf("Protobuf encode failed: %v", err)
+			return
+		}
+		sc = []byzcoin.StateChange{
+			byzcoin.NewStateChange(byzcoin.Update, inst.InstanceID, ContractCalyLotteryID, clsBuf, darcID),
+		}
+		return
+	case "finalize":
+		//tBuf := inst.Invoke.Args.Search("ticket")
+		//if tBuf == nil {
+		//log.Errorf("Key:ticket has no value")
+		//return
+		//}
 		//cls := &c.CalyLotteryStorage
 		//kvs := &KVStorage{}
 		//err = protobuf.Decode(tBuf, kvs)
@@ -296,4 +311,24 @@ func (c *contractCalyLottery) Delete(rst byzcoin.ReadOnlyStateTrie, inst byzcoin
 	}
 	sc = byzcoin.StateChanges{byzcoin.NewStateChange(byzcoin.Remove, inst.InstanceID, ContractCalyLotteryID, nil, darcID)}
 	return
+}
+
+func recoverKeyNT(XhatEnc kyber.Point, C kyber.Point) (key []byte, err error) {
+	XhatInv := XhatEnc.Clone().Neg(XhatEnc)
+	XhatInv.Add(C, XhatInv)
+	key, err = XhatInv.Data()
+	return
+}
+
+func verifySignature(DKID string, XhatEnc kyber.Point, sig protocol.BlsSignature, publics []kyber.Point) error {
+	bnsuite := pairing.NewSuiteBn256()
+	ptBuf, err := XhatEnc.MarshalBinary()
+	if err != nil {
+		return err
+	}
+	sh := sha256.New()
+	sh.Write([]byte(DKID))
+	sh.Write(ptBuf)
+	data := sh.Sum(nil)
+	return sig.Verify(bnsuite, data, publics)
 }

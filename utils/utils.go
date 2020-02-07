@@ -188,10 +188,9 @@ func GenerateUnitConfig(compKeys []kyber.Point, roster *onet.Roster, id string, 
 		CompPublics: compKeys,
 	}
 	return &sys.UnitConfig{
-		Roster:    roster,
-		ScCfg:     scCfg,
-		BaseStore: uData,
-		//BlkInterval:  10,
+		Roster:       roster,
+		ScCfg:        scCfg,
+		BaseStore:    uData,
 		BlkInterval:  blkIntv,
 		DurationType: time.Second,
 	}
