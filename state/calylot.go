@@ -19,13 +19,17 @@ import (
 
 const ContractCalyLotteryID = "calyLottery"
 
+type DummyKeys struct {
+	List []kyber.Point
+}
+
 // Used for communication between the client-side and Calylot contract
 type StructProofData struct {
 	Ps []*byzcoin.Proof
 }
 
 type StructRevealData struct {
-	Rs []*LotteryRevealData
+	Rs []LotteryRevealData
 }
 
 type contractCalyLottery struct {
@@ -43,10 +47,10 @@ type CalyLotteryStorage struct {
 }
 
 type SetupData struct {
-	LTSID    byzcoin.InstanceID
-	X        kyber.Point
-	CalyDarc *darc.Darc
-	//DummyKeys []kyber.Point
+	LTSID     byzcoin.InstanceID
+	X         kyber.Point
+	CalyDarc  *darc.Darc
+	DummyKeys []kyber.Point
 }
 
 type LotteryJoinDataValue struct {
@@ -104,8 +108,19 @@ func (c *contractCalyLottery) Spawn(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.
 		log.Errorf("Missing darc")
 		return
 	}
+	dummyBytes := inst.Spawn.Args.Search("dummy")
+	if dummyBytes == nil {
+		log.Errorf("Missing dummy service keys")
+		return
+	}
 	keys := &Keys{}
 	err = protobuf.Decode(klBytes, keys)
+	if err != nil {
+		log.Errorf("Protobuf decode failed: %v", err)
+		return
+	}
+	dummyKeys := &DummyKeys{}
+	err = protobuf.Decode(dummyBytes, dummyKeys)
 	if err != nil {
 		log.Errorf("Protobuf decode failed: %v", err)
 		return
@@ -140,6 +155,8 @@ func (c *contractCalyLottery) Spawn(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.
 	cls.SetupData.X = pk
 	// Store Calypso darc
 	cls.SetupData.CalyDarc = darc
+	// Store DummyService keys
+	cls.SetupData.DummyKeys = dummyKeys.List
 	// Encode state change
 	cls.Valid = make([]byte, len(keys.List))
 	clsBuf, err := protobuf.Encode(&c.CalyLotteryStorage)
@@ -243,12 +260,51 @@ func (c *contractCalyLottery) Invoke(rst byzcoin.ReadOnlyStateTrie, inst byzcoin
 		}
 		return
 	case "finalize":
-		//tBuf := inst.Invoke.Args.Search("ticket")
-		//if tBuf == nil {
-		//log.Errorf("Key:ticket has no value")
-		//return
-		//}
-		//cls := &c.CalyLotteryStorage
+		valid := inst.Invoke.Args.Search("valid")
+		if valid == nil {
+			log.Errorf("Missing valid")
+			return
+		}
+		dataBuf := inst.Invoke.Args.Search("data")
+		if dataBuf == nil {
+			log.Errorf("Missing data")
+			return
+		}
+		srd := &StructRevealData{}
+		err = protobuf.Decode(dataBuf, srd)
+		if err != nil {
+			log.Errorf("Protobuf decode error: %v", err)
+			return
+		}
+		log.Info("Before the loop")
+		cls := &c.CalyLotteryStorage
+		cls.RevealData = srd.Rs
+
+		for i, rd := range cls.RevealData {
+			ljd := &LotteryJoinDataValue{}
+			err = verifySignature(rd.DKID, rd.XhatEnc, rd.Signature, cls.SetupData.DummyKeys)
+			if err != nil {
+				log.Errorf("Cannot verify signature for %s: %v", rd.DKID, err)
+			} else {
+				log.LLvl1("********* Signature verification successful **********")
+			}
+			err := protobuf.Decode(cls.LotteryJoinData[i].Value, ljd)
+			if err != nil {
+				log.Errorf("PROTOBUF ERROR: %v", err)
+			}
+			key, err := recoverKeyNT(rd.XhatEnc, rd.C)
+			if err != nil {
+				log.Errorf("CANNOT RECOVER KEY: %v", err)
+			}
+			s := sha256.New()
+			//kb, err := rd.XhatEnc.MarshalBinary()
+			//if err != nil {
+			//log.Errorf("CANNOT MARSH BIN: %v", err)
+			//}
+			//s.Write(kb)
+			s.Write(key)
+			log.LLvlf1("================= %x %x ==============", ljd.KeyHash, s.Sum(nil))
+		}
 		//kvs := &KVStorage{}
 		//err = protobuf.Decode(tBuf, kvs)
 		//if err != nil {

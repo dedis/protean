@@ -21,6 +21,7 @@ import (
 	"go.dedis.ch/cothority/v3/calypso"
 	"go.dedis.ch/cothority/v3/darc"
 	"go.dedis.ch/cothority/v3/darc/expression"
+	"go.dedis.ch/cothority/v3/dummy"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/sign/schnorr"
 	"go.dedis.ch/kyber/v3/util/random"
@@ -148,7 +149,7 @@ func Test_CalypsoLottery_Simple(t *testing.T) {
 	require.NoError(t, err)
 	ed.UnitSigs[ed.Index] = sd.Sig
 	ed.Index++
-	args, err := prepareSpawnArgs(ltsReply, writers, lotDarc)
+	args, err := prepareSpawnArgs(ltsReply, writers, lotDarc, unitRoster.ServicePublics(dummy.ServiceName))
 	require.NoError(t, err)
 	stateCtr := uint64(1)
 	csr, err := stCl.CreateState(state.ContractCalyLotteryID, args, *orgDarc, stateCtr, organizer, 1, ed)
@@ -382,11 +383,13 @@ func prepareFinalizeArgs(valid []bool, replies []*calypso.DecryptKeyNTReply) ([]
 	idx := 0
 	sz := len(valid)
 	vldBytes := make([]byte, sz)
-	rd := &state.StructRevealData{Rs: make([]*state.LotteryRevealData, sz)}
+	//rd := &state.StructRevealData{Rs: make([]*state.LotteryRevealData, sz)}
+	rd := &state.StructRevealData{Rs: make([]state.LotteryRevealData, sz)}
 	for i, v := range valid {
 		if v {
 			r := replies[idx]
-			rd.Rs[i] = &state.LotteryRevealData{
+			//rd.Rs[i] = &state.LotteryRevealData{
+			rd.Rs[i] = state.LotteryRevealData{
 				DKID:      r.DKID,
 				C:         r.C,
 				XhatEnc:   r.XhatEnc,
@@ -394,6 +397,7 @@ func prepareFinalizeArgs(valid []bool, replies []*calypso.DecryptKeyNTReply) ([]
 			}
 			vldBytes[i] = 1
 			idx++
+			log.LLvlf1("IN PREPARE FINALIZE ARGS: %x %x %x", r.C, r.XhatEnc, r.Signature)
 		}
 	}
 	buf, err := protobuf.Encode(rd)
@@ -470,7 +474,8 @@ func prepareStoreJoinArgs(idx int, ticketData *TicketData, currVer uint32, proof
 //   - writers: identities of the eligible writers. pk of the eligible writers
 //   are sent to the lottery contract so that whenever a client wants to add a
 //   lottery ticket, they are authenticated against this key
-func prepareSpawnArgs(ltsReply *pristore.CreateLTSReply, writers []darc.Signer, darc *darc.Darc) ([]*state.KV, error) {
+//   - dummyKeys: BN256 keys of the nodes in DummyService
+func prepareSpawnArgs(ltsReply *pristore.CreateLTSReply, writers []darc.Signer, darc *darc.Darc, dummyKeys []kyber.Point) ([]*state.KV, error) {
 	keyList := make([]string, len(writers))
 	for i, w := range writers {
 		keyList[i] = w.Ed25519.Point.String()
@@ -485,10 +490,17 @@ func prepareSpawnArgs(ltsReply *pristore.CreateLTSReply, writers []darc.Signer, 
 		log.Errorf("Protobuf encode failed: %v", err)
 		return nil, err
 	}
-	kv := make([]*state.KV, 4)
+	dummyBytes, err := protobuf.Encode(&state.DummyKeys{List: dummyKeys})
+	if err != nil {
+		log.Errorf("Protobuf encode failed: %v", err)
+		return nil, err
+	}
+	//kv := make([]*state.KV, 4)
+	kv := make([]*state.KV, 5)
 	kv[0] = &state.KV{Key: "ltsid", Value: ltsReply.Reply.InstanceID[:]}
 	kv[1] = &state.KV{Key: "sharedpk", Value: []byte(ltsReply.Reply.X.String())}
 	kv[2] = &state.KV{Key: "keylist", Value: klBytes}
 	kv[3] = &state.KV{Key: "calydarc", Value: darcBytes}
+	kv[4] = &state.KV{Key: "dummy", Value: dummyBytes}
 	return kv, nil
 }
