@@ -1,7 +1,6 @@
 package easyneff
 
 import (
-	"flag"
 	"fmt"
 	"strings"
 	"testing"
@@ -23,15 +22,17 @@ var uname string
 var wname string
 
 func init() {
-	flag.StringVar(&uname, "unit", "", "JSON file")
-	flag.StringVar(&wname, "wflow", "", "JSON file")
+	//flag.StringVar(&uname, "unit", "", "JSON file")
+	//flag.StringVar(&wname, "wflow", "", "JSON file")
+	uname = "../units.json"
 }
 
 func TestMain(m *testing.M) {
 	log.MainTest(m)
 }
 
-func TestShuffle_withDKG(t *testing.T) {
+func TestDKG(t *testing.T) {
+	wname = "./testdata/withdkg.json"
 	total := 14
 	compTotal := total / 2
 	local := onet.NewTCPTest(cothority.Suite)
@@ -121,7 +122,8 @@ func TestShuffle_withDKG(t *testing.T) {
 
 }
 
-func TestShuffle_withEnc(t *testing.T) {
+func TestDecrypt(t *testing.T) {
+	wname = "./testdata/wflow.json"
 	total := 14
 	compTotal := total / 2
 	local := onet.NewTCPTest(cothority.Suite)
@@ -185,7 +187,8 @@ func TestShuffle_withEnc(t *testing.T) {
 	}
 }
 
-func TestShuffle(t *testing.T) {
+func TestSimple(t *testing.T) {
+	wname = "./testdata/wflow.json"
 	total := 14
 	compTotal := total / 2
 	local := onet.NewTCPTest(cothority.Suite)
