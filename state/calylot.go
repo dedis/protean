@@ -280,6 +280,7 @@ func (c *contractCalyLottery) Invoke(rst byzcoin.ReadOnlyStateTrie, inst byzcoin
 		cls := &c.CalyLotteryStorage
 		cls.RevealData = srd.Rs
 
+		// TODO: Validity check!
 		for i, rd := range cls.RevealData {
 			ljd := &LotteryJoinDataValue{}
 			err = verifySignature(rd.DKID, rd.XhatEnc, rd.Signature, cls.SetupData.DummyKeys)

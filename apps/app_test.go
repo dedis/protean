@@ -396,8 +396,10 @@ func prepareFinalizeArgs(valid []bool, replies []*calypso.DecryptKeyNTReply) ([]
 				Signature: r.Signature,
 			}
 			vldBytes[i] = 1
+			log.LLvlf1("(%d) IN PREPARE FINALIZE ARGS: %x %x %x", i, r.C, r.XhatEnc, r.Signature)
 			idx++
-			log.LLvlf1("IN PREPARE FINALIZE ARGS: %x %x %x", r.C, r.XhatEnc, r.Signature)
+		} else {
+			log.LLvlf1("NOT VALID %d", i)
 		}
 	}
 	buf, err := protobuf.Encode(rd)
