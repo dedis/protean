@@ -1,7 +1,6 @@
 package easyrand
 
 import (
-	"flag"
 	"strings"
 	"testing"
 	"time"
@@ -22,16 +21,19 @@ var sname string
 var rname string
 
 func init() {
-	flag.StringVar(&uname, "unit", "", "JSON file")
-	flag.StringVar(&sname, "setup", "", "JSON file")
-	flag.StringVar(&rname, "rand", "", "JSON file")
+	uname = "../units.json"
+	//flag.StringVar(&uname, "unit", "", "JSON file")
+	//flag.StringVar(&sname, "setup", "", "JSON file")
+	//flag.StringVar(&rname, "rand", "", "JSON file")
 }
 
 func TestMain(m *testing.M) {
 	log.MainTest(m)
 }
 
-func TestRandom_Simple(t *testing.T) {
+func Test_Simple(t *testing.T) {
+	sname = "./testdata/setup.json"
+	rname = "./testdata/rand.json"
 	total := 14
 	compTotal := total / 2
 	local := onet.NewTCPTest(cothority.Suite)

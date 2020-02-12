@@ -2,7 +2,6 @@ package pristore
 
 import (
 	"bytes"
-	"flag"
 	"fmt"
 	"strings"
 	"testing"
@@ -28,17 +27,21 @@ var wname string
 var rname string
 
 func init() {
-	flag.StringVar(&uname, "unit", "", "JSON file")
-	flag.StringVar(&aname, "admin", "", "JSON file")
-	flag.StringVar(&wname, "write", "", "JSON file")
-	flag.StringVar(&rname, "read", "", "JSON file")
+	uname = "../units.json"
+	//flag.StringVar(&uname, "unit", "", "JSON file")
+	//flag.StringVar(&aname, "admin", "", "JSON file")
+	//flag.StringVar(&wname, "write", "", "JSON file")
+	//flag.StringVar(&rname, "read", "", "JSON file")
 }
 
 func TestMain(m *testing.M) {
 	log.MainTest(m)
 }
 
-func TestPristore_Multiple(t *testing.T) {
+func Test_Multiple(t *testing.T) {
+	aname = "./testdata/admin.json"
+	wname = "./testdata/write.json"
+	rname = "./testdata/read.json"
 	total := 14
 	compTotal := total / 2
 	local := onet.NewTCPTest(cothority.Suite)

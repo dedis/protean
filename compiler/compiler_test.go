@@ -1,7 +1,6 @@
 package compiler
 
 import (
-	"flag"
 	"fmt"
 	"testing"
 
@@ -18,15 +17,17 @@ var uname string
 var wname string
 
 func init() {
-	flag.StringVar(&uname, "unit", "", "JSON file")
-	flag.StringVar(&wname, "wflow", "", "JSON file")
+	//flag.StringVar(&uname, "unit", "", "JSON file")
+	//flag.StringVar(&wname, "wflow", "", "JSON file")
+	uname = "../units.json"
+	wname = "./testdata/workflow.json"
 }
 
 func TestMain(m *testing.M) {
 	log.MainTest(m)
 }
 
-func TestCompiler_Basic(t *testing.T) {
+func TestBasic(t *testing.T) {
 	n := 7
 	local := onet.NewTCPTest(cothority.Suite)
 	hosts, roster, _ := local.GenTree(n, true)
@@ -57,7 +58,7 @@ func TestCompiler_Basic(t *testing.T) {
 	require.NotNil(t, reply)
 }
 
-func Test_PrepareWf(t *testing.T) {
+func TestPrepareWf(t *testing.T) {
 	n := 7
 	local := onet.NewTCPTest(cothority.Suite)
 	hosts, roster, _ := local.GenTree(n, true)
@@ -91,7 +92,7 @@ func Test_PrepareWf(t *testing.T) {
 	require.True(t, len(wf.Nodes) > 0)
 }
 
-func Test_GenerateEP(t *testing.T) {
+func TestGenerateEP(t *testing.T) {
 	n := 7
 	local := onet.NewTCPTest(cothority.Suite)
 	hosts, roster, _ := local.GenTree(n, true)

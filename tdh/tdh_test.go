@@ -15,7 +15,7 @@ func TestMain(m *testing.M) {
 	log.MainTest(m)
 }
 
-func TestTDH_Server(t *testing.T) {
+func Test_Server(t *testing.T) {
 	n := 10
 	local := onet.NewTCPTest(cothority.Suite)
 	hosts, roster, _ := local.GenTree(n, true)

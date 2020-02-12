@@ -5,7 +5,6 @@ import (
 	"crypto/cipher"
 	"crypto/sha256"
 	"encoding/binary"
-	"flag"
 	"strings"
 	"testing"
 
@@ -44,10 +43,11 @@ type TicketData struct {
 }
 
 func init() {
-	flag.StringVar(&uname, "unit", "", "JSON file")
-	flag.StringVar(&sname, "setup", "", "JSON file")
-	flag.StringVar(&jname, "join", "", "JSON file")
-	flag.StringVar(&rname, "reveal", "", "JSON file")
+	uname = "../units.json"
+	//flag.StringVar(&uname, "unit", "", "JSON file")
+	//flag.StringVar(&sname, "setup", "", "JSON file")
+	//flag.StringVar(&jname, "join", "", "JSON file")
+	//flag.StringVar(&rname, "reveal", "", "JSON file")
 }
 
 func TestMain(m *testing.M) {
@@ -55,6 +55,9 @@ func TestMain(m *testing.M) {
 }
 
 func Test_CalypsoLottery_Simple(t *testing.T) {
+	sname = "./testdata/setup.json"
+	jname = "./testdata/join.json"
+	rname = "./testdata/reveal.json"
 	total := 14
 	unitCnt := total / 2
 	local := onet.NewTCPTest(cothority.Suite)

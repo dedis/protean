@@ -1,7 +1,6 @@
 package threshold
 
 import (
-	"flag"
 	"fmt"
 	"strings"
 	"testing"
@@ -21,15 +20,17 @@ var uname string
 var wname string
 
 func init() {
-	flag.StringVar(&uname, "unit", "", "JSON file")
-	flag.StringVar(&wname, "wflow", "", "JSON file")
+	uname = "../units.json"
+	wname = "./testdata/wflow.json"
+	//flag.StringVar(&uname, "unit", "", "JSON file")
+	//flag.StringVar(&wname, "wflow", "", "JSON file")
 }
 
 func TestMain(m *testing.M) {
 	log.MainTest(m)
 }
 
-func TestThreshold_Server(t *testing.T) {
+func Test_Server(t *testing.T) {
 	total := 14
 	compTotal := total / 2
 	local := onet.NewTCPTest(cothority.Suite)
@@ -90,7 +91,7 @@ func TestThreshold_Server(t *testing.T) {
 	ed.Index++
 }
 
-func TestThreshold_ServerFalse(t *testing.T) {
+func Test_ServerFalse(t *testing.T) {
 	total := 14
 	compTotal := total / 2
 	local := onet.NewTCPTest(cothority.Suite)
