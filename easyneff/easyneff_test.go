@@ -1,7 +1,6 @@
 package easyneff
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 
@@ -13,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/kyber/v3"
-	"go.dedis.ch/kyber/v3/util/random"
+	"go.dedis.ch/kyber/v3/util/key"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
 )
@@ -94,13 +93,15 @@ func TestDKG(t *testing.T) {
 
 	///////////
 
-	req, _ := generateRequest(10, []byte("On Wisconsin!"), dkgReply.X, ed)
+	cleartext := []byte("On Wisconsin!")
+	req, _ := generateRequest(10, cleartext, dkgReply.X, ed)
+
 	resp, err := root.Shuffle(&req)
 	require.NoError(t, err)
 	//// verification should succeed
 	n := len(unitRoster.List)
 	require.Equal(t, n, len(resp.Proofs))
-	require.NoError(t, resp.ShuffleVerify(req.G, req.H, req.Pairs, unitRoster.Publics()))
+	require.NoError(t, resp.ShuffleVerify(nil, req.H, req.Pairs, unitRoster.Publics()))
 	ed.UnitSigs[ed.Index] = resp.Sig
 	ed.Index++
 
@@ -115,9 +116,9 @@ func TestDKG(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, p := range decReply.Ps {
-		pt, err := p.Data()
-		fmt.Println(string(pt))
+		msg, err := p.Data()
 		require.NoError(t, err)
+		require.Equal(t, cleartext, msg)
 	}
 
 }
@@ -166,24 +167,25 @@ func TestDecrypt(t *testing.T) {
 
 	///////////
 
-	req, sks := generateRequest(10, []byte("On Wisconsin!"), nil, ed)
+	cleartext := []byte("Go Beavers, beat Wisconsin!")
+	req, kp := generateRequest(10, cleartext, nil, ed)
 	resp, err := root.Shuffle(&req)
 	require.NoError(t, err)
 	//// verification should succeed
 	n := len(unitRoster.List)
 	require.Equal(t, n, len(resp.Proofs))
-	require.NoError(t, resp.ShuffleVerify(req.G, req.H, req.Pairs, unitRoster.Publics()))
+	require.NoError(t, resp.ShuffleVerify(nil, req.H, req.Pairs, unitRoster.Publics()))
 	ed.UnitSigs[ed.Index] = resp.Sig
 	ed.Index++
 
 	///////////
 
 	cs := resp.Proofs[n-1].Pairs
-	for i, p := range cs {
-		pt := utils.ElGamalDecrypt(sks[i], p)
+	for _, p := range cs {
+		pt := utils.ElGamalDecrypt(kp.Private, p)
 		data, err := pt.Data()
 		require.NoError(t, err)
-		fmt.Println(data)
+		require.Equal(t, cleartext, data)
 	}
 }
 
@@ -234,35 +236,33 @@ func TestSimple(t *testing.T) {
 
 	//// verification should succeed
 	require.Equal(t, len(unitRoster.List), len(resp.Proofs))
-	require.NoError(t, resp.ShuffleVerify(req.G, req.H, req.Pairs, unitRoster.Publics()))
+	require.NoError(t, resp.ShuffleVerify(nil, req.H, req.Pairs, unitRoster.Publics()))
 
 	//// if we change the order of the proofs and signatures then it should fail
 	resp.Proofs = append(resp.Proofs[1:], resp.Proofs[0])
 	sigs := append(roster.Publics()[1:], roster.Publics()[0])
-	require.Error(t, resp.ShuffleVerify(req.G, req.H, req.Pairs, sigs))
+	require.Error(t, resp.ShuffleVerify(nil, req.H, req.Pairs, sigs))
 }
 
-func generateRequest(n int, msg []byte, key kyber.Point, ed *sys.ExecutionData) (ShuffleRequest, []kyber.Scalar) {
-	var public kyber.Point
-	r := random.New()
-	pairs := make([]utils.ElGamalPair, n)
-	sks := make([]kyber.Scalar, n)
-	for i := range pairs {
-		if key != nil {
-			public = key
-		} else {
-			secret := cothority.Suite.Scalar().Pick(r)
-			public = cothority.Suite.Point().Mul(secret, nil)
-			sks[i] = secret
+func generateRequest(n int, msg []byte, pub kyber.Point, ed *sys.ExecutionData) (req ShuffleRequest, kp *key.Pair) {
+	if pub != nil {
+		kp = &key.Pair{
+			Public: pub,
 		}
-		c := utils.ElGamalEncrypt(public, msg)
+	} else {
+		kp = key.NewKeyPair(cothority.Suite)
+	}
+
+	pairs := make([]utils.ElGamalPair, n)
+	for i := range pairs {
+		c := utils.ElGamalEncrypt(kp.Public, msg)
 		pairs[i] = utils.ElGamalPair{K: c.K, C: c.C}
 	}
 
-	return ShuffleRequest{
+	req = ShuffleRequest{
 		Pairs:    pairs,
-		G:        cothority.Suite.Point().Base(),
-		H:        cothority.Suite.Point().Pick(r),
+		H:        kp.Public,
 		ExecData: ed,
-	}, sks
+	}
+	return
 }
