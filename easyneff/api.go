@@ -51,7 +51,6 @@ func (c *Client) Shuffle(pairs []utils.ElGamalPair, g kyber.Point, h kyber.Point
 	}
 	req := &ShuffleRequest{
 		Pairs:    pairs,
-		G:        g,
 		H:        h,
 		ExecData: ed,
 	}

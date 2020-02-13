@@ -21,7 +21,6 @@ type InitUnitReply struct {
 // points G and H are public generators used in ElGamal encryption.
 type ShuffleRequest struct {
 	Pairs    []utils.ElGamalPair
-	G        kyber.Point
 	H        kyber.Point
 	ExecData *sys.ExecutionData
 }

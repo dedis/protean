@@ -11,7 +11,6 @@ import (
 	"go.dedis.ch/kyber/v3/shuffle"
 	"go.dedis.ch/kyber/v3/sign/schnorr"
 	"go.dedis.ch/onet/v3"
-	"go.dedis.ch/onet/v3/log"
 )
 
 // ShuffleProtocol is a protocol for running the Neff shuffle in a chain.
@@ -75,12 +74,11 @@ func (p *ShuffleProtocol) Dispatch() error {
 	// handle the first request
 	req := <-p.reqChan
 	X, Y := splitPairs(req.Pairs)
-	Xbar, Ybar, prover := shuffle.Shuffle(p.suite, req.G, req.H, X, Y, p.suite.RandomStream())
+	Xbar, Ybar, prover := shuffle.Shuffle(p.suite, nil, req.H, X, Y, p.suite.RandomStream())
 	prf, err := proof.HashProve(p.suite, "", prover)
 	if err != nil {
 		return err
 	}
-	log.LLvl3(p.ServerIdentity(), "got req")
 
 	// sign it and reply to the root and send it to the next node
 	sig, err := schnorr.Sign(p.suite, p.Private(), prf)
@@ -102,10 +100,8 @@ func (p *ShuffleProtocol) Dispatch() error {
 	// Send to the next node in the chain.
 	newReq := ShuffleRequest{
 		Pairs: signedPrf.Pairs,
-		G:     req.G,
 		H:     req.H,
 	}
-	log.LLvl3(p.ServerIdentity(), "sent new req")
 	if err := p.SendTo(p.Children()[0], &newReq); err != nil {
 		return err
 	}
@@ -117,15 +113,12 @@ func (p *ShuffleProtocol) Dispatch() error {
 	for i := 0; i < len(p.List()); i++ {
 		select {
 		case prf := <-p.proofChan:
-			log.LLvl3(p.ServerIdentity(), "got proof", i)
 			proofMap[prf.TreeNode.ID] = prf.Proof
 		case <-time.After(5 * time.Second):
 			return errors.New("timeout waiting for proofs")
 		}
 	}
 	// Sort the proofs in order and use that as our final result.
-	log.LLvl3(p.ServerIdentity(), "sending back final proof")
-	//p.FinalProof <- ShuffleReply{sortProofs(proofMap, p.Root())}
 	p.FinalProof <- ShuffleReply{Proofs: sortProofs(proofMap, p.Root())}
 	return nil
 }
