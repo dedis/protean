@@ -71,3 +71,9 @@ type GetProofReply struct {
 	ProofResp *byzcoin.GetProofResponse
 	Sig       protocol.BlsSignature
 }
+
+type GetLatestRequest struct{}
+
+type GetLatestReply struct {
+	Index int
+}

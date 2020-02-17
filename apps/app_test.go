@@ -5,6 +5,7 @@ import (
 	"crypto/cipher"
 	"crypto/sha256"
 	"encoding/binary"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -51,6 +52,7 @@ func init() {
 }
 
 func TestMain(m *testing.M) {
+	log.SetDebugVisible(3)
 	log.MainTest(m)
 }
 
@@ -139,6 +141,8 @@ func Test_CalypsoLottery_Simple(t *testing.T) {
 		writerIDs[i] = w.Identity().String()
 	}
 	stCl = state.NewClient(unitRoster)
+	r, _ := stCl.GetLatestIndex()
+	log.Info("======= LATEST:", r.Index)
 	orgDarc := darc.NewDarc(darc.InitRules([]darc.Identity{organizer.Identity()}, []darc.Identity{organizer.Identity()}), []byte("organizer"))
 	err = orgDarc.Rules.AddRule(darc.Action("spawn:"+state.ContractCalyLotteryID), expression.InitOrExpr(organizer.Identity().String()))
 	require.NoError(t, err)
@@ -162,6 +166,7 @@ func Test_CalypsoLottery_Simple(t *testing.T) {
 	ed.Index++
 	// END SETUP WORKFLOW
 
+	log.Info("======= LATEST (after createstate):", r.Index)
 	// csr.InstanceID: Uniquely identifies a Byzcoin smart contract
 	// instance. ~ to the location of the address space of the contract
 
@@ -176,6 +181,7 @@ func Test_CalypsoLottery_Simple(t *testing.T) {
 		runJoinWorkflow(t, compRoster, unitRoster, directory, idx, iid, w)
 	}
 
+	log.Info("======= LATEST (after join workflows):", r.Index)
 	// BEGIN FINALIZE WORKFLOW (LOTTERY ORGANIZER)
 	compCl = compiler.NewClient(compRoster)
 	revealWf, err := compiler.PrepareWorkflow(&rname, directory)
@@ -239,12 +245,14 @@ func Test_CalypsoLottery_Simple(t *testing.T) {
 	ed.UnitSigs[ed.Index] = updReply.Sig
 	ed.Index++
 
+	log.Info("======= LATEST (after update state):", r.Index)
 	dr, err := psCl.DecryptNTBatch(wrProofs, rProofs, false, ed)
 	require.NoError(t, err)
 	ed.UnitSigs[ed.Index] = dr.Sig
 	ed.Index++
 
 	args, err = prepareFinalizeArgs(dr.Valid, dr.CalyReplies)
+	fmt.Println(err)
 	require.NoError(t, err)
 	updReply, err = stCl.UpdateState(state.ContractCalyLotteryID, "finalize", iid, args, organizer, stateCtr, 1, ed)
 	require.NoError(t, err)
@@ -252,6 +260,7 @@ func Test_CalypsoLottery_Simple(t *testing.T) {
 	ed.Index++
 	stateCtr++
 	// END FINALIZE WORKFLOW (LOTTERY ORGANIZER)
+	log.Info("======= LATEST (after update state):", r.Index)
 }
 
 func getReadProofs(prBatch []*byzcoin.GetProofResponse, prValid []bool) []*byzcoin.Proof {
@@ -350,10 +359,6 @@ func runJoinWorkflow(t *testing.T, compRoster *onet.Roster, unitRoster *onet.Ros
 func prepareLotteryTicket() (*TicketData, error) {
 	ticket := make([]byte, 32)
 	random.Bytes(ticket, random.New())
-	//buf := make([]byte, 44)
-	//random.Bytes(buf, random.New())
-	//key := buf[:32]
-	//nonce := buf[32:]
 	key := make([]byte, 24)
 	nonce := make([]byte, 12)
 	random.Bytes(key, random.New())
@@ -376,22 +381,21 @@ func prepareLotteryTicket() (*TicketData, error) {
 	h.Write(ticket)
 	th := h.Sum(nil)
 	// Compute H(key)
-	h = sha256.New()
-	h.Write(key)
-	kh := h.Sum(nil)
-	return &TicketData{C: c, T: ticket, THash: th, K: key, KHash: kh}, nil
+	//h = sha256.New()
+	//h.Write(key)
+	//kh := h.Sum(nil)
+	//return &TicketData{C: c, T: ticket, THash: th, K: key, KHash: kh}, nil
+	return &TicketData{C: c, T: ticket, THash: th, K: key}, nil
 }
 
 func prepareFinalizeArgs(valid []bool, replies []*calypso.DecryptKeyNTReply) ([]*state.KV, error) {
 	idx := 0
 	sz := len(valid)
 	vldBytes := make([]byte, sz)
-	//rd := &state.StructRevealData{Rs: make([]*state.LotteryRevealData, sz)}
 	rd := &state.StructRevealData{Rs: make([]state.LotteryRevealData, sz)}
 	for i, v := range valid {
 		if v {
 			r := replies[idx]
-			//rd.Rs[i] = &state.LotteryRevealData{
 			rd.Rs[i] = state.LotteryRevealData{
 				DKID:      r.DKID,
 				C:         r.C,
@@ -438,10 +442,10 @@ func prepareStoreReadArgs(ps []*byzcoin.Proof) ([]*state.KV, error) {
 func prepareStoreJoinArgs(idx int, ticketData *TicketData, currVer uint32, proof *byzcoin.Proof, sk kyber.Scalar) ([]*state.KV, error) {
 	// Prepare LotteryJoinDataValue struct
 	ldv := &state.LotteryJoinDataValue{
-		Index:      idx,
-		WrProof:    proof,
-		Ct:         ticketData.C,
-		KeyHash:    ticketData.KHash,
+		Index:   idx,
+		WrProof: proof,
+		Ct:      ticketData.C,
+		//KeyHash:    ticketData.KHash,
 		TicketHash: ticketData.THash,
 	}
 	ldvBytes, err := protobuf.Encode(ldv)

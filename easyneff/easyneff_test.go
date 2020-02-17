@@ -60,8 +60,6 @@ func TestDKG(t *testing.T) {
 	_, err = root.InitUnit(&InitUnitRequest{Cfg: cfg})
 	require.Nil(t, err)
 
-	////////////
-
 	thName := strings.Replace(threshold.ServiceName, "Service", "", 1)
 	val = directory[thName]
 	thTxns := utils.ReverseMap(val.Txns)
@@ -73,27 +71,27 @@ func TestDKG(t *testing.T) {
 
 	///////////
 
+	// Generate workflow using the JSON file.
 	wf, err := compiler.PrepareWorkflow(&wname, directory)
 	require.NoError(t, err)
 	require.True(t, len(wf.Nodes) > 0)
 
+	// Generate execution plan using the workflow
 	planReply, err := compCl.GenerateExecutionPlan(wf)
 	require.NoError(t, err)
 	require.NotNil(t, planReply.ExecPlan.UnitPublics)
 	require.NotNil(t, planReply.Signature)
 	ed := compiler.PrepareExecutionData(planReply)
 
-	///////////
-
+	// Initialize DKG at the threshold encryption unit
 	id := threshold.GenerateRandBytes()
 	dkgReply, err := thCl.InitDKG(id, ed)
 	require.NoError(t, err)
 	ed.UnitSigs[ed.Index] = dkgReply.Sig
 	ed.Index++
 
-	///////////
-
 	cleartext := []byte("On Wisconsin!")
+	// Use the DKG key for encryption
 	req, _ := generateRequest(10, cleartext, dkgReply.X, ed)
 
 	resp, err := root.Shuffle(&req)
@@ -104,8 +102,6 @@ func TestDKG(t *testing.T) {
 	require.NoError(t, resp.ShuffleVerify(nil, req.H, req.Pairs, unitRoster.Publics()))
 	ed.UnitSigs[ed.Index] = resp.Sig
 	ed.Index++
-
-	///////////
 
 	var pairs []*utils.ElGamalPair
 	cs := resp.Proofs[n-1].Pairs
@@ -120,7 +116,6 @@ func TestDKG(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, cleartext, msg)
 	}
-
 }
 
 func TestDecrypt(t *testing.T) {
@@ -153,20 +148,19 @@ func TestDecrypt(t *testing.T) {
 	_, err = root.InitUnit(&InitUnitRequest{Cfg: cfg})
 	require.Nil(t, err)
 
-	////////////
-
+	// Generate workflow using the JSON file.
 	wf, err := compiler.PrepareWorkflow(&wname, directory)
 	require.NoError(t, err)
 	require.True(t, len(wf.Nodes) > 0)
 
+	// Generate execution plan using the workflow
 	planReply, err := compCl.GenerateExecutionPlan(wf)
 	require.NoError(t, err)
 	require.NotNil(t, planReply.ExecPlan.UnitPublics)
 	require.NotNil(t, planReply.Signature)
 	ed := compiler.PrepareExecutionData(planReply)
 
-	///////////
-
+	// Generate inputs for shuffling
 	cleartext := []byte("Go Beavers, beat Wisconsin!")
 	req, kp := generateRequest(10, cleartext, nil, ed)
 	resp, err := root.Shuffle(&req)
@@ -178,8 +172,7 @@ func TestDecrypt(t *testing.T) {
 	ed.UnitSigs[ed.Index] = resp.Sig
 	ed.Index++
 
-	///////////
-
+	// Should be able to decrypt the shuffled ciphertexts
 	cs := resp.Proofs[n-1].Pairs
 	for _, p := range cs {
 		pt := utils.ElGamalDecrypt(kp.Private, p)
@@ -219,10 +212,12 @@ func TestSimple(t *testing.T) {
 	_, err = root.InitUnit(&InitUnitRequest{Cfg: cfg})
 	require.Nil(t, err)
 
+	// Generate workflow using the JSON file.
 	wf, err := compiler.PrepareWorkflow(&wname, directory)
 	require.NoError(t, err)
 	require.True(t, len(wf.Nodes) > 0)
 
+	// Generate execution plan using the workflow
 	planReply, err := compCl.GenerateExecutionPlan(wf)
 	require.NoError(t, err)
 	require.NotNil(t, planReply.ExecPlan.UnitPublics)
@@ -230,7 +225,8 @@ func TestSimple(t *testing.T) {
 
 	ed := compiler.PrepareExecutionData(planReply)
 
-	req, _ := generateRequest(10, []byte("abc"), nil, ed)
+	plaintext := []byte("abc")
+	req, _ := generateRequest(10, plaintext, nil, ed)
 	resp, err := root.Shuffle(&req)
 	require.NoError(t, err)
 
@@ -244,6 +240,20 @@ func TestSimple(t *testing.T) {
 	require.Error(t, resp.ShuffleVerify(nil, req.H, req.Pairs, sigs))
 }
 
+// Generates ShuffleRequest messages that are used for executing the Shuffle
+// transaction at the shuffler unit.
+//
+// Input:
+//   - n   - number of ciphertexts to shuffle
+//   - msg - plaintext message
+//   - pub - public key to be used for encryption. If nil, a new key pair is
+//   generated for encryption
+//   - ed  - execution plan data (Protean-related)
+//
+// Output:
+//   - req - ShuffleRequest with ciphertexts
+//   - kp  - If a public key is provided, key pair only contains that public
+//   key. Otherwise (pub = nil), key pair is the newly-generated key pair
 func generateRequest(n int, msg []byte, pub kyber.Point, ed *sys.ExecutionData) (req ShuffleRequest, kp *key.Pair) {
 	if pub != nil {
 		kp = &key.Pair{

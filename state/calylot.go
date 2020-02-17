@@ -1,6 +1,9 @@
 package state
 
 import (
+	"bytes"
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
@@ -15,13 +18,11 @@ import (
 	"go.dedis.ch/kyber/v3/util/encoding"
 	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/protobuf"
+	"golang.org/x/xerrors"
 )
 
+const nonceLen = 12
 const ContractCalyLotteryID = "calyLottery"
-
-type DummyKeys struct {
-	List []kyber.Point
-}
 
 // Used for communication between the client-side and Calylot contract
 type StructProofData struct {
@@ -31,6 +32,8 @@ type StructProofData struct {
 type StructRevealData struct {
 	Rs []LotteryRevealData
 }
+
+///////
 
 type contractCalyLottery struct {
 	byzcoin.BasicContract
@@ -44,6 +47,7 @@ type CalyLotteryStorage struct {
 	LotteryJoinData []KV
 	RProofs         []*byzcoin.Proof
 	RevealData      []LotteryRevealData
+	Winner          int
 }
 
 type SetupData struct {
@@ -53,20 +57,26 @@ type SetupData struct {
 	DummyKeys []kyber.Point
 }
 
+type DummyKeys struct {
+	List []kyber.Point
+}
+
 type LotteryJoinDataValue struct {
 	// Index saves us from iterating over the array
 	Index      int
 	WrProof    *byzcoin.Proof
 	Ct         []byte // Encrypted ticket
-	KeyHash    []byte // Hash of the symmetric key
 	TicketHash []byte //Hash of the ticket
 }
 
 type LotteryRevealData struct {
-	DKID      string
-	C         kyber.Point
-	XhatEnc   kyber.Point
-	Signature protocol.BlsSignature
+	Valid        bool
+	DKID         string
+	C            kyber.Point
+	XhatEnc      kyber.Point
+	Signature    protocol.BlsSignature
+	RecoveredKey []byte
+	Ticket       []byte
 }
 
 func contractCalyLotteryFromBytes(in []byte) (byzcoin.Contract, error) {
@@ -178,6 +188,7 @@ func (c *contractCalyLottery) Invoke(rst byzcoin.ReadOnlyStateTrie, inst byzcoin
 		log.Errorf("Get values failed: %v", err)
 		return
 	}
+	var clsBuf []byte
 	cls := &c.CalyLotteryStorage
 	switch inst.Invoke.Command {
 	case "storejoin":
@@ -219,7 +230,6 @@ func (c *contractCalyLottery) Invoke(rst byzcoin.ReadOnlyStateTrie, inst byzcoin
 		cls.LotteryJoinData[val.Index].Value = valBuf
 		cls.LotteryJoinData[val.Index].Version = version
 		cls.Valid[val.Index] = 1
-		var clsBuf []byte
 		clsBuf, err = protobuf.Encode(&c.CalyLotteryStorage)
 		if err != nil {
 			log.Errorf("Protobuf encode failed: %v", err)
@@ -249,7 +259,6 @@ func (c *contractCalyLottery) Invoke(rst byzcoin.ReadOnlyStateTrie, inst byzcoin
 		}
 		cls.Valid = valid
 		cls.RProofs = pd.Ps
-		var clsBuf []byte
 		clsBuf, err = protobuf.Encode(&c.CalyLotteryStorage)
 		if err != nil {
 			log.Errorf("Protobuf encode failed: %v", err)
@@ -276,87 +285,26 @@ func (c *contractCalyLottery) Invoke(rst byzcoin.ReadOnlyStateTrie, inst byzcoin
 			log.Errorf("Protobuf decode error: %v", err)
 			return
 		}
-		log.Info("Before the loop")
-		cls := &c.CalyLotteryStorage
-		cls.RevealData = srd.Rs
-
-		// TODO: Validity check!
-		for i, rd := range cls.RevealData {
-			ljd := &LotteryJoinDataValue{}
-			err = verifySignature(rd.DKID, rd.XhatEnc, rd.Signature, cls.SetupData.DummyKeys)
-			if err != nil {
-				log.Errorf("Cannot verify signature for %s: %v", rd.DKID, err)
-			} else {
-				log.LLvl1("********* Signature verification successful **********")
-			}
-			err := protobuf.Decode(cls.LotteryJoinData[i].Value, ljd)
-			if err != nil {
-				log.Errorf("PROTOBUF ERROR: %v", err)
-			}
-			key, err := recoverKeyNT(rd.XhatEnc, rd.C)
-			if err != nil {
-				log.Errorf("CANNOT RECOVER KEY: %v", err)
-			}
-			s := sha256.New()
-			//kb, err := rd.XhatEnc.MarshalBinary()
-			//if err != nil {
-			//log.Errorf("CANNOT MARSH BIN: %v", err)
-			//}
-			//s.Write(kb)
-			s.Write(key)
-			log.LLvlf1("================= %x %x ==============", ljd.KeyHash, s.Sum(nil))
+		cls.setRevealData(valid, srd.Rs)
+		cls.Winner, err = cls.pickWinner()
+		if err != nil {
+			log.Errorf("Cannot pick winner: %v", err)
+			return
 		}
-		//kvs := &KVStorage{}
-		//err = protobuf.Decode(tBuf, kvs)
-		//if err != nil {
-		//log.Errorf("Protobuf decode error: %v", err)
-		//return
-		//}
-		//cls.checkTickets(kvs)
-		//cls.pickWinner()
+		log.LLvl1("======== WINNER IS:", cls.Winner)
+		clsBuf, err = protobuf.Encode(&c.CalyLotteryStorage)
+		if err != nil {
+			log.Errorf("Protobuf encode failed: %v", err)
+			return
+		}
+		sc = []byzcoin.StateChange{
+			byzcoin.NewStateChange(byzcoin.Update, inst.InstanceID, ContractCalyLotteryID, clsBuf, darcID),
+		}
 		return
 	default:
 		return nil, nil, fmt.Errorf("Invalid invoke command")
 	}
 }
-
-func (c *contractCalyLottery) authorizeAccess(pkStr string, valBuf []byte, verBuf []byte, sig []byte) error {
-	pk, err := encoding.StringHexToPoint(cothority.Suite, pkStr)
-	if err != nil {
-		return fmt.Errorf("cannot convert string to point - %v", err)
-	}
-	h := sha256.New()
-	//h.Write(data)
-	h.Write(valBuf)
-	h.Write(verBuf)
-	err = schnorr.Verify(cothority.Suite, pk, h.Sum(nil), sig)
-	if err != nil {
-		return fmt.Errorf("cannot verify signature - %v", err)
-	}
-	return nil
-}
-
-func (ls *CalyLotteryStorage) pickWinner() string {
-	return ""
-}
-
-//func (ls *CalyLotteryStorage) checkTickets(tickets *KVStorage) bool {
-//for i, ticket := range tickets.KV {
-//wdv := &WriteDataValue{}
-//h := sha256.New()
-//h.Write(ticket.Value)
-//err := protobuf.Decode(ls.WriteData.KV[i].Value, wdv)
-//if err != nil {
-//log.Errorf("Protobuf decode failed: %v", err)
-//return false
-//}
-//if bytes.Compare(h.Sum(nil), wdv.Digest) != 0 {
-//log.Errorf("Ticket for key %s does not match", ls.WriteData.KV[i].Key)
-//return false
-//}
-//}
-//return true
-//}
 
 func (c *contractCalyLottery) Delete(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Instruction, coins []byzcoin.Coin) (sc []byzcoin.StateChange, cout []byzcoin.Coin, err error) {
 	cout = coins
@@ -370,22 +318,142 @@ func (c *contractCalyLottery) Delete(rst byzcoin.ReadOnlyStateTrie, inst byzcoin
 	return
 }
 
-func recoverKeyNT(XhatEnc kyber.Point, C kyber.Point) (key []byte, err error) {
-	XhatInv := XhatEnc.Clone().Neg(XhatEnc)
-	XhatInv.Add(C, XhatInv)
-	key, err = XhatInv.Data()
+func (c *contractCalyLottery) authorizeAccess(pkStr string, valBuf []byte, verBuf []byte, sig []byte) error {
+	pk, err := encoding.StringHexToPoint(cothority.Suite, pkStr)
+	if err != nil {
+		return fmt.Errorf("cannot convert string to point - %v", err)
+	}
+	h := sha256.New()
+	//h.Write(data)
+	h.Write(valBuf)
+	h.Write(verBuf)
+	err = schnorr.Verify(cothority.Suite, pk, h.Sum(nil), sig)
+	if err != nil {
+		return fmt.Errorf("cannot verify signature: %v", err)
+	}
+	return nil
+}
+
+func (cls *CalyLotteryStorage) pickWinner() (int, error) {
+	var err error
+	var validCount uint32
+	result := make([]byte, 32)
+	for i, rd := range cls.RevealData {
+		if rd.Valid {
+			err = rd.verifySignature(cls.SetupData.DummyKeys)
+			if err != nil {
+				log.Errorf("Cannot verify signature for %s: %v", rd.DKID, err)
+				rd.Valid = false
+			} else {
+				err = rd.recoverKeyNT()
+				if err != nil {
+					log.Errorf("Cannot recover key: %v", err)
+					rd.Valid = false
+				} else {
+					err = rd.validateTicket(cls.LotteryJoinData[i].Value)
+					if err != nil {
+						log.Errorf("Cannot validate ticket: %v", err)
+						rd.Valid = false
+					} else {
+						safeXORBytes(result, result, rd.Ticket)
+						validCount++
+					}
+				}
+			}
+		}
+	}
+	if validCount == 0 {
+		return -1, xerrors.Errorf("No valid ticket")
+	}
+	random := (binary.BigEndian.Uint32(result) % validCount) + 1
+	var cnt uint32
+	winnerIndex := -1
+	for cnt < random {
+		winnerIndex++
+		if cls.RevealData[winnerIndex].Valid {
+			cnt++
+		}
+	}
+	return winnerIndex, nil
+}
+
+func (rd *LotteryRevealData) validateTicket(buf []byte) error {
+	ljd := &LotteryJoinDataValue{}
+	err := protobuf.Decode(buf, ljd)
+	if err != nil {
+		return err
+	}
+	rd.Ticket, err = aeadOpen(rd.RecoveredKey, ljd.Ct)
+	if err != nil {
+		return err
+	}
+	s := sha256.New()
+	s.Write(rd.Ticket)
+	equal := bytes.Equal(s.Sum(nil), ljd.TicketHash)
+	if !equal {
+		return xerrors.Errorf("Ticket hashes do not match")
+	}
+	return nil
+}
+
+func aeadOpen(key, ciphertext []byte) ([]byte, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, xerrors.Errorf("Creating aes cipher block instance: %v", err)
+	}
+	aesgcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, xerrors.Errorf("Creating aesgcm instance: %v", err)
+	}
+	if len(ciphertext) < 12 {
+		return nil, xerrors.Errorf("Ciphertext too short: %v", err)
+	}
+	nonce := ciphertext[len(ciphertext)-nonceLen:]
+	out, err := aesgcm.Open(nil, nonce, ciphertext[0:len(ciphertext)-nonceLen], nil)
+	return out, cothority.ErrorOrNil(err, "decrypting ciphertext")
+}
+
+func (cls *CalyLotteryStorage) setRevealData(valid []byte, data []LotteryRevealData) {
+	cls.RevealData = make([]LotteryRevealData, len(valid))
+	idx := 0
+	for i, v := range valid {
+		if v == 1 {
+			data[idx].Valid = true
+			cls.RevealData[i] = data[idx]
+			idx++
+		} else {
+			cls.RevealData[i] = LotteryRevealData{Valid: false}
+		}
+	}
+}
+
+func (rd *LotteryRevealData) recoverKeyNT() (err error) {
+	XhatInv := rd.XhatEnc.Clone().Neg(rd.XhatEnc)
+	XhatInv.Add(rd.C, XhatInv)
+	rd.RecoveredKey, err = XhatInv.Data()
 	return
 }
 
-func verifySignature(DKID string, XhatEnc kyber.Point, sig protocol.BlsSignature, publics []kyber.Point) error {
+func (rd *LotteryRevealData) verifySignature(publics []kyber.Point) error {
 	bnsuite := pairing.NewSuiteBn256()
-	ptBuf, err := XhatEnc.MarshalBinary()
+	ptBuf, err := rd.XhatEnc.MarshalBinary()
 	if err != nil {
 		return err
 	}
 	sh := sha256.New()
-	sh.Write([]byte(DKID))
+	sh.Write([]byte(rd.DKID))
 	sh.Write(ptBuf)
 	data := sh.Sum(nil)
-	return sig.Verify(bnsuite, data, publics)
+	return rd.Signature.Verify(bnsuite, data, publics)
+}
+
+func safeXORBytes(dst, a, b []byte) int {
+	n := len(a)
+	if len(b) < n {
+		n = len(b)
+	}
+	for i := 0; i < n; i++ {
+		dst[i] = a[i] ^ b[i]
+	}
+	return n
 }

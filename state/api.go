@@ -105,6 +105,9 @@ func (c *Client) GetProof(instID byzcoin.InstanceID, ed *sys.ExecutionData) (*Ge
 	return reply, err
 }
 
-//func GetServiceID() onet.ServiceID {
-//return stateID
-//}
+func (c *Client) GetLatestIndex() (*GetLatestReply, error) {
+	req := &GetLatestRequest{}
+	reply := &GetLatestReply{}
+	err := c.SendProtobuf(c.roster.List[0], req, reply)
+	return reply, err
+}

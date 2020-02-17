@@ -45,7 +45,7 @@ func init() {
 	network.RegisterMessages(&InitUnitRequest{}, &InitUnitReply{},
 		&CreateStateRequest{}, &CreateStateReply{}, &UpdateStateRequest{},
 		&UpdateStateReply{}, &SpawnDarcRequest{}, &SpawnDarcReply{},
-		&GetProofRequest{}, &GetProofReply{})
+		&GetProofRequest{}, &GetProofReply{}, &GetLatestRequest{}, &GetLatestReply{})
 	err = byzcoin.RegisterGlobalContract(ContractKeyValueID, contractValueFromBytes)
 	if err != nil {
 		log.ErrFatal(err)
@@ -252,6 +252,16 @@ func (s *Service) GetProof(req *GetProofRequest) (*GetProofReply, error) {
 	return &GetProofReply{ProofResp: gpr, Sig: sig}, nil
 }
 
+func (s *Service) GetLatestIndex(req *GetLatestRequest) (*GetLatestReply, error) {
+	db := s.scService.GetDB()
+	blk, err := db.GetLatest(db.GetByID(s.genesis))
+	if err != nil {
+		log.Errorf("Get latest index failed: %v", err)
+		return nil, err
+	}
+	return &GetLatestReply{Index: blk.Index}, nil
+}
+
 func (s *Service) verifyExecutionRequest(txnName string, blk *skipchain.SkipBlock, execData *sys.ExecutionData) bool {
 	tree := s.roster.GenerateNaryTreeWithRoot(len(s.roster.List), s.ServerIdentity())
 	pi, err := s.CreateProtocol(verify.Name, tree)
@@ -300,7 +310,7 @@ func newService(c *onet.Context) (onet.Service, error) {
 		byzService:       c.Service(byzcoin.ServiceName).(*byzcoin.Service),
 		scService:        c.Service(skipchain.ServiceName).(*skipchain.Service),
 	}
-	err := s.RegisterHandlers(s.InitUnit, s.CreateState, s.UpdateState, s.SpawnDarc, s.GetProof)
+	err := s.RegisterHandlers(s.InitUnit, s.CreateState, s.UpdateState, s.SpawnDarc, s.GetProof, s.GetLatestIndex)
 	if err != nil {
 		log.Errorf("Cannot register messages")
 		return nil, err
