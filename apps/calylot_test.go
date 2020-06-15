@@ -45,10 +45,6 @@ type TicketData struct {
 
 func init() {
 	uname = "../units.json"
-	//flag.StringVar(&uname, "unit", "", "JSON file")
-	//flag.StringVar(&sname, "setup", "", "JSON file")
-	//flag.StringVar(&jname, "join", "", "JSON file")
-	//flag.StringVar(&rname, "reveal", "", "JSON file")
 }
 
 func TestMain(m *testing.M) {
@@ -57,9 +53,9 @@ func TestMain(m *testing.M) {
 }
 
 func Test_CalypsoLottery_Simple(t *testing.T) {
-	sname = "./testdata/setup.json"
-	jname = "./testdata/join.json"
-	rname = "./testdata/reveal.json"
+	sname = "./testdata/calylot/setup.json"
+	jname = "./testdata/calylot/join.json"
+	rname = "./testdata/calylot/reveal.json"
 	total := 14
 	unitCnt := total / 2
 	local := onet.NewTCPTest(cothority.Suite)
@@ -111,8 +107,8 @@ func Test_CalypsoLottery_Simple(t *testing.T) {
 	//setupWf, err := cliutils.PrepareWorkflow(&sname, directory, nil, false)
 	setupWf, err := compiler.PrepareWorkflow(&sname, directory)
 	require.NoError(t, err)
-	//planReply, err := compCl.GenerateExecutionPlan(setupWf, nil, nil)
-	planReply, err := compCl.GenerateExecutionPlan(setupWf)
+	//planReply, err := compCl.CreateExecutionPlan(setupWf, nil, nil)
+	planReply, err := compCl.CreateExecutionPlan(setupWf)
 	require.NoError(t, err)
 	ed := compiler.PrepareExecutionData(planReply)
 
@@ -186,7 +182,7 @@ func Test_CalypsoLottery_Simple(t *testing.T) {
 	compCl = compiler.NewClient(compRoster)
 	revealWf, err := compiler.PrepareWorkflow(&rname, directory)
 	require.NoError(t, err)
-	revealPlan, err := compCl.GenerateExecutionPlan(revealWf)
+	revealPlan, err := compCl.CreateExecutionPlan(revealWf)
 	require.NoError(t, err)
 	compCl.Close()
 	ed = compiler.PrepareExecutionData(revealPlan)
@@ -303,7 +299,7 @@ func runJoinWorkflow(t *testing.T, compRoster *onet.Roster, unitRoster *onet.Ros
 	compCl := compiler.NewClient(compRoster)
 	joinWf, err := compiler.PrepareWorkflow(&jname, directory)
 	require.NoError(t, err)
-	joinPlan, err := compCl.GenerateExecutionPlan(joinWf)
+	joinPlan, err := compCl.CreateExecutionPlan(joinWf)
 	require.NoError(t, err)
 	compCl.Close()
 	ed := compiler.PrepareExecutionData(joinPlan)

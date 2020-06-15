@@ -130,6 +130,7 @@ func (s *Service) CreateState(req *CreateStateRequest) (*CreateStateReply, error
 		InstanceID: req.Ctx.Instructions[0].DeriveID(""),
 		Sig:        sig,
 	}
+	log.LLvlf1("_________ In Service - IID is: %v", reply.InstanceID)
 	return reply, nil
 }
 

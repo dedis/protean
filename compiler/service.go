@@ -88,7 +88,7 @@ func (s *Service) CreateUnits(req *CreateUnitsRequest) (*CreateUnitsReply, error
 	return &CreateUnitsReply{}, nil
 }
 
-func (s *Service) GenerateExecutionPlan(req *ExecutionPlanRequest) (*ExecutionPlanReply, error) {
+func (s *Service) CreateExecutionPlan(req *ExecutionPlanRequest) (*ExecutionPlanReply, error) {
 	db := s.scService.GetDB()
 	sbData, err := getBlockData(db, s.genesis)
 	if err != nil {
@@ -232,7 +232,7 @@ func newService(c *onet.Context) (onet.Service, error) {
 		ServiceProcessor: onet.NewServiceProcessor(c),
 		scService:        c.Service(skipchain.ServiceName).(*skipchain.Service),
 	}
-	err := s.RegisterHandlers(s.InitUnit, s.StoreGenesis, s.CreateUnits, s.GenerateExecutionPlan, s.GetDirectoryInfo)
+	err := s.RegisterHandlers(s.InitUnit, s.StoreGenesis, s.CreateUnits, s.CreateExecutionPlan, s.GetDirectoryInfo)
 	if err != nil {
 		log.Errorf("Cannot register handlers: %v", err)
 		return nil, err

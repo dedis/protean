@@ -308,7 +308,6 @@ func (s *EasyRand) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConf
 
 		return pi, nil
 	default:
-		//return nil, errors.New("invalid protocol")
 		return nil, nil
 	}
 }

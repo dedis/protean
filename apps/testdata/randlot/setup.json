@@ -1,0 +1,14 @@
+[ 
+        {
+                "index": 0,
+                "uname": "EasyRand",
+                "tname": "InitDKG",
+                "deps" : []
+        },
+        {
+                "index": 1,
+                "uname": "State",
+                "tname": "CreateState",
+                "deps" : [0]
+        }
+]

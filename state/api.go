@@ -50,6 +50,7 @@ func (c *Client) CreateState(contractID string, kv []*KV, adminDarc darc.Darc, s
 		},
 		SignerCounter: []uint64{signerCtr},
 	})
+	log.LLvlf1("In CreateState IID is %v", ctx.Instructions[0].InstanceID)
 	err := ctx.FillSignersAndSignWith(signer)
 	if err != nil {
 		log.Errorf("Sign transaction failed: %v", err)
@@ -62,6 +63,7 @@ func (c *Client) CreateState(contractID string, kv []*KV, adminDarc darc.Darc, s
 	}
 	reply := &CreateStateReply{}
 	err = c.SendProtobuf(c.roster.List[0], req, reply)
+	log.LLvlf1("CreateStateReply IID is: %v", reply.InstanceID)
 	return reply, err
 }
 

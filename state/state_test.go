@@ -70,7 +70,7 @@ func TestState_Simple(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, len(wf.Nodes) > 0)
 
-	planReply, err := compCl.GenerateExecutionPlan(wf)
+	planReply, err := compCl.CreateExecutionPlan(wf)
 	require.NoError(t, err)
 	require.NotNil(t, planReply.ExecPlan.UnitPublics)
 	require.NotNil(t, planReply.Signature)

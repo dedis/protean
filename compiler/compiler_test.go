@@ -122,7 +122,7 @@ func TestGenerateEP(t *testing.T) {
 	require.NoError(t, err)
 	wf, err := PrepareWorkflow(&wname, reply.Directory)
 	require.NoError(t, err)
-	planReply, err := root.GenerateExecutionPlan(&ExecutionPlanRequest{Workflow: wf})
+	planReply, err := root.CreateExecutionPlan(&ExecutionPlanRequest{Workflow: wf})
 	require.NoError(t, err)
 	require.NotNil(t, planReply.ExecPlan.UnitPublics)
 	require.NotNil(t, planReply.Signature)
@@ -179,7 +179,7 @@ func TestGenerateEP(t *testing.T) {
 //sigMap, err := generateSigmap(wf, authPks, authSks)
 //require.NoError(t, err)
 
-//planReply, err := root.GenerateExecutionPlan(&ExecutionPlanRequest{Workflow: wf, SigMap: sigMap})
+//planReply, err := root.CreateExecutionPlan(&ExecutionPlanRequest{Workflow: wf, SigMap: sigMap})
 //require.NoError(t, err)
 //require.NotNil(t, planReply.ExecPlan.UnitPublics)
 //require.NotNil(t, planReply.Signature)
@@ -238,7 +238,7 @@ func TestGenerateEP(t *testing.T) {
 //for i := 0; i < sz; i++ {
 //singleSm, err := generateSigmap(wf, authPks[i:i+1], authSks[i:i+1])
 //require.NoError(t, err)
-//planReply, err := root.GenerateExecutionPlan(&ExecutionPlanRequest{Workflow: wf, SigMap: singleSm})
+//planReply, err := root.CreateExecutionPlan(&ExecutionPlanRequest{Workflow: wf, SigMap: singleSm})
 //require.NoError(t, err)
 //require.NotNil(t, planReply.ExecPlan.UnitPublics)
 //require.NotNil(t, planReply.Signature)

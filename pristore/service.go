@@ -158,7 +158,6 @@ func (s *Service) CreateLTS(req *CreateLTSRequest) (*CreateLTSReply, error) {
 		ID:      s.byzID,
 		Key:     ctx.Instructions[0].DeriveID("").Slice(),
 	})
-	//reply := &CreateLTSReply{}
 	ltsReply, err := s.calyService.CreateLTS(&calypso.CreateLTS{
 		Proof: gpResp.Proof,
 	})

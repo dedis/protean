@@ -52,8 +52,8 @@ func (c *Client) CreateUnits(units []*sys.FunctionalUnit) (*CreateUnitsReply, er
 	return reply, err
 }
 
-//func (c *Client) GenerateExecutionPlan(wf *sys.Workflow, keyStrs []string, sigs [][]byte) (*ExecutionPlanReply, error) {
-func (c *Client) GenerateExecutionPlan(wf *sys.Workflow) (*ExecutionPlanReply, error) {
+//func (c *Client) CreateExecutionPlan(wf *sys.Workflow, keyStrs []string, sigs [][]byte) (*ExecutionPlanReply, error) {
+func (c *Client) CreateExecutionPlan(wf *sys.Workflow) (*ExecutionPlanReply, error) {
 	//sigMap := make(map[string][]byte)
 	//if len(keyStrs) != len(sigs) {
 	//return nil, fmt.Errorf("Number of keys and sigs do not match")

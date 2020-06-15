@@ -77,7 +77,7 @@ func TestDKG(t *testing.T) {
 	require.True(t, len(wf.Nodes) > 0)
 
 	// Generate execution plan using the workflow
-	planReply, err := compCl.GenerateExecutionPlan(wf)
+	planReply, err := compCl.CreateExecutionPlan(wf)
 	require.NoError(t, err)
 	require.NotNil(t, planReply.ExecPlan.UnitPublics)
 	require.NotNil(t, planReply.Signature)
@@ -154,7 +154,7 @@ func TestDecrypt(t *testing.T) {
 	require.True(t, len(wf.Nodes) > 0)
 
 	// Generate execution plan using the workflow
-	planReply, err := compCl.GenerateExecutionPlan(wf)
+	planReply, err := compCl.CreateExecutionPlan(wf)
 	require.NoError(t, err)
 	require.NotNil(t, planReply.ExecPlan.UnitPublics)
 	require.NotNil(t, planReply.Signature)
@@ -218,7 +218,7 @@ func TestSimple(t *testing.T) {
 	require.True(t, len(wf.Nodes) > 0)
 
 	// Generate execution plan using the workflow
-	planReply, err := compCl.GenerateExecutionPlan(wf)
+	planReply, err := compCl.CreateExecutionPlan(wf)
 	require.NoError(t, err)
 	require.NotNil(t, planReply.ExecPlan.UnitPublics)
 	require.NotNil(t, planReply.Signature)

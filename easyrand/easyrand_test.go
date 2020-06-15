@@ -22,9 +22,6 @@ var rname string
 
 func init() {
 	uname = "../units.json"
-	//flag.StringVar(&uname, "unit", "", "JSON file")
-	//flag.StringVar(&sname, "setup", "", "JSON file")
-	//flag.StringVar(&rname, "rand", "", "JSON file")
 }
 
 func TestMain(m *testing.M) {
@@ -67,7 +64,7 @@ func Test_Simple(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, len(wf.Nodes) > 0)
 
-	planReply, err := compCl.GenerateExecutionPlan(wf)
+	planReply, err := compCl.CreateExecutionPlan(wf)
 	require.NoError(t, err)
 	require.NotNil(t, planReply.ExecPlan.UnitPublics)
 	require.NotNil(t, planReply.Signature)
@@ -89,17 +86,11 @@ func Test_Simple(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, len(rWf.Nodes) > 0)
 
-	randPlan, err := compCl.GenerateExecutionPlan(rWf)
+	randPlan, err := compCl.CreateExecutionPlan(rWf)
 	require.NoError(t, err)
 	require.NotNil(t, randPlan.ExecPlan.UnitPublics)
 	require.NotNil(t, randPlan.Signature)
 
-	//randEd := &sys.ExecutionData{
-	//Index:    0,
-	//ExecPlan: randPlan.ExecPlan,
-	//CompilerSig: randPlan.Signature,
-	//UnitSigs:    make([]protocol.BlsSignature, len(planReply.ExecPlan.Workflow.Nodes)),
-	//}
 	randEd := compiler.PrepareExecutionData(randPlan)
 	/// Advance rounds
 	randCl.advanceRounds(t, randEd, 4)
@@ -114,6 +105,7 @@ func Test_Simple(t *testing.T) {
 	err = bls.Verify(suite, dkgReply.Public, randReply.Prev, randReply.Value)
 	require.NoError(t, err)
 	randCl.Close()
+	//log.Info("Round number is:", randReply.Round)
 }
 
 func (c *Client) advanceRounds(t *testing.T, ed *sys.ExecutionData, count int) {
