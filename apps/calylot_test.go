@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/dedis/protean/compiler"
+	"github.com/dedis/protean/dummy"
 	"github.com/dedis/protean/libtest"
 	"github.com/dedis/protean/pristore"
 	"github.com/dedis/protean/state"
@@ -21,7 +22,6 @@ import (
 	"go.dedis.ch/cothority/v3/calypso"
 	"go.dedis.ch/cothority/v3/darc"
 	"go.dedis.ch/cothority/v3/darc/expression"
-	"go.dedis.ch/cothority/v3/dummy"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/sign/schnorr"
 	"go.dedis.ch/kyber/v3/util/random"

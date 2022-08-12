@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"fmt"
+	"go.dedis.ch/kyber/v3"
 	"os"
 
 	"github.com/dedis/protean/state"
@@ -12,7 +13,6 @@ import (
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/darc"
 	"go.dedis.ch/cothority/v3/darc/expression"
-	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/group/edwards25519"
 	"go.dedis.ch/kyber/v3/proof"
 	"go.dedis.ch/kyber/v3/shuffle"
@@ -22,6 +22,10 @@ import (
 )
 
 type InstanceID [32]byte
+
+type IDStruct struct {
+	ID []InstanceID
+}
 
 type IID struct {
 	ID InstanceID
@@ -38,13 +42,44 @@ type Boo struct {
 }
 
 type Doo struct {
-	S []*SIID
+	//S []*SIID
+	S []SIID
 }
 
 type Goo struct {
 	//Ctxs []byzcoin.ClientTransaction
 	//Ctxs []*byzcoin.ClientTransaction
 	Ps []*byzcoin.GetProofResponse
+}
+
+type Base struct {
+	I int
+	V bool
+	S string
+	P kyber.Point
+}
+
+type SS struct {
+	S []Base
+}
+
+func testBase() {
+	bb := make([]Base, 10)
+	for i := 0; i < 10; i++ {
+		if i%2 == 0 {
+			bb[i].I = i * i
+			bb[i].V = true
+			bb[i].S = "abbas"
+			bb[i].P = cothority.Suite.Point().Base()
+		}
+	}
+	for i := 0; i < 10; i++ {
+		if bb[i].P == nil {
+			fmt.Println("I is", i, bb[i].I, bb[i].V)
+			continue
+		}
+		fmt.Println(bb[i].I, bb[i].V, bb[i].P.String())
+	}
 }
 
 func main() {
@@ -78,12 +113,13 @@ func main() {
 	//testproof()
 	//testBytes()
 	//testShuffle()
-	//testDooProtobuf()
+	testDooProtobuf()
+	//testBase()
 	//x := 5
 	//testPointer(&x)
 	//fmt.Println(x)
 	//testtest()
-	testValid()
+	//testValid()
 }
 
 type Abbas struct {
@@ -94,6 +130,9 @@ type Abbas struct {
 func testBytes() {
 	aa := "On Wisconsin!"
 	fmt.Println([]byte(aa))
+}
+
+func testproto() {
 }
 
 func testencode() {
@@ -452,12 +491,18 @@ func testDooProtobuf() {
 	rand.Read(temp)
 	copy(r[:], temp[:32])
 
-	siids := make([]*SIID, 10)
+	siids := make([]SIID, 10)
 	for i := 0; i < 10; i++ {
 		if i == 0 || i == 3 || i == 5 || i == 6 {
-			siids[i] = &SIID{Valid: true, ID: r}
-		} else {
-			siids[i] = &SIID{Valid: false}
+			siids[i] = SIID{Valid: true, ID: r}
+			//} else {
+			//siids[i] = SIID{Valid: false}
+		}
+	}
+
+	for i := 0; i < 10; i++ {
+		if siids[i] != (SIID{}) {
+			fmt.Println(i, "is not empty")
 		}
 	}
 
@@ -466,10 +511,33 @@ func testDooProtobuf() {
 	fmt.Println("Byte count:", len(dd))
 	ddec := &Doo{}
 	protobuf.Decode(dd, ddec)
-
 	for i, siid := range ddec.S {
 		fmt.Println(i, siid.Valid, siid.ID)
 	}
+
+	//var r [32]byte
+	//temp := make([]byte, 32)
+	//rand.Read(temp)
+	//copy(r[:], temp[:32])
+
+	//siids := make([]*SIID, 10)
+	//for i := 0; i < 10; i++ {
+	//if i == 0 || i == 3 || i == 5 || i == 6 {
+	//siids[i] = &SIID{Valid: true, ID: r}
+	//} else {
+	//siids[i] = &SIID{Valid: false}
+	//}
+	//}
+
+	//d := &Doo{S: siids}
+	//dd, _ := protobuf.Encode(d)
+	//fmt.Println("Byte count:", len(dd))
+	//ddec := &Doo{}
+	//protobuf.Decode(dd, ddec)
+
+	//for i, siid := range ddec.S {
+	//fmt.Println(i, siid.Valid, siid.ID)
+	//}
 }
 
 func testPointer(f *int) {
