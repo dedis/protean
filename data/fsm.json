@@ -1,0 +1,22 @@
+{
+  "initial_state": "vote_open",
+  "states": ["vote_open", "tally_begin", "shuffled", "finalized"],
+  "transitions": {
+    "cast": {
+      "from": "vote_open",
+      "to": "vote_open"
+    },
+    "lock": {
+      "from": "vote_open",
+      "to": "tally_begin"
+    },
+    "shuffle": {
+      "from": "tally_begin",
+      "to": "shuffled"
+    },
+    "reveal": {
+      "from": "shuffled",
+      "to": "finalized"
+    }
+  }
+}

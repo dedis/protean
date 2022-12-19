@@ -259,7 +259,7 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 //log.Errorf("Could not convert string to byte array: %v", err)
 //return nil, err
 //}
-//err = decProto.SetConfig(&onet.GenericConfig{Data: encoded})
+//err = decProto.SetConfig(&onet.GenericConfig{Store: encoded})
 //if err != nil {
 //log.Errorf("Could not set config: %v", err)
 //return nil, err
@@ -434,7 +434,7 @@ func (s *Service) tryLoad() error {
 	var ok bool
 	s.storage, ok = msg.(*storage)
 	if !ok {
-		return fmt.Errorf("Data of wrong type")
+		return fmt.Errorf("Store of wrong type")
 	}
 	return nil
 }

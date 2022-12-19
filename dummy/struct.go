@@ -10,12 +10,12 @@ import (
 	"go.dedis.ch/onet/v3"
 )
 
-//type Storage struct {
-//Data []KV
+//type KVStore struct {
+//Store []KV
 //}
 
 //type LotteryStorage struct {
-//Storage []KV
+//KVStore []KV
 //}
 
 type KV struct {

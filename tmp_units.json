@@ -1,0 +1,39 @@
+[ 
+        {
+                "name": "State",
+                "type": 0,
+                "numnodes": 7,
+                "txns" : ["SpawnDarc", "CreateState", "UpdateState", "GetProof"]
+        },
+        {
+                "name": "PriStore",
+                "type": 1,
+                "numnodes": 7,
+                "txns" : ["CreateLTS", "SpawnDarc", "AddWrite", "AddRead",
+                        "AddReadBatch", "GetProof", "GetProofBatch", "Decrypt",
+                        "DecryptBatch", "DecryptNT", "DecryptNTBatch"] },
+        {
+                "name": "ThreshCrypto",
+                "type": 2,
+                "numnodes": 7,
+                "txns" : ["InitDKG", "Decrypt"]
+        },
+        {
+                "name": "TDH",
+                "type": 2,
+                "numnodes": 7,
+                "txns" : ["InitDKG", "Decrypt"]
+        },
+        {
+                "name": "EasyNeff",
+                "type": 3,
+                "numnodes": 7,
+                "txns" : ["Shuffle"]
+        },
+        {
+                "name": "EasyRand",
+                "type": 4,
+                "numnodes": 7,
+                "txns" : ["InitDKG", "Randomness"]
+        }
+]

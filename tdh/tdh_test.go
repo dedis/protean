@@ -45,7 +45,7 @@ func Test_Server(t *testing.T) {
 	//require.Nil(t, err)
 
 	//for i, p := range decReply.Ps {
-	//pt, err := p.Data()
+	//pt, err := p.Store()
 	//require.Nil(t, err)
 	//require.Equal(t, mesgs[i], pt)
 	//}
@@ -75,7 +75,7 @@ func Test_Server(t *testing.T) {
 //decReply, err := root.Decrypt(&DecryptRequest{ID: id, Cs: newCs, Server: true})
 //require.Nil(t, err)
 //for i, p := range decReply.Ps {
-//p, err := p.Data()
+//p, err := p.Store()
 //require.Nil(t, err)
 //require.True(t, !bytes.Equal(p, mesgs[i]))
 //}

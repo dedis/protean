@@ -18,9 +18,9 @@ type Keys struct {
 }
 
 type KV struct {
-	Key     string
-	Value   []byte
-	Version uint32
+	Key   string
+	Value []byte
+	//Version uint32
 }
 
 type InitUnitRequest struct {

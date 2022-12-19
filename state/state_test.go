@@ -98,7 +98,7 @@ func TestState_Simple(t *testing.T) {
 	//require.NotNil(t, decReply.Sig)
 	//require.Nil(t, decReply.Partials)
 	//for i, p := range decReply.Ps {
-	//pt, err := p.Data()
+	//pt, err := p.Store()
 	//require.Nil(t, err)
 	//require.Equal(t, mesgs[i], pt)
 	//}

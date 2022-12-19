@@ -2,6 +2,7 @@ package state
 
 import (
 	"fmt"
+	"github.com/dedis/protean/contracts"
 
 	"github.com/dedis/protean/sys"
 	"github.com/dedis/protean/utils"
@@ -46,7 +47,7 @@ func init() {
 		&CreateStateRequest{}, &CreateStateReply{}, &UpdateStateRequest{},
 		&UpdateStateReply{}, &SpawnDarcRequest{}, &SpawnDarcReply{},
 		&GetProofRequest{}, &GetProofReply{}, &GetLatestRequest{}, &GetLatestReply{})
-	err = byzcoin.RegisterGlobalContract(ContractKeyValueID, contractValueFromBytes)
+	err = byzcoin.RegisterGlobalContract(contracts.ContractKeyValueID, contracts.ContractKeyValueFromBytes)
 	if err != nil {
 		log.ErrFatal(err)
 	}

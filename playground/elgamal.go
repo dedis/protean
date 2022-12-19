@@ -96,7 +96,7 @@ func (c *contractElGamal) Spawn(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Inst
 //log.Errorf("Protobuf decode failed")
 //return
 //}
-//egs.Storage = append(egs.Storage, *egd)
+//egs.KVStore = append(egs.KVStore, *egd)
 //egsBuf, err := protobuf.Encode(&c.ElGamalStorage)
 //if err != nil {
 //log.Errorf("Protobuf encode error: %v", err)

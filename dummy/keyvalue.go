@@ -13,13 +13,13 @@ const ContractKeyValueID = "keyValue"
 
 type contractValue struct {
 	byzcoin.BasicContract
-	//Storage
+	//KVStore
 	KVStorage
 }
 
 func contractValueFromBytes(in []byte) (byzcoin.Contract, error) {
 	cv := &contractValue{}
-	//err := protobuf.Decode(in, &cv.Storage)
+	//err := protobuf.Decode(in, &cv.KVStore)
 	err := protobuf.Decode(in, &cv.KVStorage)
 	if err != nil {
 		log.Errorf("Protobuf decode failed: %v", err)
@@ -36,12 +36,12 @@ func (c *contractValue) Spawn(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Instru
 		log.Errorf("GetValues failed: %v", err)
 		return
 	}
-	//cs := &c.Storage
+	//cs := &c.KVStore
 	cs := &c.KVStorage
 	for _, kv := range inst.Spawn.Args {
 		cs.KV = append(cs.KV, KV{kv.Name, kv.Value})
 	}
-	//csBuf, err := protobuf.Encode(&c.Storage)
+	//csBuf, err := protobuf.Encode(&c.KVStore)
 	csBuf, err := protobuf.Encode(&c.KVStorage)
 	if err != nil {
 		log.Errorf("Protobuf encode failed: %v", err)
@@ -65,7 +65,7 @@ func (c *contractValue) Invoke(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Instr
 		log.Errorf("Value contract can only update")
 		return nil, nil, fmt.Errorf("Value contract can only update")
 	}
-	//kvd := &c.Storage
+	//kvd := &c.KVStore
 	kvd := &c.KVStorage
 	kvd.Update(inst.Invoke.Args)
 	var buf []byte
@@ -74,9 +74,7 @@ func (c *contractValue) Invoke(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Instr
 		log.Errorf("Protobuf encode failed: %v", err)
 		return
 	}
-	sc = []byzcoin.StateChange{
-		byzcoin.NewStateChange(byzcoin.Update, inst.InstanceID, ContractKeyValueID, buf, darcID),
-	}
+	sc = []byzcoin.StateChange{byzcoin.NewStateChange(byzcoin.Update, inst.InstanceID, ContractKeyValueID, buf, darcID)}
 	return
 }
 
@@ -93,7 +91,7 @@ func (c *contractValue) Delete(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Instr
 	return
 }
 
-//func (cs *Storage) Update(args byzcoin.Arguments) {
+//func (cs *KVStore) Update(args byzcoin.Arguments) {
 func (kvs *KVStorage) Update(args byzcoin.Arguments) {
 	for _, kv := range args {
 		updated := false
@@ -113,21 +111,21 @@ func (kvs *KVStorage) Update(args byzcoin.Arguments) {
 	}
 }
 
-//func (cs *Storage) Update(args byzcoin.Arguments) {
+//func (cs *KVStore) Update(args byzcoin.Arguments) {
 //for _, arg := range args {
 //updated := false
-//for key, value := range cs.Data {
+//for key, value := range cs.Store {
 //if key == arg.Name {
 //updated = true
 //if value == nil || len(value) == 0 {
-//delete(cs.Data, key)
+//delete(cs.Store, key)
 //break
 //}
-//cs.Data[arg.Name] = arg.Value
+//cs.Store[arg.Name] = arg.Value
 //}
 //}
 //if !updated {
-//cs.Data[arg.Name] = arg.Value
+//cs.Store[arg.Name] = arg.Value
 //}
 //}
 //}
@@ -135,18 +133,18 @@ func (kvs *KVStorage) Update(args byzcoin.Arguments) {
 //func (cs *KVStorage) Update(args byzcoin.Arguments) {
 //for _, kv := range args {
 //var updated bool
-//for i, stored := range cs.Storage {
+//for i, stored := range cs.KVStore {
 //if stored.Key == kv.Name {
 //updated = true
 //if kv.Value == nil || len(kv.Value) == 0 {
-//cs.Storage = append(cs.Storage[0:i], cs.Storage[i+1:]...)
+//cs.KVStore = append(cs.KVStore[0:i], cs.KVStore[i+1:]...)
 //break
 //}
-//cs.Storage[i].Value = kv.Value
+//cs.KVStore[i].Value = kv.Value
 //}
 //}
 //if !updated {
-//cs.Storage = append(cs.Storage, &KeyValue{kv.Name, kv.Value})
+//cs.KVStore = append(cs.KVStore, &KeyValue{kv.Name, kv.Value})
 //}
 //}
 //}

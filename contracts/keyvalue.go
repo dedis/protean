@@ -1,8 +1,7 @@
-package state
+package contracts
 
 import (
-	"fmt"
-
+	"errors"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/darc"
 	"go.dedis.ch/onet/v3/log"
@@ -11,17 +10,22 @@ import (
 
 const ContractKeyValueID = "keyValue"
 
-type Storage struct {
-	Data []KV
+type KV struct {
+	Key   string
+	Value []byte
 }
 
-type contractValue struct {
+type Storage struct {
+	//Store []state.KV
+	Store []KV
+}
+type ContractKeyValue struct {
 	byzcoin.BasicContract
 	Storage
 }
 
-func contractValueFromBytes(in []byte) (byzcoin.Contract, error) {
-	cv := &contractValue{}
+func ContractKeyValueFromBytes(in []byte) (byzcoin.Contract, error) {
+	cv := &ContractKeyValue{}
 	err := protobuf.Decode(in, &cv.Storage)
 	if err != nil {
 		log.Errorf("Protobuf decode failed: %v", err)
@@ -30,7 +34,7 @@ func contractValueFromBytes(in []byte) (byzcoin.Contract, error) {
 	return cv, nil
 }
 
-func (c *contractValue) Spawn(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Instruction, coins []byzcoin.Coin) (sc []byzcoin.StateChange, cout []byzcoin.Coin, err error) {
+func (c *ContractKeyValue) Spawn(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Instruction, coins []byzcoin.Coin) (sc []byzcoin.StateChange, cout []byzcoin.Coin, err error) {
 	cout = coins
 	var darcID darc.ID
 	_, _, _, darcID, err = rst.GetValues(inst.InstanceID.Slice())
@@ -40,8 +44,8 @@ func (c *contractValue) Spawn(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Instru
 	}
 	cs := &c.Storage
 	for _, kv := range inst.Spawn.Args {
-		//cs.Data = append(cs.Data, KV{kv.Name, kv.Value})
-		cs.Data = append(cs.Data, KV{Key: kv.Name, Value: kv.Value, Version: 0})
+		cs.Store = append(cs.Store, KV{kv.Name, kv.Value})
+		//cs.Store = append(cs.Store, KV{Key: kv.Name, Value: kv.Value, Version: 0})
 	}
 	csBuf, err := protobuf.Encode(&c.Storage)
 	if err != nil {
@@ -54,7 +58,7 @@ func (c *contractValue) Spawn(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Instru
 	return
 }
 
-func (c *contractValue) Invoke(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Instruction, coins []byzcoin.Coin) (sc []byzcoin.StateChange, cout []byzcoin.Coin, err error) {
+func (c *ContractKeyValue) Invoke(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Instruction, coins []byzcoin.Coin) (sc []byzcoin.StateChange, cout []byzcoin.Coin, err error) {
 	cout = coins
 	var darcID darc.ID
 	_, _, _, darcID, err = rst.GetValues(inst.InstanceID.Slice())
@@ -64,7 +68,7 @@ func (c *contractValue) Invoke(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Instr
 	}
 	if inst.Invoke.Command != "update" {
 		log.Errorf("Value contract can only update")
-		return nil, nil, fmt.Errorf("Value contract can only update")
+		return nil, nil, errors.New("value contract can only update")
 	}
 	kvd := &c.Storage
 	kvd.Update(inst.Invoke.Args)
@@ -80,7 +84,7 @@ func (c *contractValue) Invoke(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Instr
 	return
 }
 
-func (c *contractValue) Delete(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Instruction, coins []byzcoin.Coin) (sc []byzcoin.StateChange, cout []byzcoin.Coin, err error) {
+func (c *ContractKeyValue) Delete(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Instruction, coins []byzcoin.Coin) (sc []byzcoin.StateChange, cout []byzcoin.Coin, err error) {
 	cout = coins
 	var darcID darc.ID
 	_, _, _, darcID, err = rst.GetValues(inst.InstanceID.Slice())
@@ -95,22 +99,21 @@ func (c *contractValue) Delete(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Instr
 
 func (cs *Storage) Update(args byzcoin.Arguments) {
 	for _, kv := range args {
-		updated := false
-		for i, stored := range cs.Data {
+		var updated bool
+		for i, stored := range cs.Store {
 			if stored.Key == kv.Name {
 				updated = true
 				if kv.Value == nil || len(kv.Value) == 0 {
-					cs.Data = append(cs.Data[0:i], cs.Data[i+1:]...)
+					cs.Store = append(cs.Store[0:i], cs.Store[i+1:]...)
 					break
 				}
-				cs.Data[i].Value = kv.Value
-				//TODO: Make sure this does not break things
-				cs.Data[i].Version++
+				cs.Store[i].Value = kv.Value
+				//cs.Store[i].Version++
 			}
 		}
 		if !updated {
-			//cs.Data = append(cs.Data, KV{kv.Name, kv.Value})
-			cs.Data = append(cs.Data, KV{Key: kv.Name, Value: kv.Value, Version: 0})
+			cs.Store = append(cs.Store, KV{Key: kv.Name, Value: kv.Value})
+			//cs.Store = append(cs.Store, KV{Key: kv.Name, Value: kv.Value, Version: 0})
 		}
 	}
 }

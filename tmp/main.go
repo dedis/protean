@@ -444,7 +444,7 @@ func testShuffle() {
 	X := make([]kyber.Point, k)
 	Y := make([]kyber.Point, k)
 	for i := 0; i < k; i++ {
-		//dd, err := C[i].Data()
+		//dd, err := C[i].Store()
 		//if err != nil {
 		//fmt.Println("cannot embed point")
 		//}

@@ -176,7 +176,7 @@ func Test_ServerFalse(t *testing.T) {
 //decReply, err := root.Decrypt(&DecryptRequest{ID: id, Cs: newCs, Server: true})
 //require.Nil(t, err)
 //for i, p := range decReply.Ps {
-//p, err := p.Data()
+//p, err := p.Store()
 //require.Nil(t, err)
 //require.True(t, !bytes.Equal(p, mesgs[i]))
 //}

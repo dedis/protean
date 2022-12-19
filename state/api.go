@@ -36,7 +36,7 @@ func (c *Client) SpawnDarc(spawnDarc darc.Darc, wait int, ed *sys.ExecutionData)
 	return reply, err
 }
 
-// This is called by the organize/owner/admin of the application
+// CreateState is called by the organizer/owner/admin of the application
 func (c *Client) CreateState(contractID string, kv []*KV, adminDarc darc.Darc, signerCtr uint64, signer darc.Signer, wait int, ed *sys.ExecutionData) (*CreateStateReply, error) {
 	args := make(byzcoin.Arguments, len(kv))
 	for i, elt := range kv {
