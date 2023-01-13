@@ -1,7 +1,6 @@
 package core
 
 import (
-	"github.com/dedis/protean/contracts"
 	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/kyber/v3"
@@ -32,7 +31,7 @@ type Transaction struct {
 type Opcode struct {
 	Name         string                     `json:"name"`
 	DFUID        string                     `json:"dfu_id"`
-	Dependencies map[string]*DataDependency `json:"deps,omitempty"`
+	Dependencies map[string]*DataDependency `json:"inputs,omitempty"`
 }
 
 type DataDependency struct {
@@ -48,27 +47,31 @@ type ExecutionPlan struct {
 	CID       []byte
 	StateRoot []byte
 	CodeHash  []byte
+	WfName    string
 	TxnName   string
 	Txn       *Transaction
 	DFUData   map[string]*DFUIdentity
 }
 
 type ExecutionRequest struct {
-	Index       int
-	EP          *ExecutionPlan
-	EPSig       protocol.BlsSignature // from CEU
-	Receipts    map[string]*OpcodeReceipt
-	ReceiptSigs map[string]protocol.BlsSignature
+	Index      int
+	EP         *ExecutionPlan
+	EPSig      protocol.BlsSignature // from CEU
+	OpReceipts map[string]*OpcodeReceipt
+	//OpReceiptSigs map[string]protocol.BlsSignature
+	KVReceipt    map[string]KVDict
+	KVReceiptSig protocol.BlsSignature
 }
 
 type OpcodeReceipt struct {
-	EPID   string // Hash of the execution plan
-	OpIdx  int
-	OpName string
+	EPID  string // Hash of the execution plan
+	OpIdx int
+	//OpName string
 	// Name of the output variable
 	Name string
 	// digest = H(output)
 	Digest []byte
+	Sig    protocol.BlsSignature
 }
 
 type DFUIdentity struct {
@@ -113,6 +116,12 @@ type ContractHeader struct {
 	CurrState string
 }
 
+// This is the value that is stored with key "kvstore". Keyvalue contract stores
+// key-value pairs in a list instead of a Go map since the latter is
+// non-deterministic. This can result in poor lookup performance. To work around
+// this problem, we store the key-value pairs in a KVDict and store the
+// protobuf-encoded struct in the contract.
+
 type KVDict struct {
 	Data map[string][]byte
 }
@@ -123,5 +132,6 @@ type StateProof struct {
 
 type ReadState struct {
 	Root []byte
-	Data []contracts.KV
+	KV   KVDict
+	Sig  protocol.BlsSignature
 }

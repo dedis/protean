@@ -6,12 +6,12 @@
           "opcodes": [
             {
               "name": "read_state",
-              "dfu_id": "su"
+              "dfu_id": "state"
             },
             {
               "name": "exec",
               "dfu_id": "ceu",
-              "deps": {
+              "inputs": {
                 "req" : {
                   "src": "OPCODE",
                   "src_name": "streply",
@@ -21,8 +21,8 @@
             },
             {
               "name": "update_state",
-              "dfu_id": "su",
-              "deps": {
+              "dfu_id": "state",
+              "inputs": {
                 "req" : {
                   "src": "OPCODE",
                   "src_name": "execreply",
@@ -42,7 +42,7 @@
             {
               "name": "exec",
               "dfu_id": "ceu",
-              "deps": {
+              "inputs": {
                 "req" : {
                   "src": "OPCODE",
                   "src_name": "streply",
@@ -55,8 +55,8 @@
             },
             {
               "name": "update_state",
-              "dfu_id": "su",
-              "deps": {
+              "dfu_id": "state",
+              "inputs": {
                 "req" : {
                   "src": "OPCODE",
                   "src_name": "execreply",
@@ -71,7 +71,7 @@
             {
               "name": "exec",
               "dfu_id": "ceu",
-              "deps": {
+              "inputs": {
                 "fnc_name": {
                   "src": "CONST"
                 }
@@ -79,8 +79,8 @@
             },
             {
               "name": "read",
-              "dfu_id": "su",
-              "deps": {
+              "dfu_id": "state",
+              "inputs": {
                 "keys": {
                   "src": "OPCODE",
                   "src_name": "rs",
@@ -96,7 +96,7 @@
             {
               "name": "exec",
               "dfu_id": "ceu",
-              "deps": {
+              "inputs": {
                 "fnc_name": {
                   "src": "CONST"
                 },
@@ -114,8 +114,8 @@
             },
             {
               "name": "shuffle",
-              "dfu_id": "shufdfu",
-              "deps": {
+              "dfu_id": "easyneff",
+              "inputs": {
                 "ciphertexts": {
                   "src": "OPCODE",
                   "src_name": "ctxts",
@@ -126,7 +126,7 @@
             {
               "name": "exec",
               "dfu_id": "ceu",
-              "deps": {
+              "inputs": {
                 "fnc_name": {
                   "src": "CONST"
                 },
@@ -143,8 +143,8 @@
               }
             }, {
               "name": "commit",
-              "dfu_id": "su",
-              "deps": {
+              "dfu_id": "state",
+              "inputs": {
                 "kv_list": {
                   "src": "OPCODE",
                   "src_name": "ws",
@@ -158,5 +158,5 @@
       "precommits": []
     }
   },
-  "dfus": ["su", "ceu", "shufdfu"]
+  "dfus": ["state", "ceu", "easyneff"]
 }

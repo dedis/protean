@@ -16,10 +16,10 @@ import (
 )
 
 func init() {
-	onet.GlobalProtocolRegister(NameReadState, NewReadState)
+	onet.GlobalProtocolRegister(GCSProtocol, NewGetContractState)
 }
 
-type ReadState struct {
+type GetContractState struct {
 	*onet.TreeNodeInstance
 	Client    *byzcoin.Client
 	CID       byzcoin.InstanceID
@@ -27,20 +27,20 @@ type ReadState struct {
 	Threshold int
 	Executed  chan bool
 
-	Verify VerifyRSRequest
+	Verify VerifyGCSRequest
 
 	FinalSignature []byte // final signature that is sent back to client
 
 	suite     *pairing.SuiteBn256
 	failures  int
-	responses []GSResponse
+	responses []GCSResponse
 	mask      *sign.Mask
 	timeout   *time.Timer
 	doneOnce  sync.Once
 }
 
-func NewReadState(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
-	p := &ReadState{
+func NewGetContractState(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
+	p := &GetContractState{
 		TreeNodeInstance: n,
 		Executed:         make(chan bool, 1),
 		suite:            pairing.NewSuiteBn256(),
@@ -52,8 +52,9 @@ func NewReadState(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
 	return p, nil
 }
 
-func (p *ReadState) Start() error {
+func (p *GetContractState) Start() error {
 	if p.Data == nil {
+		p.finish(false)
 		return xerrors.New("protocol did not receive message")
 	}
 	p.timeout = time.AfterFunc(1*time.Minute, func() {
@@ -74,9 +75,9 @@ func (p *ReadState) Start() error {
 		p.finish(false)
 		return err
 	}
-	req := &GSRequest{
-		CID:  p.CID,
-		Data: p.Data,
+	req := &GCSRequest{
+		CID:        p.CID,
+		ProofBytes: p.Data,
 	}
 	errs := p.Broadcast(req)
 	if len(errs) > (len(p.Roster().List) - p.Threshold) {
@@ -86,27 +87,27 @@ func (p *ReadState) Start() error {
 	return nil
 }
 
-func (p *ReadState) execute(r StructGSRequest) error {
+func (p *GetContractState) execute(r StructGCSRequest) error {
 	defer p.Done()
 	if p.Verify != nil {
-		if !p.Verify(r.GSRequest.CID, r.GSRequest.Data) {
-			log.Lvl2(p.ServerIdentity(), "refused to return read state")
-			return cothority.ErrorOrNil(p.SendToParent(&GSResponse{}),
-				"sending GSResponse to parent")
+		if !p.Verify(r.GCSRequest.CID, r.GCSRequest.ProofBytes) {
+			log.Lvl2(p.ServerIdentity(), "refused to return get state")
+			return cothority.ErrorOrNil(p.SendToParent(&GCSResponse{}),
+				"sending GCSResponse to parent")
 		}
 	}
-	resp, err := p.makeResponse(r.GSRequest.Data)
+	resp, err := p.makeResponse(r.GCSRequest.ProofBytes)
 	if err != nil {
 		log.Lvlf2("%s failed preparing response: %v",
 			p.ServerIdentity(), err)
-		return cothority.ErrorOrNil(p.SendToParent(&GSResponse{}),
-			"sending empty GSResponse to parent")
+		return cothority.ErrorOrNil(p.SendToParent(&GCSResponse{}),
+			"sending empty GCSResponse to parent")
 	}
 	return cothority.ErrorOrNil(p.SendToParent(resp),
-		"sending GSResponse to parent")
+		"sending GCSResponse to parent")
 }
 
-func (p *ReadState) executeReply(r StructGSResponse) error {
+func (p *GetContractState) executeReply(r StructGCSResponse) error {
 	if len(r.Signature) == 0 {
 		p.failures++
 		if p.failures > len(p.Roster().List)-p.Threshold {
@@ -115,9 +116,9 @@ func (p *ReadState) executeReply(r StructGSResponse) error {
 		}
 		return nil
 	} else {
-		_, index := getPublicKey(p.TreeNodeInstance, r.ServerIdentity)
+		_, index := searchPublicKey(p.TreeNodeInstance, r.ServerIdentity)
 		p.mask.SetBit(index, true)
-		p.responses = append(p.responses, r.GSResponse)
+		p.responses = append(p.responses, r.GCSResponse)
 	}
 	if len(p.responses) >= p.Threshold {
 		finalSignature := p.suite.G1().Point()
@@ -140,16 +141,15 @@ func (p *ReadState) executeReply(r StructGSResponse) error {
 	return nil
 }
 
-func (p *ReadState) makeResponse(data []byte) (*GSResponse, error) {
+func (p *GetContractState) makeResponse(data []byte) (*GCSResponse, error) {
 	sig, err := bls.Sign(p.suite, p.Private(), data)
 	if err != nil {
 		return nil, err
 	}
-	return &GSResponse{Signature: sig}, nil
+	return &GCSResponse{Signature: sig}, nil
 }
 
-func getPublicKey(p *onet.TreeNodeInstance, servID *network.ServerIdentity) (
-	kyber.Point, int) {
+func searchPublicKey(p *onet.TreeNodeInstance, servID *network.ServerIdentity) (kyber.Point, int) {
 	for idx, si := range p.Roster().List {
 		if si.Equal(servID) {
 			return p.NodePublic(si), idx
@@ -159,7 +159,7 @@ func getPublicKey(p *onet.TreeNodeInstance, servID *network.ServerIdentity) (
 	return nil, -1
 }
 
-func (p *ReadState) finish(result bool) {
+func (p *GetContractState) finish(result bool) {
 	p.timeout.Stop()
 	select {
 	case p.Executed <- result:

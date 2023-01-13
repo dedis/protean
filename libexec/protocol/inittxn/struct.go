@@ -3,7 +3,6 @@ package initTxn
 import (
 	"github.com/dedis/protean/core"
 	"go.dedis.ch/cothority/v3/blscosi/protocol"
-	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/network"
 )
@@ -17,8 +16,8 @@ func init() {
 type GenerateFn func(data []byte) (*core.ExecutionPlan, error)
 
 type Request struct {
-	CID  byzcoin.InstanceID
-	Data []byte
+	Data             []byte
+	VerificationData []byte
 }
 
 type StructRequest struct {

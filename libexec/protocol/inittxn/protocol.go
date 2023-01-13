@@ -1,11 +1,16 @@
 package initTxn
 
 import (
+	"bytes"
 	"github.com/dedis/protean/core"
+	"go.dedis.ch/cothority/v3"
+	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/pairing"
 	"go.dedis.ch/kyber/v3/sign"
+	"go.dedis.ch/kyber/v3/sign/bls"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
+	"go.dedis.ch/onet/v3/network"
 	"golang.org/x/xerrors"
 	"sync"
 	"time"
@@ -23,14 +28,15 @@ type InitTxn struct {
 
 	Threshold      int
 	Executed       chan bool
+	Plan           *core.ExecutionPlan
 	FinalSignature []byte // final signature that is sent back to client
 
-	suite    *pairing.SuiteBn256
-	failures int
-	//responses []GSResponse
-	mask     *sign.Mask
-	timeout  *time.Timer
-	doneOnce sync.Once
+	suite     *pairing.SuiteBn256
+	failures  int
+	responses []Response
+	mask      *sign.Mask
+	timeout   *time.Timer
+	doneOnce  sync.Once
 }
 
 func NewInitTxn(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
@@ -59,27 +65,113 @@ func (p *InitTxn) Start() error {
 		log.Lvl1("protocol timeout")
 		p.finish(false)
 	})
-	p.Generate(p.VerificationData)
-
-	//registry, header, err := verifyInitTxn(p.VerificationData)
-	//if err != nil {
-	//	p.finish(false)
-	//	return xerrors.Errorf("verification error - %v", err)
-	//}
-	//plan := &core.ExecutionPlan{}
-	//generateExecutionPlan(plan, registry, header)
+	plan, err := p.Generate(p.VerificationData)
+	if err != nil {
+		p.finish(false)
+		return xerrors.Errorf("generating execution plan: %v", err)
+	}
+	planHash := plan.Hash()
+	var pk kyber.Point
+	own, err := p.makeResponse(planHash)
+	if err != nil {
+		p.failures++
+	} else {
+		p.responses = append(p.responses, *own)
+		pk = p.Public()
+	}
+	p.mask, err = sign.NewMask(p.suite, p.Publics(), pk)
+	if err != nil {
+		p.finish(false)
+		return err
+	}
+	p.Plan = plan
+	req := &Request{
+		Data:             planHash,
+		VerificationData: p.VerificationData,
+	}
+	errs := p.Broadcast(req)
+	if len(errs) > (len(p.Roster().List) - p.Threshold) {
+		log.Errorf("Some nodes failed with error(s) %v", errs)
+		return xerrors.New("too many nodes failed in broadcast")
+	}
 	return nil
 }
 
-func (p *InitTxn) execute() {}
+func (p *InitTxn) execute(r StructRequest) error {
+	defer p.Done()
+	plan, err := p.Generate(r.VerificationData)
+	if err != nil {
+		log.Lvl2(p.ServerIdentity(), "refused to return execution plan")
+		return cothority.ErrorOrNil(p.SendToParent(&Response{}),
+			"sending Response to parent")
+	}
+	planHash := plan.Hash()
+	if !bytes.Equal(planHash, r.Data) {
+		log.Lvl2(p.ServerIdentity(), "generated execution plan does not match parent's execution plan")
+		return cothority.ErrorOrNil(p.SendToParent(&Response{}),
+			"sending Response to parent")
+	}
+	resp, err := p.makeResponse(r.Data)
+	if err != nil {
+		log.Lvlf2("%s failed preparing response: %v", p.ServerIdentity(), err)
+		return cothority.ErrorOrNil(p.SendToParent(&Response{}),
+			"sending empty Response to parent")
+	}
+	return cothority.ErrorOrNil(p.SendToParent(resp),
+		"sending Response to parent")
+}
 
-func (p *InitTxn) executeReply() {}
+func (p *InitTxn) executeReply(r StructResponse) error {
+	if len(r.Signature) == 0 {
+		p.failures++
+		if p.failures > len(p.Roster().List)-p.Threshold {
+			log.Lvl2(r.ServerIdentity, "couldn't get enough shares")
+			p.finish(false)
+		}
+		return nil
+	} else {
+		_, index := searchPublicKey(p.TreeNodeInstance, r.ServerIdentity)
+		p.mask.SetBit(index, true)
+		p.responses = append(p.responses, r.Response)
+	}
+	if len(p.responses) >= p.Threshold {
+		finalSignature := p.suite.G1().Point()
+		for _, resp := range p.responses {
+			sig, err := resp.Signature.Point(p.suite)
+			if err != nil {
+				p.finish(false)
+				return err
+			}
+			finalSignature = finalSignature.Add(finalSignature, sig)
+		}
+		sig, err := finalSignature.MarshalBinary()
+		if err != nil {
+			p.finish(false)
+			return err
+		}
+		p.FinalSignature = append(sig, p.mask.Mask()...)
+		p.finish(true)
+	}
+	return nil
+}
 
-func generateExecutionPlan(plan *core.ExecutionPlan, registry *core.DFURegistry,
-	header *core.ContractHeader) {
-	plan.CID = header.CID.Slice()
-	plan.CodeHash = header.CodeHash
+func (p *InitTxn) makeResponse(data []byte) (*Response, error) {
+	sig, err := bls.Sign(p.suite, p.Private(), data)
+	if err != nil {
+		return nil, err
+	}
+	return &Response{Signature: sig}, nil
+}
 
+func searchPublicKey(p *onet.TreeNodeInstance, servID *network.ServerIdentity) (
+	kyber.Point, int) {
+	for idx, si := range p.Roster().List {
+		if si.Equal(servID) {
+			return p.NodePublic(si), idx
+		}
+	}
+
+	return nil, -1
 }
 
 //func verifyInitTxn(data []byte) (*core.DFURegistry, *core.ContractHeader, error) {

@@ -77,7 +77,7 @@
 						},
 						{
 							"name": "shuffle",
-							"dfu_id": "shufdfu",
+							"dfu_id": "easyneff",
 							"inputs": {
 								"ciphertexts": {
 									"src": "OPCODE",
@@ -159,6 +159,6 @@
 	"dfus": [
 		"su",
 		"ceu",
-		"shufdfu"
+		"easyneff"
 	]
 }

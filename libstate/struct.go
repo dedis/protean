@@ -12,7 +12,7 @@ type Request struct {
 	Data interface{}
 }
 
-type InitRequest struct {
+type InitUnitRequest struct {
 	ByzID  skipchain.SkipBlockID
 	Roster *onet.Roster
 }
@@ -24,13 +24,12 @@ type InitContract struct {
 	TxResp *byzcoin.AddTxResponse
 }
 
-type GetState struct {
+type GetContractState struct {
 	CID byzcoin.InstanceID
 }
 
-type GetStateReply struct {
+type GetContractStateReply struct {
 	Proof core.StateProof
-	//Signature protocol.BlsSignature
 }
 
 type ReadState struct {

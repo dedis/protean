@@ -15,8 +15,11 @@ type KV struct {
 	Value []byte
 }
 
+// Storage holds the contract state. Store[0] stores the header (i.e. Store[0].
+// Key == "header"). The stored value is a protobuf-encoded core. ContractHeader
+// struct. Store[1] stores the kv store (i.e. Store[1].Key == "kvstore") The
+// stored value is a protobuf-encoded core.KVDict struct.
 type Storage struct {
-	//Store []state.KV
 	Store []KV
 }
 type ContractKeyValue struct {

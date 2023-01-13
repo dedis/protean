@@ -2,7 +2,7 @@
   "initial_state": "vote_open",
   "states": ["vote_open", "tally_begin", "shuffled", "finalized"],
   "transitions": {
-    "cast": {
+    "cast_vote": {
       "from": "vote_open",
       "to": "vote_open"
     },

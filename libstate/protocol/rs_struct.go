@@ -1,35 +1,36 @@
 package protocol
 
 import (
+	"github.com/dedis/protean/core"
 	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/network"
 )
 
-const NameReadState = "ReadState"
+const RSProtocol = "ReadState"
 
 func init() {
-	network.RegisterMessages(&Request{}, &Response{})
+	network.RegisterMessages(&RSRequest{}, &RSResponse{})
 }
 
-type VerifyRSRequest func(cid byzcoin.InstanceID, data []byte) bool
+type VerifyRSRequest func(byzcoin.InstanceID, []byte, *core.StateProof) bool
 
-type Request struct {
+type RSRequest struct {
 	CID  byzcoin.InstanceID
 	Data []byte
 }
 
-type StructRequest struct {
+type StructRSRequest struct {
 	*onet.TreeNode
-	Request
+	RSRequest
 }
 
-type Response struct {
+type RSResponse struct {
 	Signature protocol.BlsSignature
 }
 
-type StructResponse struct {
+type StructRSResponse struct {
 	*onet.TreeNode
-	Response
+	RSResponse
 }

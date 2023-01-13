@@ -56,7 +56,7 @@ func Test_InitContract(t *testing.T) {
 	adminCl, byzID, err := libstate.SetupByzcoin(roster, 1)
 	require.NoError(t, err)
 
-	req := &libstate.InitRequest{
+	req := &libstate.InitUnitRequest{
 		ByzID:  byzID,
 		Roster: roster,
 	}

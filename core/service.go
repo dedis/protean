@@ -1,13 +1,9 @@
 package core
 
 import (
-	"github.com/dedis/protean/core/protocol"
-	"go.dedis.ch/cothority/v3/blscosi"
 	"go.dedis.ch/kyber/v3/pairing"
 	"go.dedis.ch/kyber/v3/suites"
 	"go.dedis.ch/onet/v3"
-	"go.dedis.ch/onet/v3/network"
-	"golang.org/x/xerrors"
 )
 
 var coreID onet.ServiceID
@@ -19,7 +15,7 @@ var suite = suites.MustFind("bn256.adapter").(*pairing.SuiteBn256)
 func init() {
 	var err error
 	coreID, err = onet.RegisterNewServiceWithSuite(ServiceName, suite, newService)
-	network.RegisterMessages(&TestSignRequest{}, &TestSignReply{})
+	//network.RegisterMessages(&TestSignRequest{}, &TestSignReply{})
 	if err != nil {
 		panic(err)
 	}
@@ -27,35 +23,8 @@ func init() {
 
 type Service struct {
 	*onet.ServiceProcessor
-	suite          pairing.SuiteBn256
-	blscosiService *blscosi.Service
-}
-
-func (s *Service) TestSign(req *TestSignRequest) (*TestSignReply, error) {
-	nodeCount := len(req.Roster.List)
-	threshold := nodeCount - (nodeCount-1)/3
-	tree := req.Roster.GenerateNaryTreeWithRoot(nodeCount, s.ServerIdentity())
-	pi, err := s.CreateProtocol(protocol.NameTestBlsCosi, tree)
-	if err != nil {
-		return nil, xerrors.Errorf("failed to create protocol: %v", err)
-	}
-	blsProto := pi.(*protocol.TestBlsCosi)
-	blsProto.Msg = req.Msg
-	blsProto.Threshold = threshold
-	err = blsProto.Start()
-	if err != nil {
-		return nil, xerrors.Errorf("failed to start the protocol: %v", err)
-	}
-	if !<-blsProto.Executed {
-		return nil, xerrors.New("signing got refused")
-	}
-	sig := blsProto.FinalSignature
-	h := s.suite.Hash()
-	h.Write(req.Msg)
-	return &TestSignReply{
-		Hash:      h.Sum(nil),
-		Signature: sig,
-	}, nil
+	//suite          pairing.SuiteBn256
+	//blscosiService *blscosi.Service
 }
 
 //func (s *Service) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConfig) (onet.ProtocolInstance, error) {
@@ -75,11 +44,11 @@ func (s *Service) TestSign(req *TestSignRequest) (*TestSignReply, error) {
 func newService(c *onet.Context) (onet.Service, error) {
 	s := &Service{
 		ServiceProcessor: onet.NewServiceProcessor(c),
-		suite:            *suite,
-		blscosiService:   c.Service(blscosi.ServiceName).(*blscosi.Service),
+		//suite:            *suite,
+		//blscosiService:   c.Service(blscosi.ServiceName).(*blscosi.Service),
 	}
-	if err := s.RegisterHandlers(s.TestSign); err != nil {
-		return nil, xerrors.New("couldn't register messages")
-	}
+	//if err := s.RegisterHandlers(s.TestSign); err != nil {
+	//	return nil, xerrors.New("couldn't register messages")
+	//}
 	return s, nil
 }

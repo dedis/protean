@@ -52,7 +52,7 @@ func SetupByzcoin(r *onet.Roster, blockTime time.Duration) (*AdminClient, skipch
 	return cl, c.ID, nil
 }
 
-func (c *Client) InitUnit(req *InitRequest) (*InitUnitReply, error) {
+func (c *Client) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 	reply := &InitUnitReply{}
 	for _, node := range c.bcClient.Roster.List {
 		err := c.c.SendProtobuf(node, req, reply)
@@ -120,9 +120,9 @@ func (c *Client) InitContract(hdr *core.ContractHeader, gDarc darc.Darc, wait in
 	return reply, err
 }
 
-func (c *Client) GetContractState(cid byzcoin.InstanceID) (*GetStateReply, error) {
-	reply := &GetStateReply{}
-	req := &GetState{CID: cid}
+func (c *Client) GetContractState(cid byzcoin.InstanceID) (*GetContractStateReply, error) {
+	reply := &GetContractStateReply{}
+	req := &GetContractState{CID: cid}
 	err := c.c.SendProtobuf(c.bcClient.Roster.List[0], req, reply)
 	if err != nil {
 		return nil, xerrors.Errorf("send get contract state message: %v", err)
@@ -130,7 +130,20 @@ func (c *Client) GetContractState(cid byzcoin.InstanceID) (*GetStateReply, error
 	return reply, nil
 }
 
-// FetchGenesisBlock requires the hash of the genesis block. To retrieve.
+func (c *Client) ReadState(cid byzcoin.InstanceID, keys []string) (*ReadStateReply, error) {
+	reply := &ReadStateReply{}
+	req := &ReadState{
+		CID:  cid,
+		Keys: keys,
+	}
+	err := c.c.SendProtobuf(c.bcClient.Roster.List[0], req, reply)
+	if err != nil {
+		return nil, xerrors.Errorf("send get contract state message: %v", err)
+	}
+	return reply, nil
+}
+
+// FetchGenesisBlock requires the hash of the genesis block. To retrieve,
 // use proof.Latest.SkipchainID()
 func (c *Client) FetchGenesisBlock(scID skipchain.SkipBlockID) (*skipchain.
 	SkipBlock, error) {
