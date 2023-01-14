@@ -15,6 +15,8 @@ func init() {
 	network.RegisterMessages(&VRequest{}, &VResponse{})
 }
 
+type UpdateVerification func([]byte, []byte) bool
+
 type VRequest struct {
 	ExecReq      core.ExecutionRequest
 	OpcodeHashes map[string][]byte

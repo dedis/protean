@@ -124,8 +124,7 @@ func (s *Service) verifyGetContractState(cid byzcoin.InstanceID, data []byte) bo
 	return true
 }
 
-func (s *Service) verifyReadState(cid byzcoin.InstanceID, proofBytes []byte,
-	sp *core.StateProof) bool {
+func (s *Service) verifyReadState(cid byzcoin.InstanceID, proofBytes []byte, sp *core.StateProof) bool {
 	err := func() error {
 		if s.bc == nil {
 			s.bc = byzcoin.NewClient(s.byzID, *s.roster)
@@ -146,6 +145,27 @@ func (s *Service) verifyReadState(cid byzcoin.InstanceID, proofBytes []byte,
 	}()
 	if err != nil {
 		log.Lvlf2("cannot verify request: %v", err)
+		return false
+	}
+	return true
+}
+
+func (s *Service) verifyUpdate(cid []byte, root []byte) bool {
+	err := func() error {
+		if s.bc == nil {
+			s.bc = byzcoin.NewClient(s.byzID, *s.roster)
+		}
+		pr, err := s.bc.GetProof(cid)
+		if err != nil {
+			return xerrors.Errorf("failed to get proof from byzcoin: %v", err)
+		}
+		if !bytes.Equal(pr.Proof.InclusionProof.GetRoot(), root) {
+			return xerrors.Errorf("merkle roots do not match")
+		}
+		return nil
+	}()
+	if err != nil {
+		log.Lvlf2("cannot verify update state: %v", err)
 		return false
 	}
 	return true

@@ -27,6 +27,8 @@ type GetContractState struct {
 	Threshold int
 	Executed  chan bool
 
+	// Verification is only done by the leaf nodes. It checks that the root and
+	// the leaf nodes have consistent Byzcoin proofs.
 	Verify VerifyGCSRequest
 
 	FinalSignature []byte // final signature that is sent back to client
@@ -111,7 +113,7 @@ func (p *GetContractState) executeReply(r StructGCSResponse) error {
 	if len(r.Signature) == 0 {
 		p.failures++
 		if p.failures > len(p.Roster().List)-p.Threshold {
-			log.Lvl2(r.ServerIdentity, "couldn't get enough shares")
+			log.Lvl2(p.ServerIdentity, "couldn't get enough shares")
 			p.finish(false)
 		}
 		return nil

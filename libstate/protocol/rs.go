@@ -24,7 +24,7 @@ func init() {
 
 type ReadState struct {
 	*onet.TreeNodeInstance
-	Client     *byzcoin.Client
+	//Client     *byzcoin.Client
 	CID        byzcoin.InstanceID
 	SP         *core.StateProof
 	ProofBytes []byte
@@ -32,6 +32,8 @@ type ReadState struct {
 	Threshold  int
 	Executed   chan bool
 
+	// Verification is only done by the leaf nodes. It checks that the root and
+	// the leaf nodes have consistent Byzcoin proofs.
 	Verify VerifyRSRequest
 
 	ReadState      *core.ReadState
@@ -62,36 +64,30 @@ func (p *ReadState) Start() error {
 	if p.ProofBytes == nil {
 		return xerrors.New("protocol did not receive message")
 	}
-	p.timeout = time.AfterFunc(1*time.Minute, func() {
-		log.Lvl1("protocol timeout")
-		p.finish(false)
-	})
-	var pk kyber.Point
-	err := p.prepareKVDict(p.SP, p.ReadState)
+	resp, err := p.makeResponse()
 	if err != nil {
-		log.Errorf("failed creating the KV dict: %v", err)
+		log.Errorf("%s failed preparing response: %v", p.ServerIdentity(), err)
 		p.finish(false)
 		return err
-	}
-	p.ReadState.Root = p.SP.Proof.InclusionProof.GetRoot()
-	own, err := p.makeResponse(p.ReadState)
-	if err != nil {
-		p.failures++
-		//pk = nil
 	} else {
-		p.responses = append(p.responses, *own)
-		pk = p.Public()
-	}
-	p.mask, err = sign.NewMask(p.suite, p.Publics(), pk)
-	if err != nil {
-		p.finish(false)
-		return err
+		p.mask, err = sign.NewMask(p.suite, p.Publics(), p.Public())
+		if err != nil {
+			log.Errorf("%s failed generating mask: %v", p.ServerIdentity(), err)
+			p.finish(false)
+			return err
+		} else {
+			p.responses = append(p.responses, *resp)
+		}
 	}
 	req := &GCSRequest{
 		CID:        p.CID,
 		ProofBytes: p.ProofBytes,
 		Keys:       p.Keys,
 	}
+	p.timeout = time.AfterFunc(1*time.Minute, func() {
+		log.Lvl1("protocol timeout")
+		p.finish(false)
+	})
 	errs := p.Broadcast(req)
 	if len(errs) > (len(p.Roster().List) - p.Threshold) {
 		log.Errorf("Some nodes failed with error(s) %v", errs)
@@ -102,24 +98,16 @@ func (p *ReadState) Start() error {
 
 func (p *ReadState) execute(r StructGCSRequest) error {
 	defer p.Done()
-	sp := core.StateProof{}
+	p.SP = &core.StateProof{}
 	if p.Verify != nil {
-		if !p.Verify(r.GCSRequest.CID, r.GCSRequest.ProofBytes, &sp) {
+		if !p.Verify(r.GCSRequest.CID, r.GCSRequest.ProofBytes, p.SP) {
 			log.Lvl2(p.ServerIdentity(), "refused to return read state")
 			return cothority.ErrorOrNil(p.SendToParent(&GCSResponse{}),
 				"sending GCSResponse to parent")
 		}
 	}
-	var rs core.ReadState
-	err := p.prepareKVDict(&sp, &rs)
-	if err != nil {
-		log.Lvlf2("%s failed preparing response: %v",
-			p.ServerIdentity(), err)
-		return cothority.ErrorOrNil(p.SendToParent(&GCSResponse{}),
-			"sending empty GCSResponse to parent")
-	}
-	rs.Root = sp.Proof.InclusionProof.GetRoot()
-	resp, err := p.makeResponse(&rs)
+	p.ReadState = &core.ReadState{}
+	resp, err := p.makeResponse()
 	if err != nil {
 		log.Lvlf2("%s failed preparing response: %v",
 			p.ServerIdentity(), err)
@@ -134,7 +122,7 @@ func (p *ReadState) executeReply(r StructGCSResponse) error {
 	if len(r.Signature) == 0 {
 		p.failures++
 		if p.failures > len(p.Roster().List)-p.Threshold {
-			log.Lvl2(r.ServerIdentity, "couldn't get enough shares")
+			log.Lvl2(p.ServerIdentity, "couldn't get enough shares")
 			p.finish(false)
 		}
 		return nil
@@ -143,7 +131,7 @@ func (p *ReadState) executeReply(r StructGCSResponse) error {
 		p.mask.SetBit(index, true)
 		p.responses = append(p.responses, r.GCSResponse)
 	}
-	if len(p.responses) >= p.Threshold {
+	if len(p.responses) >= (p.Threshold - 1) {
 		finalSignature := p.suite.G1().Point()
 		for _, resp := range p.responses {
 			sig, err := resp.Signature.Point(p.suite)
@@ -189,11 +177,16 @@ func (p *ReadState) prepareKVDict(sp *core.StateProof, rs *core.ReadState) error
 	return nil
 }
 
-func (p *ReadState) makeResponse(rs *core.ReadState) (*GCSResponse, error) {
-	hash := rs.Hash()
+func (p *ReadState) makeResponse() (*GCSResponse, error) {
+	err := p.prepareKVDict(p.SP, p.ReadState)
+	if err != nil {
+		return nil, xerrors.Errorf("failed creating the KV dict: %v", err)
+	}
+	p.ReadState.Root = p.SP.Proof.InclusionProof.GetRoot()
+	hash := p.ReadState.Hash()
 	sig, err := bls.Sign(p.suite, p.Private(), hash)
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("failed generating bls signature: %v", err)
 	}
 	return &GCSResponse{Signature: sig}, nil
 }

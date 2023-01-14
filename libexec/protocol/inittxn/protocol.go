@@ -125,7 +125,7 @@ func (p *InitTxn) executeReply(r StructResponse) error {
 	if len(r.Signature) == 0 {
 		p.failures++
 		if p.failures > len(p.Roster().List)-p.Threshold {
-			log.Lvl2(r.ServerIdentity, "couldn't get enough shares")
+			log.Lvl2(p.ServerIdentity, "couldn't get enough shares")
 			p.finish(false)
 		}
 		return nil
