@@ -3,16 +3,12 @@ package threshold
 import (
 	"errors"
 	"fmt"
+	"go.dedis.ch/cothority/v3/blscosi"
+	"golang.org/x/xerrors"
 	"sync"
 	"time"
 
-	"github.com/dedis/protean/sys"
-	"github.com/dedis/protean/utils"
-	"github.com/dedis/protean/verify"
-	"go.dedis.ch/cothority/v3/blscosi"
-	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	dkgprotocol "go.dedis.ch/cothority/v3/dkg/pedersen"
-	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/share"
 	dkg "go.dedis.ch/kyber/v3/share/dkg/pedersen"
@@ -20,12 +16,11 @@ import (
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/onet/v3/network"
-	"go.dedis.ch/protobuf"
 )
 
-var storageKey = []byte("storage")
-var ServiceName = "ThreshCryptoService"
 var thresholdID onet.ServiceID
+var ServiceName = "ThreshCryptoService"
+var storageKey = []byte("storage")
 
 const propagationTimeout = 20 * time.Second
 
@@ -44,67 +39,35 @@ func NewDKGID(in []byte) DKGID {
 
 type Service struct {
 	*onet.ServiceProcessor
-	storage     *storage
-	scService   *skipchain.Service
-	cosiService *blscosi.Service
-
-	roster  *onet.Roster
-	genesis skipchain.SkipBlockID
+	storage    *storage
+	roster     *onet.Roster
+	blsService *blscosi.Service
 }
 
 func init() {
 	var err error
+	//thresholdID, err = onet.RegisterNewServiceWithSuite(ServiceName, suite, newService)
 	thresholdID, err = onet.RegisterNewService(ServiceName, newService)
-	log.ErrFatal(err)
+	if err != nil {
+		panic(err)
+	}
 	network.RegisterMessages(&storage{}, &InitUnitRequest{}, &InitUnitReply{},
 		&InitDKGRequest{}, &InitDKGReply{}, &DecryptRequest{},
 		&DecryptReply{})
 }
 
 func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
-	// Creating the skipchain here
-	cfg := req.Cfg
-	log.Infof("Starting InitUnit")
-	genesisReply, err := utils.CreateGenesisBlock(s.scService, cfg.ScCfg, cfg.Roster)
-	if err != nil {
-		return nil, err
-	}
-	s.genesis = genesisReply.Latest.Hash
-	s.roster = cfg.Roster
-	///////////////////////
-	// Now adding a block with the unit information
-	enc, err := protobuf.Encode(cfg.BaseStore)
-	if err != nil {
-		log.Errorf("Error in protobuf encoding: %v", err)
-		return nil, err
-	}
-	err = utils.StoreBlock(s.scService, s.genesis, enc)
-	if err != nil {
-		log.Errorf("Cannot add block to skipchain: %v", err)
-		return nil, err
-	}
-	return &InitUnitReply{Genesis: s.genesis}, nil
+	s.roster = req.Roster
+	return &InitUnitReply{}, nil
 }
 
 func (s *Service) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
-	// First verify the execution request
-	db := s.scService.GetDB()
-	blk, err := db.GetLatest(db.GetByID(s.genesis))
-	if err != nil {
-		log.Errorf("Cannot get the latest block: %v", err)
-		return nil, err
-	}
-	verified := s.verifyExecutionRequest(DKG, blk, req.ExecData)
-	if !verified {
-		log.Errorf("Cannot verify execution plan")
-		return nil, fmt.Errorf("Cannot verify execution plan")
-	}
 	// Run DKG
 	reply := &InitDKGReply{}
 	tree := s.roster.GenerateNaryTreeWithRoot(len(s.roster.List), s.ServerIdentity())
 	if tree == nil {
 		log.Error("Cannot create tree with roster", s.roster.List)
-		return nil, errors.New("Error while generating tree")
+		return nil, errors.New("error while generating tree")
 	}
 	pi, err := s.CreateProtocol(dkgprotocol.Name, tree)
 	if err != nil {
@@ -114,7 +77,7 @@ func (s *Service) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
 	setupDKG := pi.(*dkgprotocol.Setup)
 	err = setupDKG.SetConfig(&onet.GenericConfig{Data: req.ID[:]})
 	if err != nil {
-		log.Errorf("Could not set config: %v", err)
+		log.Errorf("could not set config: %v", err)
 		return nil, err
 	}
 	setupDKG.Wait = true
@@ -148,72 +111,66 @@ func (s *Service) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
 		return nil, errors.New("DKG did not finish in time")
 	}
 	// Collectively sign the execution plan
-	sig, err := s.signExecutionPlan(req.ExecData.ExecPlan)
-	if err != nil {
-		log.Errorf("Cannot produce blscosi signature: %v", err)
-		return nil, err
-	}
-	reply.Sig = sig
+	//sig, err := s.signExecutionPlan(req.ExecData.ExecPlan)
+	//if err != nil {
+	//	log.Errorf("Cannot produce blscosi signature: %v", err)
+	//	return nil, err
+	//}
+	//reply.Sig = sig
 	return reply, nil
 }
 
 func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 	// First verify the execution request
-	db := s.scService.GetDB()
-	blk, err := db.GetLatest(db.GetByID(s.genesis))
-	if err != nil {
-		log.Errorf("Cannot get the latest block: %v", err)
-		return nil, err
-	}
-	verified := s.verifyExecutionRequest(DEC, blk, req.ExecData)
-	if !verified {
-		log.Errorf("Cannot verify execution plan")
-		return nil, fmt.Errorf("Cannot verify execution plan")
-	}
-	// Decrypt
-	s.storage.Lock()
-	shared, ok := s.storage.Shared[req.ID]
-	if !ok {
-		s.storage.Unlock()
-		log.Errorf("Cannot find ID: %v", req.ID)
-		return nil, errors.New("No DKG entry found for the given ID")
-	}
-	//TODO: Why is shared originally not cloned but everything else in this
-	//lock-unlock scope?
-	shared = shared.Clone()
-	pp, ok := s.storage.Polys[req.ID]
-	if !ok {
-		s.storage.Unlock()
-		log.Errorf("Cannot find ID: %v", req.ID)
-		return nil, errors.New("No DKG entry found for the given ID")
-	}
-	//var commits []kyber.Point
-	//for _, c := range pp.Commits {
-	//commits = append(commits, c.Clone())
+	//db := s.scService.GetDB()
+	//blk, err := db.GetLatest(db.GetByID(s.genesis))
+	//if err != nil {
+	//	log.Errorf("Cannot get the latest block: %v", err)
+	//	return nil, err
 	//}
-	commits := make([]kyber.Point, len(pp.Commits))
-	for i, c := range pp.Commits {
-		commits[i] = c.Clone()
-	}
-	bb := pp.B.Clone()
-	s.storage.Unlock()
-
-	numNodes := len(s.roster.List)
-	tree := s.roster.GenerateNaryTreeWithRoot(numNodes, s.ServerIdentity())
+	//verified := s.verifyExecutionRequest(DEC, blk, req.ExecData)
+	//if !verified {
+	//	log.Errorf("Cannot verify execution plan")
+	//	return nil, fmt.Errorf("cannot verify execution plan")
+	//}
+	// create protocol
+	nodeCount := len(s.roster.List)
+	tree := s.roster.GenerateNaryTreeWithRoot(nodeCount, s.ServerIdentity())
 	pi, err := s.CreateProtocol(ThreshProtoName, tree)
 	if err != nil {
-		return nil, errors.New("failed to create decrypt protocol: " + err.Error())
+		return nil, errors.New("failed to create decryptShare protocol: " + err.Error())
 	}
 	decProto := pi.(*ThreshDecrypt)
 	decProto.Cs = req.Cs
-	decProto.Shared = shared
-	decProto.Poly = share.NewPubPoly(s.Suite(), bb, commits)
-	decProto.Server = req.Server
+	decProto.blsPublic = s.ServerIdentity().ServicePublic(blscosi.ServiceName)
+	decProto.blsPublics = s.roster.ServicePublics(blscosi.ServiceName)
+	decProto.blsSk = s.ServerIdentity().ServicePrivate(blscosi.ServiceName)
+	decProto.Threshold = nodeCount - (nodeCount-1)/3
 	err = decProto.SetConfig(&onet.GenericConfig{Data: req.ID[:]})
 	if err != nil {
 		log.Errorf("Could not set config: %v", err)
 		return nil, err
 	}
+	s.storage.Lock()
+	shared, ok := s.storage.Shared[req.ID]
+	if !ok {
+		s.storage.Unlock()
+		log.Errorf("Cannot find ID: %v", req.ID)
+		return nil, errors.New("no DKG entry found for the given ID")
+	}
+	decProto.Shared = shared.Clone()
+	pp, ok := s.storage.Polys[req.ID]
+	if !ok {
+		s.storage.Unlock()
+		log.Errorf("Cannot find ID: %v", req.ID)
+		return nil, errors.New("no DKG entry found for the given ID")
+	}
+	commits := make([]kyber.Point, len(pp.Commits))
+	for i, c := range pp.Commits {
+		commits[i] = c.Clone()
+	}
+	decProto.Poly = share.NewPubPoly(s.Suite(), pp.B.Clone(), commits)
+	s.storage.Unlock()
 	log.Lvl3("Starting decryption protocol")
 	err = decProto.Start()
 	if err != nil {
@@ -223,128 +180,7 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 		return nil, errors.New("Decryption got refused")
 	}
 	log.Lvl3("Decryption protocol is done.")
-
-	reply := &DecryptReply{}
-	if req.Server {
-		reply.Ps = make([]kyber.Point, len(decProto.Partials))
-		for i, partial := range decProto.Partials {
-			reply.Ps[i] = recoverCommit(numNodes, req.Cs[i], partial.Shares)
-		}
-	} else {
-		reply.Partials = decProto.Partials
-	}
-	// Collectively sign the execution plan
-	sig, err := s.signExecutionPlan(req.ExecData.ExecPlan)
-	if err != nil {
-		log.Errorf("Cannot produce blscosi signature: %v", err)
-		return nil, err
-	}
-	reply.Sig = sig
-	return reply, nil
-}
-
-//func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
-//reply := &DecryptReply{}
-//numNodes := len(s.roster.List)
-//tree := s.roster.GenerateNaryTreeWithRoot(numNodes, s.ServerIdentity())
-//pi, err := s.CreateProtocol(ThreshProtoName, tree)
-//if err != nil {
-//return nil, errors.New("failed to create decrypt protocol: " + err.Error())
-//}
-//decProto := pi.(*ThreshDecrypt)
-//decProto.Cs = req.Cs
-//decProto.Server = req.Server
-//encoded, err := hexToBytes(req.ID)
-//if err != nil {
-//log.Errorf("Could not convert string to byte array: %v", err)
-//return nil, err
-//}
-//err = decProto.SetConfig(&onet.GenericConfig{Store: encoded})
-//if err != nil {
-//log.Errorf("Could not set config: %v", err)
-//return nil, err
-//}
-
-//var ok bool
-//s.storage.Lock()
-//decProto.Shared, ok = s.storage.Shared[req.ID]
-//if !ok {
-//s.storage.Unlock()
-//log.Errorf("Cannot find ID: %v", req.ID)
-//return nil, errors.New("No DKG entry found for the given ID")
-//}
-//pp, ok := s.storage.Polys[req.ID]
-//if !ok {
-//s.storage.Unlock()
-//log.Errorf("Cannot find ID: %v", req.ID)
-//return nil, errors.New("No DKG entry found for the given ID")
-//}
-//var commits []kyber.Point
-//for _, c := range pp.Commits {
-//commits = append(commits, c.Clone())
-//}
-//decProto.Poly = share.NewPubPoly(s.Suite(), pp.B.Clone(), commits)
-//s.storage.Unlock()
-
-//log.Lvl3("Starting decryption protocol")
-//err = decProto.Start()
-//if err != nil {
-//return nil, errors.New("Failed to start the decryption protocol: " + err.Error())
-//}
-//if !<-decProto.Decrypted {
-//return nil, errors.New("Decryption got refused")
-//}
-//log.Lvl3("Decryption protocol is done.")
-
-//if req.Server {
-//for i, partial := range decProto.Partials {
-//reply.Ps = append(reply.Ps, recoverCommit(numNodes, req.Cs[i], partial.Shares))
-//}
-//} else {
-//reply.Partials = decProto.Partials
-//}
-//return reply, nil
-//}
-
-func (s *Service) verifyExecutionRequest(txnName string, blk *skipchain.SkipBlock, execData *sys.ExecutionData) bool {
-	tree := s.roster.GenerateNaryTreeWithRoot(len(s.roster.List), s.ServerIdentity())
-	pi, err := s.CreateProtocol(verify.Name, tree)
-	if err != nil {
-		log.Errorf("Cannot create protocol: %v", err)
-		return false
-	}
-	verifyProto := pi.(*verify.VP)
-	verifyProto.Index = execData.Index
-	verifyProto.TxnName = txnName
-	verifyProto.Block = blk
-	verifyProto.ExecPlan = execData.ExecPlan
-	//verifyProto.ClientSigs = execData.ClientSigs
-	verifyProto.CompilerSig = execData.CompilerSig
-	verifyProto.UnitSigs = execData.UnitSigs
-	err = verifyProto.Start()
-	if err != nil {
-		log.Errorf("Cannot start protocol: %v", err)
-		return false
-	}
-	if !<-verifyProto.Verified {
-		return false
-	} else {
-		return true
-	}
-}
-
-func (s *Service) signExecutionPlan(ep *sys.ExecutionPlan) (protocol.BlsSignature, error) {
-	epHash, err := utils.ComputeEPHash(ep)
-	if err != nil {
-		log.Errorf("Cannot compute the execution plan hash: %v", err)
-		return nil, err
-	}
-	cosiResp, err := utils.BlsCosiSign(s.cosiService, s.roster, epHash)
-	if err != nil {
-		log.Errorf("Cannot produce blscosi signature: %v", err)
-		return nil, err
-	}
-	return cosiResp.(*blscosi.SignatureResponse).Signature, nil
+	return &DecryptReply{Ps: decProto.Ptexts, Signature: decProto.FinalSignature}, nil
 }
 
 func (s *Service) getKeyPair() *key.Pair {
@@ -430,7 +266,7 @@ func (s *Service) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConfi
 		shared = shared.Clone()
 		s.storage.Unlock()
 		if !ok {
-			return nil, fmt.Errorf("Could not find shared data with id: %v", id)
+			return nil, xerrors.Errorf("couldn't find shared data with id: %x", id)
 		}
 		pi, err := NewThreshDecrypt(tn)
 		if err != nil {
@@ -438,6 +274,9 @@ func (s *Service) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConfi
 		}
 		dec := pi.(*ThreshDecrypt)
 		dec.Shared = shared
+		dec.blsPublic = s.ServerIdentity().ServicePublic(blscosi.ServiceName)
+		dec.blsPublics = s.roster.ServicePublics(blscosi.ServiceName)
+		dec.blsSk = s.ServerIdentity().ServicePrivate(blscosi.ServiceName)
 		return dec, nil
 	}
 	return nil, nil
@@ -446,12 +285,11 @@ func (s *Service) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConfi
 func newService(c *onet.Context) (onet.Service, error) {
 	s := &Service{
 		ServiceProcessor: onet.NewServiceProcessor(c),
-		scService:        c.Service(skipchain.ServiceName).(*skipchain.Service),
-		cosiService:      c.Service(blscosi.ServiceName).(*blscosi.Service),
+		blsService:       c.Service(blscosi.ServiceName).(*blscosi.Service),
 	}
 	err := s.RegisterHandlers(s.InitUnit, s.InitDKG, s.Decrypt)
 	if err != nil {
-		log.Errorf("Cannot register handlers: %v", err)
+		log.Errorf("couldn't register handlers: %v", err)
 		return nil, err
 	}
 	err = s.tryLoad()

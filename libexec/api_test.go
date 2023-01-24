@@ -115,7 +115,6 @@ func Test_InitTransaction(t *testing.T) {
 	_, err = execCl.InitUnit()
 	require.NoError(t, err)
 	require.NotNil(t, reply.TxResp.Proof)
-	//stProof := &core.StateProof{Proof: *reply.TxResp.Proof}
 
 	gcs, err := adminCl.Cl.GetContractState(cid)
 	require.NoError(t, err)
@@ -129,8 +128,6 @@ func Test_InitTransaction(t *testing.T) {
 		Proof:   gcs.Proof.Proof,
 		Genesis: *stGenesis,
 	}
-	//itReply, err := execCl.InitTransaction(cid, rid, regPr, regGenesis,
-	//	&gcs.Proof, stGenesis, "vote", "cast_vote")
 	itReply, err := execCl.InitTransaction(rdata, cdata, "vote", "cast_vote")
 	require.NoError(t, err)
 	require.NotNil(t, itReply)

@@ -164,7 +164,7 @@ func verifyInitTxn(req *InitTransaction) (*core.DFURegistry, *core.ContractHeade
 		return nil, nil, xerrors.Errorf("cannot execute txn %s in curr_state %s",
 			req.TxnName, header.CurrState)
 	}
-	// TODO: Check H(code)
+	//TODO: Check H(code)
 	return &registry, &header, nil
 }
 

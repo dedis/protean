@@ -1,7 +1,6 @@
 package threshold
 
 import (
-	"github.com/dedis/protean/sys"
 	"github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/kyber/v3"
@@ -16,16 +15,14 @@ const DEC = "Decrypt"
 type DKGID [32]byte
 
 type InitUnitRequest struct {
-	Cfg *sys.UnitConfig
+	Roster *onet.Roster
 }
 
-type InitUnitReply struct {
-	Genesis []byte
-}
+type InitUnitReply struct{}
 
 type InitDKGRequest struct {
-	ID       DKGID
-	ExecData *sys.ExecutionData
+	ID DKGID
+	//ExecData *sys.ExecutionData
 }
 
 type InitDKGReply struct {
@@ -35,55 +32,75 @@ type InitDKGReply struct {
 
 type DecryptRequest struct {
 	ID DKGID
-	Cs []*utils.ElGamalPair
-	// Server is a flag that specifies where the secret reconstruction is
-	// going to happen. If true, threshold unit handles the secret
-	// reconstruction. If false, threshold unit returns the partial
-	// decryptions and decryption proofs to the client
-	Server   bool
-	ExecData *sys.ExecutionData
+	Cs []utils.ElGamalPair
+	//ExecData *sys.ExecutionData
 }
 
 type DecryptReply struct {
-	// If server = true, Ps will contain the plaintext. If server =
-	// false, Ps will be nil
-	Ps []kyber.Point
-	// If server = false, Partials will contain the partial decryptions and
-	// decryption proofs. If server = true, Partials will be nil
-	Partials []*Partial
-	Sig      protocol.BlsSignature
+	Ps        []kyber.Point
+	Signature protocol.BlsSignature
 }
 
-// Protocol messages
+//type DecryptReply struct {
+//	// If server = true, Ps will contain the plaintext. If server =
+//	// false, Ps will be nil
+//	Ps []kyber.Point
+//	// If server = false, partials will contain the partial decryptions and
+//	// decryption proofs. If server = true, partials will be nil
+//	partials  []*Partial
+//	Signature protocol.BlsSignature
+//}
+
+type Partial struct {
+	Shares []*share.PubShare
+	Eis    []kyber.Scalar
+	Fis    []kyber.Scalar
+	//Pubs   []kyber.Point
+}
+
+type DecryptShare struct {
+	Cs []utils.ElGamalPair
+}
+
+type structDecryptShare struct {
+	*onet.TreeNode
+	DecryptShare
+}
+
 type Share struct {
 	Sh *share.PubShare
 	Ei kyber.Scalar
 	Fi kyber.Scalar
 }
 
-type Partial struct {
-	Shares []*share.PubShare
-	Eis    []kyber.Scalar
-	Fis    []kyber.Scalar
-	Pubs   []kyber.Point
+type DecryptShareReply struct {
+	Shares []Share
 }
 
-type PartialRequest struct {
-	Cs []*utils.ElGamalPair
-}
-
-type structPartialRequest struct {
+type structDecryptShareReply struct {
 	*onet.TreeNode
-	PartialRequest
+	DecryptShareReply
 }
 
-type PartialReply struct {
-	Shares []*Share
+type Reconstruct struct {
+	Partials []Partial
+	//Publics  []kyber.Point
+	Publics map[int]kyber.Point
+	Hash    []byte
 }
 
-type structPartialReply struct {
+type structReconstruct struct {
 	*onet.TreeNode
-	PartialReply
+	Reconstruct
+}
+
+type ReconstructReply struct {
+	Signature protocol.BlsSignature
+}
+
+type structReconstructReply struct {
+	*onet.TreeNode
+	ReconstructReply
 }
 
 // Internal structs

@@ -21,7 +21,7 @@ type VP struct {
 	*onet.TreeNodeInstance
 	ExecRequest *core.ExecutionRequest
 	// Prepared by the root node. key: input variable,
-	// value: H(output) from parent opcode.
+	// value: H(output) from parent opcode.\
 	OpcodeHashes map[string][]byte
 	// Prepared by the client. key: input variable.
 	KVMap map[string]core.ReadState
@@ -151,9 +151,10 @@ func (p *VP) verifyExecutionRequest() error {
 	// 3) Check dependencies
 	for inputName, dep := range opcode.Dependencies {
 		if dep.Src == core.OPCODE {
-			receipt, ok := p.ExecRequest.OpReceipts[dep.SrcName]
+			//receipt, ok := p.ExecRequest.OpReceipts[dep.SrcName]
+			receipt, ok := p.ExecRequest.OpReceipts[inputName]
 			if !ok {
-				return xerrors.Errorf("input: %s - missing opcode receipt for src_name: %s", inputName, dep.SrcName)
+				return xerrors.Errorf("missing opcode receipt from output %s for input %s", dep.SrcName, inputName)
 			}
 			if strings.Compare(dep.SrcName, receipt.Name) != 0 {
 				return xerrors.Errorf("expected src_name %s but received %s", dep.SrcName, receipt.Name)
