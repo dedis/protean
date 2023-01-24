@@ -3,6 +3,7 @@ package threshold
 import (
 	"errors"
 	"fmt"
+	"github.com/dedis/protean/threshold/protocol"
 	"go.dedis.ch/cothority/v3/blscosi"
 	"golang.org/x/xerrors"
 	"sync"
@@ -136,15 +137,15 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 	// create protocol
 	nodeCount := len(s.roster.List)
 	tree := s.roster.GenerateNaryTreeWithRoot(nodeCount, s.ServerIdentity())
-	pi, err := s.CreateProtocol(ThreshProtoName, tree)
+	pi, err := s.CreateProtocol(protocol.ThreshProtoName, tree)
 	if err != nil {
 		return nil, errors.New("failed to create decryptShare protocol: " + err.Error())
 	}
-	decProto := pi.(*ThreshDecrypt)
+	decProto := pi.(*protocol.ThreshDecrypt)
 	decProto.Cs = req.Cs
-	decProto.blsPublic = s.ServerIdentity().ServicePublic(blscosi.ServiceName)
-	decProto.blsPublics = s.roster.ServicePublics(blscosi.ServiceName)
-	decProto.blsSk = s.ServerIdentity().ServicePrivate(blscosi.ServiceName)
+	decProto.BlsPublic = s.ServerIdentity().ServicePublic(blscosi.ServiceName)
+	decProto.BlsPublics = s.roster.ServicePublics(blscosi.ServiceName)
+	decProto.BlsSk = s.ServerIdentity().ServicePrivate(blscosi.ServiceName)
 	decProto.Threshold = nodeCount - (nodeCount-1)/3
 	err = decProto.SetConfig(&onet.GenericConfig{Data: req.ID[:]})
 	if err != nil {
@@ -259,7 +260,7 @@ func (s *Service) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConfi
 			}
 		}(conf.Data)
 		return pi, nil
-	case ThreshProtoName:
+	case protocol.ThreshProtoName:
 		id := NewDKGID(conf.Data)
 		s.storage.Lock()
 		shared, ok := s.storage.Shared[id]
@@ -268,15 +269,15 @@ func (s *Service) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConfi
 		if !ok {
 			return nil, xerrors.Errorf("couldn't find shared data with id: %x", id)
 		}
-		pi, err := NewThreshDecrypt(tn)
+		pi, err := protocol.NewThreshDecrypt(tn)
 		if err != nil {
 			return nil, err
 		}
-		dec := pi.(*ThreshDecrypt)
+		dec := pi.(*protocol.ThreshDecrypt)
 		dec.Shared = shared
-		dec.blsPublic = s.ServerIdentity().ServicePublic(blscosi.ServiceName)
-		dec.blsPublics = s.roster.ServicePublics(blscosi.ServiceName)
-		dec.blsSk = s.ServerIdentity().ServicePrivate(blscosi.ServiceName)
+		dec.BlsPublic = s.ServerIdentity().ServicePublic(blscosi.ServiceName)
+		dec.BlsPublics = s.roster.ServicePublics(blscosi.ServiceName)
+		dec.BlsSk = s.ServerIdentity().ServicePrivate(blscosi.ServiceName)
 		return dec, nil
 	}
 	return nil, nil

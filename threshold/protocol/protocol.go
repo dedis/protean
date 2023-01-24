@@ -1,4 +1,4 @@
-package threshold
+package protocol
 
 import (
 	"bytes"
@@ -28,8 +28,8 @@ func init() {
 		log.Errorf("Cannot register protocol: %v", err)
 		panic(err)
 	}
-	network.RegisterMessages(&DecryptShare{}, &DecryptShareReply{}, &Reconstruct{}, &ReconstructReply{})
-
+	network.RegisterMessages(&DecryptShare{}, &DecryptShareReply{},
+		&Reconstruct{}, &ReconstructReply{})
 }
 
 type ThreshDecrypt struct {
@@ -51,9 +51,9 @@ type ThreshDecrypt struct {
 	pubShares          map[int]kyber.Point
 	dsReplies          []DecryptShareReply
 	reconstructReplies []ReconstructReply
-	blsPublic          kyber.Point
-	blsPublics         []kyber.Point
-	blsSk              kyber.Scalar
+	BlsPublic          kyber.Point
+	BlsPublics         []kyber.Point
+	BlsSk              kyber.Scalar
 	mask               *sign.Mask
 	timeout            *time.Timer
 	doneOnce           sync.Once
@@ -130,7 +130,7 @@ func (d *ThreshDecrypt) decryptShareReply(r structDecryptShareReply) error {
 		d.pubShares[idx] = d.Poly.Eval(idx).V
 		for i, c := range d.Cs {
 			tmpSh := r.Shares[i]
-			ok := VerifyDecProof(tmpSh.Sh.V, tmpSh.Ei, tmpSh.Fi, c.K,
+			ok := verifyDecProof(tmpSh.Sh.V, tmpSh.Ei, tmpSh.Fi, c.K,
 				d.pubShares[tmpSh.Sh.I])
 			if !ok {
 				log.Lvl2("received invalid share for ciphertext %d from"+
@@ -185,7 +185,7 @@ func (d *ThreshDecrypt) decryptShareReply(r structDecryptShareReply) error {
 			return err
 		}
 		//d.mask, err = sign.NewMask(d.suite, d.Publics(), d.Public())
-		d.mask, err = sign.NewMask(d.suite, d.blsPublics, d.blsPublic)
+		d.mask, err = sign.NewMask(d.suite, d.BlsPublics, d.BlsPublic)
 		if err != nil {
 			log.Errorf("root couldn't generate mask: %v", err)
 			d.finish(false)
@@ -213,7 +213,7 @@ func (d *ThreshDecrypt) reconstruct(r structReconstruct) error {
 	for i, c := range d.Cs {
 		partial := r.Partials[i]
 		for j, _ := range partial.Shares {
-			ok := VerifyDecProof(partial.Shares[j].V, partial.Eis[j],
+			ok := verifyDecProof(partial.Shares[j].V, partial.Eis[j],
 				partial.Fis[j], c.K, r.Publics[partial.Shares[j].I])
 			if !ok {
 				log.Errorf("%s cannot verify decryption proof", d.Name())
@@ -277,7 +277,7 @@ func (d *ThreshDecrypt) reconstructReply(r structReconstructReply) error {
 }
 
 func (d *ThreshDecrypt) generateReconstructReply(data []byte) (*ReconstructReply, error) {
-	sig, err := bls.Sign(d.suite, d.blsSk, data)
+	sig, err := bls.Sign(d.suite, d.BlsSk, data)
 	if err != nil {
 		return &ReconstructReply{}, err
 	}
@@ -295,6 +295,24 @@ func (d *ThreshDecrypt) generateDecProof(u kyber.Point, sh kyber.Point) (kyber.S
 	ei := cothority.Suite.Scalar().SetBytes(hash.Sum(nil))
 	fi := cothority.Suite.Scalar().Add(si, cothority.Suite.Scalar().Mul(ei, d.Shared.V))
 	return ei, fi
+}
+
+func verifyDecProof(sh kyber.Point, ei kyber.Scalar, fi kyber.Scalar,
+	u kyber.Point, pub kyber.Point) bool {
+	// sh = ui // u = g^r // pub = h^i
+	//Verify proofs
+	ufi := cothority.Suite.Point().Mul(fi, u)
+	uiei := cothority.Suite.Point().Mul(cothority.Suite.Scalar().Neg(ei), sh)
+	uiHat := cothority.Suite.Point().Add(ufi, uiei)
+	gfi := cothority.Suite.Point().Mul(fi, nil)
+	hiei := cothority.Suite.Point().Mul(cothority.Suite.Scalar().Neg(ei), pub)
+	hiHat := cothority.Suite.Point().Add(gfi, hiei)
+	hash := sha256.New()
+	sh.MarshalTo(hash)
+	uiHat.MarshalTo(hash)
+	hiHat.MarshalTo(hash)
+	e := cothority.Suite.Scalar().SetBytes(hash.Sum(nil))
+	return e.Equal(ei)
 }
 
 func (d *ThreshDecrypt) recoverCommit(cs utils.ElGamalPair, pubShares []*share.PubShare) kyber.Point {
