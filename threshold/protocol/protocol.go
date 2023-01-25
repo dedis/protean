@@ -3,7 +3,6 @@ package protocol
 import (
 	"bytes"
 	"crypto/sha256"
-	"errors"
 	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/kyber/v3/pairing"
 	"go.dedis.ch/kyber/v3/sign"
@@ -77,11 +76,11 @@ func (d *ThreshDecrypt) Start() error {
 	log.Lvl3("Starting Protocol")
 	if d.Shared == nil {
 		d.finish(false)
-		return errors.New("initialize Shared first")
+		return xerrors.New("initialize Shared first")
 	}
 	if len(d.Cs) == 0 {
 		d.finish(false)
-		return errors.New("empty ciphertext list")
+		return xerrors.New("empty ciphertext list")
 	}
 	ds := &DecryptShare{
 		Cs: d.Cs,
@@ -95,7 +94,7 @@ func (d *ThreshDecrypt) Start() error {
 	errs := d.Broadcast(ds)
 	if len(errs) > (len(d.Roster().List) - d.Threshold) {
 		log.Errorf("Some nodes failed with error(s) %v", errs)
-		return errors.New("too many nodes failed in broadcast")
+		return xerrors.New("too many nodes failed in broadcast")
 	}
 	return nil
 }
@@ -116,7 +115,7 @@ func (d *ThreshDecrypt) decryptShare(r structDecryptShare) error {
 
 // decryptShareReply is the root-node waiting for replies
 func (d *ThreshDecrypt) decryptShareReply(r structDecryptShareReply) error {
-	if r.Shares == nil {
+	if len(r.Shares) == 0 {
 		log.Lvl2("Node", r.ServerIdentity, "refused to reply")
 		d.Failures++
 		if d.Failures > (len(d.Roster().List) - d.Threshold) {
@@ -243,7 +242,7 @@ func (d *ThreshDecrypt) reconstruct(r structReconstruct) error {
 }
 
 func (d *ThreshDecrypt) reconstructReply(r structReconstructReply) error {
-	if r.Signature == nil {
+	if len(r.Signature) == 0 {
 		log.Lvl2("Node", r.ServerIdentity, "refused to send back reconstruct reply")
 		d.Failures++
 		if d.Failures > (len(d.Roster().List) - d.Threshold) {

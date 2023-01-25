@@ -14,7 +14,6 @@ type Partial struct {
 	Shares []*share.PubShare
 	Eis    []kyber.Scalar
 	Fis    []kyber.Scalar
-	//Pubs   []kyber.Point
 }
 
 type DecryptShare struct {
@@ -43,9 +42,8 @@ type structDecryptShareReply struct {
 
 type Reconstruct struct {
 	Partials []Partial
-	//Publics  []kyber.Point
-	Publics map[int]kyber.Point
-	Hash    []byte
+	Publics  map[int]kyber.Point
+	Hash     []byte
 }
 
 type structReconstruct struct {

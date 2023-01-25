@@ -1,7 +1,7 @@
-package easyneff
+package protocol
 
 import (
-	"errors"
+	"golang.org/x/xerrors"
 	"time"
 
 	"github.com/dedis/protean/utils"
@@ -13,11 +13,11 @@ import (
 	"go.dedis.ch/onet/v3"
 )
 
-// ShuffleProtocol is a protocol for running the Neff shuffle in a chain.
-type ShuffleProtocol struct {
+// NeffShuffle is a protocol for running the Neff shuffle in a chain.
+type NeffShuffle struct {
 	*onet.TreeNodeInstance
-	FinalProof chan ShuffleReply
-	InitialReq ShuffleRequest
+	Request    Request
+	FinalProof chan ShuffleProof
 
 	suite     proof.Suite
 	reqChan   chan reqChan
@@ -26,7 +26,7 @@ type ShuffleProtocol struct {
 
 type reqChan struct {
 	*onet.TreeNode
-	ShuffleRequest
+	Request
 }
 
 type proofChan struct {
@@ -37,9 +37,9 @@ type proofChan struct {
 // NewShuffleProtocol initializes the shuffle protocol, it is used as a
 // callback when creating new shuffle protocol instances.
 func NewShuffleProtocol(n *onet.TreeNodeInstance, suite proof.Suite) (onet.ProtocolInstance, error) {
-	p := &ShuffleProtocol{
+	p := &NeffShuffle{
 		TreeNodeInstance: n,
-		FinalProof:       make(chan ShuffleReply, 1),
+		FinalProof:       make(chan ShuffleProof, 1),
 		suite:            suite,
 	}
 	if err := p.RegisterChannels(&p.reqChan, &p.proofChan); err != nil {
@@ -56,19 +56,19 @@ func NewShuffleProtocolDefaultSuite(n *onet.TreeNodeInstance) (onet.ProtocolInst
 }
 
 // Start implements the onet.ProtocolInstance interface.
-func (p *ShuffleProtocol) Start() error {
+func (p *NeffShuffle) Start() error {
 	if !p.IsRoot() {
-		return errors.New("protocol must start on root")
+		return xerrors.New("protocol must start on root")
 	}
 	if !treeIsChain(p.Root(), len(p.List())) {
-		return errors.New("tree must be a line")
+		return xerrors.New("tree must be a line")
 	}
 	// start the shuffle
-	return p.SendTo(p.Root(), &p.InitialReq)
+	return p.SendTo(p.Root(), &p.Request)
 }
 
 // Dispatch implements the onet.ProtocolInstance interface.
-func (p *ShuffleProtocol) Dispatch() error {
+func (p *NeffShuffle) Dispatch() error {
 	defer p.Done()
 
 	// handle the first request
@@ -98,7 +98,7 @@ func (p *ShuffleProtocol) Dispatch() error {
 		return nil
 	}
 	// Send to the next node in the chain.
-	newReq := ShuffleRequest{
+	newReq := Request{
 		Pairs: signedPrf.Pairs,
 		H:     req.H,
 	}
@@ -115,11 +115,11 @@ func (p *ShuffleProtocol) Dispatch() error {
 		case prf := <-p.proofChan:
 			proofMap[prf.TreeNode.ID] = prf.Proof
 		case <-time.After(5 * time.Second):
-			return errors.New("timeout waiting for proofs")
+			return xerrors.New("timeout waiting for proofs")
 		}
 	}
 	// Sort the proofs in order and use that as our final result.
-	p.FinalProof <- ShuffleReply{Proofs: sortProofs(proofMap, p.Root())}
+	p.FinalProof <- ShuffleProof{Proofs: sortProofs(proofMap, p.Root())}
 	return nil
 }
 
@@ -127,8 +127,6 @@ func splitPairs(pairs []utils.ElGamalPair) ([]kyber.Point, []kyber.Point) {
 	xs := make([]kyber.Point, len(pairs))
 	ys := make([]kyber.Point, len(pairs))
 	for i := range pairs {
-		//xs[i] = pairs[i].C1
-		//ys[i] = pairs[i].C2
 		xs[i] = pairs[i].K
 		ys[i] = pairs[i].C
 	}
@@ -141,7 +139,6 @@ func combinePairs(xs, ys []kyber.Point) []utils.ElGamalPair {
 	}
 	pairs := make([]utils.ElGamalPair, len(xs))
 	for i := range xs {
-		//pairs[i] = utils.ElGamalPair{xs[i], ys[i]}
 		pairs[i] = utils.ElGamalPair{K: xs[i], C: ys[i]}
 	}
 	return pairs

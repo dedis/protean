@@ -1,7 +1,6 @@
 package threshold
 
 import (
-	"errors"
 	"fmt"
 	"github.com/dedis/protean/threshold/protocol"
 	"go.dedis.ch/cothority/v3/blscosi"
@@ -65,10 +64,10 @@ func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 func (s *Service) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
 	// Run DKG
 	reply := &InitDKGReply{}
-	tree := s.roster.GenerateNaryTreeWithRoot(len(s.roster.List), s.ServerIdentity())
+	tree := s.roster.GenerateNaryTreeWithRoot(len(s.roster.List)-1, s.ServerIdentity())
 	if tree == nil {
 		log.Error("Cannot create tree with roster", s.roster.List)
-		return nil, errors.New("error while generating tree")
+		return nil, xerrors.New("error while generating tree")
 	}
 	pi, err := s.CreateProtocol(dkgprotocol.Name, tree)
 	if err != nil {
@@ -109,7 +108,7 @@ func (s *Service) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
 			return nil, err
 		}
 	case <-time.After(propagationTimeout):
-		return nil, errors.New("DKG did not finish in time")
+		return nil, xerrors.New("DKG did not finish in time")
 	}
 	// Collectively sign the execution plan
 	//sig, err := s.signExecutionPlan(req.ExecData.ExecPlan)
@@ -136,10 +135,10 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 	//}
 	// create protocol
 	nodeCount := len(s.roster.List)
-	tree := s.roster.GenerateNaryTreeWithRoot(nodeCount, s.ServerIdentity())
+	tree := s.roster.GenerateNaryTreeWithRoot(nodeCount-1, s.ServerIdentity())
 	pi, err := s.CreateProtocol(protocol.ThreshProtoName, tree)
 	if err != nil {
-		return nil, errors.New("failed to create decryptShare protocol: " + err.Error())
+		return nil, xerrors.New("failed to create decryptShare protocol: " + err.Error())
 	}
 	decProto := pi.(*protocol.ThreshDecrypt)
 	decProto.Cs = req.Cs
@@ -157,14 +156,14 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 	if !ok {
 		s.storage.Unlock()
 		log.Errorf("Cannot find ID: %v", req.ID)
-		return nil, errors.New("no DKG entry found for the given ID")
+		return nil, xerrors.New("no DKG entry found for the given ID")
 	}
 	decProto.Shared = shared.Clone()
 	pp, ok := s.storage.Polys[req.ID]
 	if !ok {
 		s.storage.Unlock()
 		log.Errorf("Cannot find ID: %v", req.ID)
-		return nil, errors.New("no DKG entry found for the given ID")
+		return nil, xerrors.New("no DKG entry found for the given ID")
 	}
 	commits := make([]kyber.Point, len(pp.Commits))
 	for i, c := range pp.Commits {
@@ -175,12 +174,11 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 	log.Lvl3("Starting decryption protocol")
 	err = decProto.Start()
 	if err != nil {
-		return nil, errors.New("Failed to start the decryption protocol: " + err.Error())
+		return nil, xerrors.New("Failed to start the decryption protocol: " + err.Error())
 	}
 	if !<-decProto.Decrypted {
-		return nil, errors.New("Decryption got refused")
+		return nil, xerrors.New("decryption got refused")
 	}
-	log.Lvl3("Decryption protocol is done.")
 	return &DecryptReply{Ps: decProto.Ptexts, Signature: decProto.FinalSignature}, nil
 }
 

@@ -1,11 +1,11 @@
 package contracts
 
 import (
-	"errors"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/darc"
 	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/protobuf"
+	"golang.org/x/xerrors"
 )
 
 const ContractKeyValueID = "keyValue"
@@ -71,7 +71,7 @@ func (c *ContractKeyValue) Invoke(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.In
 	}
 	if inst.Invoke.Command != "update" {
 		log.Errorf("Value contract can only update")
-		return nil, nil, errors.New("value contract can only update")
+		return nil, nil, xerrors.New("value contract can only update")
 	}
 	kvd := &c.Storage
 	kvd.Update(inst.Invoke.Args)

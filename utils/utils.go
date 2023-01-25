@@ -20,10 +20,14 @@ import (
 
 var ps = pairing.NewSuiteBn256()
 
+// Utility functions for ElGamalPair
+
 type ElGamalPair struct {
 	K kyber.Point // C1
 	C kyber.Point // C2
 }
+
+type Pairs []ElGamalPair
 
 // ElGamalEncrypt performs the ElGamal encryption algorithm.
 func ElGamalEncrypt(public kyber.Point, message []byte) ElGamalPair {
@@ -45,6 +49,23 @@ func ElGamalEncrypt(public kyber.Point, message []byte) ElGamalPair {
 func ElGamalDecrypt(private kyber.Scalar, egp ElGamalPair) kyber.Point {
 	S := cothority.Suite.Point().Mul(private, egp.K) // regenerate shared secret
 	return cothority.Suite.Point().Sub(egp.C, S)     // use to un-blind the message
+}
+
+func (ps Pairs) Hash() ([]byte, error) {
+	h := sha256.New()
+	for _, p := range ps {
+		bufK, err := p.K.MarshalBinary()
+		if err != nil {
+			return nil, err
+		}
+		bufC, err := p.C.MarshalBinary()
+		if err != nil {
+			return nil, err
+		}
+		h.Write(bufK)
+		h.Write(bufC)
+	}
+	return h.Sum(nil), nil
 }
 
 func BlsCosiSign(s *blscosi.Service, r *onet.Roster, data []byte) (network.Message, error) {
