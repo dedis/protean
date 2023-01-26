@@ -22,13 +22,13 @@ import (
 )
 
 func init() {
-	_, err := onet.GlobalProtocolRegister(ThreshProtoName, NewThreshDecrypt)
+	_, err := onet.GlobalProtocolRegister(DecryptProtoName, NewThreshDecrypt)
 	if err != nil {
 		log.Errorf("Cannot register protocol: %v", err)
 		panic(err)
 	}
-	network.RegisterMessages(&DecryptShare{}, &DecryptShareReply{},
-		&Reconstruct{}, &ReconstructReply{})
+	network.RegisterMessages(&DecryptShare{}, &DecryptShareResponse{},
+		&Reconstruct{}, &ReconstructResponse{})
 }
 
 type ThreshDecrypt struct {
@@ -46,16 +46,16 @@ type ThreshDecrypt struct {
 	FinalSignature protocol.BlsSignature
 	Decrypted      chan bool
 	// private fields
-	suite              *pairing.SuiteBn256
-	pubShares          map[int]kyber.Point
-	dsReplies          []DecryptShareReply
-	reconstructReplies []ReconstructReply
-	BlsPublic          kyber.Point
-	BlsPublics         []kyber.Point
-	BlsSk              kyber.Scalar
-	mask               *sign.Mask
-	timeout            *time.Timer
-	doneOnce           sync.Once
+	suite                *pairing.SuiteBn256
+	pubShares            map[int]kyber.Point
+	dsResponses          []DecryptShareResponse
+	reconstructResponses []ReconstructResponse
+	BlsPublic            kyber.Point
+	BlsPublics           []kyber.Point
+	BlsSk                kyber.Scalar
+	mask                 *sign.Mask
+	timeout              *time.Timer
+	doneOnce             sync.Once
 }
 
 func NewThreshDecrypt(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
@@ -64,8 +64,8 @@ func NewThreshDecrypt(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
 		Decrypted:        make(chan bool, 1),
 		suite:            pairing.NewSuiteBn256(),
 	}
-	err := d.RegisterHandlers(d.decryptShare, d.decryptShareReply,
-		d.reconstruct, d.reconstructReply)
+	err := d.RegisterHandlers(d.decryptShare, d.decryptShareResponse,
+		d.reconstruct, d.reconstructResponse)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +93,7 @@ func (d *ThreshDecrypt) Start() error {
 	})
 	errs := d.Broadcast(ds)
 	if len(errs) > (len(d.Roster().List) - d.Threshold) {
-		log.Errorf("Some nodes failed with error(s) %v", errs)
+		log.Errorf("some nodes failed with error(s) %v", errs)
 		return xerrors.New("too many nodes failed in broadcast")
 	}
 	return nil
@@ -110,13 +110,13 @@ func (d *ThreshDecrypt) decryptShare(r structDecryptShare) error {
 		shares[i].Ei = ei
 		shares[i].Fi = fi
 	}
-	return d.SendToParent(&DecryptShareReply{Shares: shares})
+	return d.SendToParent(&DecryptShareResponse{Shares: shares})
 }
 
-// decryptShareReply is the root-node waiting for replies
-func (d *ThreshDecrypt) decryptShareReply(r structDecryptShareReply) error {
+// decryptShareResponse is the root-node waiting for replies
+func (d *ThreshDecrypt) decryptShareResponse(r structDecryptShareResponse) error {
 	if len(r.Shares) == 0 {
-		log.Lvl2("Node", r.ServerIdentity, "refused to reply")
+		log.Lvl2(r.ServerIdentity, "refused to respond")
 		d.Failures++
 		if d.Failures > (len(d.Roster().List) - d.Threshold) {
 			log.Lvl2(r.ServerIdentity, "couldn't get enough shares")
@@ -144,9 +144,9 @@ func (d *ThreshDecrypt) decryptShareReply(r structDecryptShareReply) error {
 		}
 	}
 
-	d.dsReplies = append(d.dsReplies, r.DecryptShareReply)
+	d.dsResponses = append(d.dsResponses, r.DecryptShareResponse)
 
-	if len(d.dsReplies) == d.Threshold-1 {
+	if len(d.dsResponses) == d.Threshold-1 {
 		d.Failures = 0
 		idx := -1
 		for i, c := range d.Cs {
@@ -157,7 +157,7 @@ func (d *ThreshDecrypt) decryptShareReply(r structDecryptShareReply) error {
 			d.partials[i].Shares = append(d.partials[i].Shares, ps)
 			d.partials[i].Eis = append(d.partials[i].Eis, ei)
 			d.partials[i].Fis = append(d.partials[i].Fis, fi)
-			for _, rep := range d.dsReplies {
+			for _, rep := range d.dsResponses {
 				tmpSh := rep.Shares[i]
 				d.partials[i].Shares = append(d.partials[i].Shares, tmpSh.Sh)
 				d.partials[i].Eis = append(d.partials[i].Eis, tmpSh.Ei)
@@ -177,28 +177,27 @@ func (d *ThreshDecrypt) decryptShareReply(r structDecryptShareReply) error {
 			d.finish(false)
 			return err
 		}
-		rr, err := d.generateReconstructReply(hash)
+		rr, err := d.generateReconstructResponse(hash)
 		if err != nil {
-			log.Errorf("root couldn't generate reconstruct reply: %v", err)
+			log.Errorf("root couldn't generate reconstruct response: %v", err)
 			d.finish(false)
 			return err
 		}
-		//d.mask, err = sign.NewMask(d.suite, d.Publics(), d.Public())
 		d.mask, err = sign.NewMask(d.suite, d.BlsPublics, d.BlsPublic)
 		if err != nil {
 			log.Errorf("root couldn't generate mask: %v", err)
 			d.finish(false)
 			return err
 		}
-		// add root's reconstruct reply to the array
-		d.reconstructReplies = append(d.reconstructReplies, *rr)
+		// add root's reconstruct response to the array
+		d.reconstructResponses = append(d.reconstructResponses, *rr)
 		errs := d.Broadcast(&Reconstruct{
 			Partials: d.partials,
 			Publics:  d.pubShares,
 			Hash:     hash,
 		})
 		if len(errs) > (len(d.Roster().List) - d.Threshold) {
-			log.Errorf("Some nodes failed with error(s) %v", errs)
+			log.Errorf("some nodes failed with error(s) %v", errs)
 			d.finish(false)
 		}
 	}
@@ -215,9 +214,9 @@ func (d *ThreshDecrypt) reconstruct(r structReconstruct) error {
 			ok := verifyDecProof(partial.Shares[j].V, partial.Eis[j],
 				partial.Fis[j], c.K, r.Publics[partial.Shares[j].I])
 			if !ok {
-				log.Errorf("%s cannot verify decryption proof", d.Name())
-				return cothority.ErrorOrNil(d.SendToParent(&ReconstructReply{}),
-					"sending ReconstructReply to parent")
+				log.Errorf("%s couldn't verify decryption proof", d.Name())
+				return cothority.ErrorOrNil(d.SendToParent(&ReconstructResponse{}),
+					"sending ReconstructResponse to parent")
 			}
 		}
 		d.Ptexts[i] = d.recoverCommit(c, partial.Shares)
@@ -225,39 +224,39 @@ func (d *ThreshDecrypt) reconstruct(r structReconstruct) error {
 	hash, err := d.calculateHash()
 	if err != nil {
 		log.Errorf("root couldn't calculate the hash: %v", err)
-		return cothority.ErrorOrNil(d.SendToParent(&ReconstructReply{}),
-			"sending ReconstructReply to parent")
+		return cothority.ErrorOrNil(d.SendToParent(&ReconstructResponse{}),
+			"sending ReconstructResponse to parent")
 	}
 	if !bytes.Equal(r.Hash, hash) {
 		log.Errorf("hashes do not match")
-		return cothority.ErrorOrNil(d.SendToParent(&ReconstructReply{}),
-			"sending ReconstructReply to parent")
+		return cothority.ErrorOrNil(d.SendToParent(&ReconstructResponse{}),
+			"sending ReconstructResponse to parent")
 	}
-	rr, err := d.generateReconstructReply(hash)
+	rr, err := d.generateReconstructResponse(hash)
 	if err != nil {
-		log.Errorf("%s couldn't generate reconstruct reply: %v", d.Name(), err)
+		log.Errorf("%s couldn't generate reconstruct response: %v", d.Name(), err)
 	}
 	return cothority.ErrorOrNil(d.SendToParent(rr),
-		"sending ReconstructReply to parent")
+		"sending ReconstructResponse to parent")
 }
 
-func (d *ThreshDecrypt) reconstructReply(r structReconstructReply) error {
+func (d *ThreshDecrypt) reconstructResponse(r structReconstructResponse) error {
 	if len(r.Signature) == 0 {
-		log.Lvl2("Node", r.ServerIdentity, "refused to send back reconstruct reply")
+		log.Lvl2(r.ServerIdentity, "refused to send back reconstruct response")
 		d.Failures++
 		if d.Failures > (len(d.Roster().List) - d.Threshold) {
-			log.Lvl2(r.ServerIdentity, "couldn't get enough reconstruct replies")
+			log.Lvl2(r.ServerIdentity, "couldn't get enough reconstruct responses")
 			d.finish(false)
 		}
 		return nil
 	}
 	_, index := searchPublicKey(d.TreeNodeInstance, r.ServerIdentity)
 	d.mask.SetBit(index, true)
-	d.reconstructReplies = append(d.reconstructReplies, r.ReconstructReply)
-	if len(d.reconstructReplies) == d.Threshold {
+	d.reconstructResponses = append(d.reconstructResponses, r.ReconstructResponse)
+	if len(d.reconstructResponses) == d.Threshold {
 		finalSignature := d.suite.G1().Point()
-		for _, reply := range d.reconstructReplies {
-			sig, err := reply.Signature.Point(d.suite)
+		for _, resp := range d.reconstructResponses {
+			sig, err := resp.Signature.Point(d.suite)
 			if err != nil {
 				d.finish(false)
 				return err
@@ -275,12 +274,12 @@ func (d *ThreshDecrypt) reconstructReply(r structReconstructReply) error {
 	return nil
 }
 
-func (d *ThreshDecrypt) generateReconstructReply(data []byte) (*ReconstructReply, error) {
+func (d *ThreshDecrypt) generateReconstructResponse(data []byte) (*ReconstructResponse, error) {
 	sig, err := bls.Sign(d.suite, d.BlsSk, data)
 	if err != nil {
-		return &ReconstructReply{}, err
+		return &ReconstructResponse{}, err
 	}
-	return &ReconstructReply{Signature: sig}, nil
+	return &ReconstructResponse{Signature: sig}, nil
 }
 
 func (d *ThreshDecrypt) generateDecProof(u kyber.Point, sh kyber.Point) (kyber.Scalar, kyber.Scalar) {
@@ -317,7 +316,7 @@ func verifyDecProof(sh kyber.Point, ei kyber.Scalar, fi kyber.Scalar,
 func (d *ThreshDecrypt) recoverCommit(cs utils.ElGamalPair, pubShares []*share.PubShare) kyber.Point {
 	rc, err := share.RecoverCommit(cothority.Suite, pubShares, d.Threshold, len(d.List()))
 	if err != nil {
-		log.Errorf("cannot recover message: %v", err)
+		log.Errorf("couldn't recover message: %v", err)
 		return nil
 	}
 	p := cothority.Suite.Point().Sub(cs.C, rc)

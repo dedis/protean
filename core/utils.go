@@ -1,12 +1,105 @@
 package core
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
+	"go.dedis.ch/kyber/v3/pairing"
+	"go.dedis.ch/kyber/v3/sign"
+	"go.dedis.ch/onet/v3/log"
+	"golang.org/x/xerrors"
 	"sort"
 	"strings"
 )
+
+type VerifyData struct {
+	Suite      *pairing.SuiteBn256
+	UID        string
+	OpcodeName string
+	SUID       string
+	CEUID      string
+	// Prepared by the root node. key: input variable,
+	// value: H(output) from parent opcode.
+	OpcodeHashes map[string][]byte
+	// Prepared by the client. key: input variable.
+	KVMap map[string]ReadState
+}
+
+func (r *ExecutionRequest) VerifyRequest(data *VerifyData) error {
+	// Index of this opcode
+	idx := r.Index
+	// 1) Check that the DFUID and opcode name are correct
+	opcode := r.EP.Txn.Opcodes[idx]
+	if strings.Compare(data.UID, opcode.DFUID) != 0 {
+		return xerrors.Errorf("Invalid UID. Expected %s but received %s",
+			opcode.DFUID, data.UID)
+	}
+	if strings.Compare(data.OpcodeName, opcode.Name) != 0 {
+		return xerrors.Errorf("Invalid opcode. Expected %s but received %s",
+			opcode.Name, data.OpcodeName)
+	}
+	// 2) Check CEU's signature on the execution plan
+	ceuData := r.EP.DFUData[data.CEUID]
+	epHash := r.EP.Hash()
+	err := r.EPSig.VerifyWithPolicy(data.Suite, epHash, ceuData.Keys,
+		sign.NewThresholdPolicy(ceuData.Threshold))
+	if err != nil {
+		return xerrors.Errorf("cannot verify signature on the execution plan: %v", err)
+	}
+	// 3) Check dependencies
+	for inputName, dep := range opcode.Dependencies {
+		if dep.Src == OPCODE {
+			//receipt, ok := r.OpReceipts[dep.SrcName]
+			receipt, ok := r.OpReceipts[inputName]
+			if !ok {
+				return xerrors.Errorf("missing opcode receipt from output %s for input %s", dep.SrcName, inputName)
+			}
+			if strings.Compare(dep.SrcName, receipt.Name) != 0 {
+				return xerrors.Errorf("expected src_name %s but received %s", dep.SrcName, receipt.Name)
+			}
+			if receipt.OpIdx != dep.Idx {
+				return xerrors.Errorf("expected index %d but received %d", dep.Idx, receipt.OpIdx)
+			}
+			inputHash, ok := data.OpcodeHashes[inputName]
+			if !ok {
+				return xerrors.Errorf("cannot find the input data for %s", inputName)
+			}
+			if !bytes.Equal(inputHash, receipt.Digest) {
+				return xerrors.Errorf("hashes do not match for input %s", inputName)
+			}
+			hash := receipt.Hash()
+			dfuid := r.EP.Txn.Opcodes[dep.Idx].DFUID
+			dfuData, ok := r.EP.DFUData[dfuid]
+			if !ok {
+				return xerrors.Errorf("cannot find dfu info for %s", dfuid)
+			}
+			err := receipt.Sig.VerifyWithPolicy(data.Suite, hash, dfuData.Keys,
+				sign.NewThresholdPolicy(dfuData.Threshold))
+			if err != nil {
+				return xerrors.Errorf("cannot verify signature from %s for on opcode receipt: %v", err)
+			}
+		} else if dep.Src == KEYVALUE {
+			rs, ok := data.KVMap[inputName]
+			if !ok {
+				return xerrors.Errorf("missing keyvalue for input %s", inputName)
+			}
+			if !bytes.Equal(rs.Root, r.EP.StateRoot) {
+				return xerrors.Errorf("merkle roots do not match")
+			}
+			hash := rs.Hash()
+			suData := r.EP.DFUData[data.SUID]
+			err := rs.Sig.VerifyWithPolicy(data.Suite, hash, suData.Keys,
+				sign.NewThresholdPolicy(suData.Threshold))
+			if err != nil {
+				return xerrors.Errorf("cannot verify state unit's signature on keyvalue: %v", err)
+			}
+		} else {
+			log.Lvl1("CONST input data")
+		}
+	}
+	return nil
+}
 
 func (p *ExecutionPlan) Hash() []byte {
 	h := sha256.New()

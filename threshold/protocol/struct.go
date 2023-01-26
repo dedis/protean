@@ -8,7 +8,7 @@ import (
 	"go.dedis.ch/onet/v3"
 )
 
-const ThreshProtoName = "ThreshDecryptProto"
+const DecryptProtoName = "threshold_decrypt"
 
 type Partial struct {
 	Shares []*share.PubShare
@@ -31,13 +31,13 @@ type Share struct {
 	Fi kyber.Scalar
 }
 
-type DecryptShareReply struct {
+type DecryptShareResponse struct {
 	Shares []Share
 }
 
-type structDecryptShareReply struct {
+type structDecryptShareResponse struct {
 	*onet.TreeNode
-	DecryptShareReply
+	DecryptShareResponse
 }
 
 type Reconstruct struct {
@@ -51,11 +51,11 @@ type structReconstruct struct {
 	Reconstruct
 }
 
-type ReconstructReply struct {
+type ReconstructResponse struct {
 	Signature protocol.BlsSignature
 }
 
-type structReconstructReply struct {
+type structReconstructResponse struct {
 	*onet.TreeNode
-	ReconstructReply
+	ReconstructResponse
 }

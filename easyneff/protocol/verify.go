@@ -3,7 +3,6 @@ package protocol
 import (
 	"bytes"
 	"crypto/sha256"
-	"errors"
 	"github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3"
 	blscosi "go.dedis.ch/cothority/v3/blscosi/protocol"
@@ -20,7 +19,7 @@ import (
 )
 
 func init() {
-	_, err := onet.GlobalProtocolRegister(ShuffleVerifyName, NewShuffleVerify)
+	_, err := onet.GlobalProtocolRegister(VerifyProtoName, NewShuffleVerify)
 	if err != nil {
 		log.Errorf("cannot register protocol: %v", err)
 		panic(err)
@@ -59,7 +58,7 @@ func NewShuffleVerify(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
 		Verified:         make(chan bool, 1),
 		suite:            pairing.NewSuiteBn256(),
 	}
-	err := s.RegisterHandlers(s.verifyProofs, s.verifyProofsReply)
+	err := s.RegisterHandlers(s.verifyProofs, s.verifyProofsResponse)
 	if err != nil {
 		return nil, err
 	}
@@ -72,24 +71,24 @@ func (s *ShuffleVerify) Start() error {
 		s.finish(false)
 		return xerrors.New("initialize Proofs first")
 	}
+	hash, err := CalculateHash(s.SProof.Proofs)
+	if err != nil {
+		log.Errorf("root %s failed to calculate the hash: %v", s.Name(), err)
+		s.finish(false)
+		return err
+	}
+	resp, err := s.generateResponse(hash)
+	if err != nil {
+		log.Errorf("root %s failed to generate response: %v", s.Name(), err)
+		s.finish(false)
+		return err
+	}
+	s.responses = append(s.responses, resp)
 	s.mask, err = sign.NewMask(s.suite, s.BlsPublics, s.BlsPublic)
 	if err != nil {
 		s.finish(false)
 		return xerrors.Errorf("couldn't generate mask: %v", err)
 	}
-	hash, err := CalculateHash(s.SProof.Proofs)
-	if err != nil {
-		log.Errorf("Root %s failed to calculate the hash: %v", s.Name(), err)
-		s.finish(false)
-		return err
-	}
-	reply, err := s.generateResponse(hash)
-	if err != nil {
-		log.Errorf("Root %s failed to generate reply: %v", s.Name(), err)
-		s.finish(false)
-		return err
-	}
-	s.responses = append(s.responses, reply)
 	vp := &VerifyProofs{
 		Pairs:  s.Pairs,
 		H:      s.H,
@@ -97,13 +96,13 @@ func (s *ShuffleVerify) Start() error {
 		Hash:   hash,
 	}
 	s.timeout = time.AfterFunc(2*time.Minute, func() {
-		log.Lvl1("ThreshDecrypt protocol timeout")
+		log.Lvl1("ShuffleVerify protocol timeout")
 		s.finish(false)
 	})
 	errs := s.Broadcast(vp)
 	if len(errs) > (len(s.Roster().List) - s.Threshold) {
-		log.Errorf("Some nodes failed with error(s) %v", errs)
-		return errors.New("too many nodes failed in broadcast")
+		log.Errorf("some nodes failed with error(s) %v", errs)
+		return xerrors.New("too many nodes failed in broadcast")
 	}
 	return nil
 }
@@ -127,17 +126,17 @@ func (s *ShuffleVerify) verifyProofs(r structVerifyProofs) error {
 		return cothority.ErrorOrNil(s.SendToParent(&VerifyProofsResponse{}),
 			"sending VerifyProofsResponse to parent")
 	}
-	reply, err := s.generateResponse(hash)
+	resp, err := s.generateResponse(hash)
 	if err != nil {
-		log.Errorf("%s couldn't generate reply: %v", s.Name(), err)
+		log.Errorf("%s couldn't generate response: %v", s.Name(), err)
 	}
-	return cothority.ErrorOrNil(s.SendToParent(&reply),
+	return cothority.ErrorOrNil(s.SendToParent(&resp),
 		"sending VerifyProofsResponse to parent")
 }
 
-func (s *ShuffleVerify) verifyProofsReply(r structVerifyProofsResponse) error {
+func (s *ShuffleVerify) verifyProofsResponse(r structVerifyProofsResponse) error {
 	if len(r.Signature) == 0 {
-		log.Lvl2("Node", r.ServerIdentity, "refused to reply")
+		log.Lvl2(r.ServerIdentity, "refused to respond")
 		s.Failures++
 		if s.Failures > (len(s.Roster().List) - s.Threshold) {
 			log.Lvl2(r.ServerIdentity, "couldn't get enough responses")

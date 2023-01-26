@@ -46,7 +46,6 @@ type Service struct {
 
 func init() {
 	var err error
-	//thresholdID, err = onet.RegisterNewServiceWithSuite(ServiceName, suite, newService)
 	thresholdID, err = onet.RegisterNewService(ServiceName, newService)
 	if err != nil {
 		panic(err)
@@ -136,7 +135,7 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 	// create protocol
 	nodeCount := len(s.roster.List)
 	tree := s.roster.GenerateNaryTreeWithRoot(nodeCount-1, s.ServerIdentity())
-	pi, err := s.CreateProtocol(protocol.ThreshProtoName, tree)
+	pi, err := s.CreateProtocol(protocol.DecryptProtoName, tree)
 	if err != nil {
 		return nil, xerrors.New("failed to create decryptShare protocol: " + err.Error())
 	}
@@ -258,7 +257,7 @@ func (s *Service) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConfi
 			}
 		}(conf.Data)
 		return pi, nil
-	case protocol.ThreshProtoName:
+	case protocol.DecryptProtoName:
 		id := NewDKGID(conf.Data)
 		s.storage.Lock()
 		shared, ok := s.storage.Shared[id]

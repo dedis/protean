@@ -21,7 +21,7 @@ type VP struct {
 	*onet.TreeNodeInstance
 	ExecRequest *core.ExecutionRequest
 	// Prepared by the root node. key: input variable,
-	// value: H(output) from parent opcode.\
+	// value: H(output) from parent opcode.
 	OpcodeHashes map[string][]byte
 	// Prepared by the client. key: input variable.
 	KVMap map[string]core.ReadState

@@ -1,9 +1,6 @@
 package easyrand
 
 import (
-	"time"
-
-	"github.com/dedis/protean/sys"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/onet/v3"
 )
@@ -17,35 +14,28 @@ func NewClient(r *onet.Roster) *Client {
 	return &Client{Client: onet.NewClient(cothority.Suite, ServiceName), roster: r}
 }
 
-func (c *Client) InitUnit(cfg *sys.UnitConfig, timeout time.Duration) (*InitUnitReply, error) {
-	req := &InitUnitRequest{
-		Cfg:     cfg,
-		Timeout: timeout,
-	}
+func (c *Client) InitUnit() (*InitUnitReply, error) {
+	req := &InitUnitRequest{Roster: c.roster}
 	reply := &InitUnitReply{}
-	err := c.SendProtobuf(c.roster.List[0], req, reply)
-	return reply, err
+	for _, dst := range c.roster.List {
+		err := c.SendProtobuf(dst, req, reply)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return reply, nil
 }
 
-func (c *Client) InitDKG(timeout int, ed *sys.ExecutionData) (*InitDKGReply, error) {
-	req := &InitDKGRequest{
-		Timeout:  timeout,
-		ExecData: ed,
-	}
+func (c *Client) InitDKG() (*InitDKGReply, error) {
+	req := &InitDKGRequest{}
 	reply := &InitDKGReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)
 	return reply, err
 }
 
-func (c *Client) Randomness(ed *sys.ExecutionData) (*RandomnessReply, error) {
-	req := &RandomnessRequest{
-		ExecData: ed,
-	}
+func (c *Client) Randomness() (*RandomnessReply, error) {
+	req := &RandomnessRequest{}
 	reply := &RandomnessReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)
 	return reply, err
 }
-
-//func GetServiceID() onet.ServiceID {
-//return easyrandID
-//}

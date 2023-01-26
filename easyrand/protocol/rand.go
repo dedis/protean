@@ -1,7 +1,7 @@
-package easyrand
+package protocol
 
 import (
-	"errors"
+	"golang.org/x/xerrors"
 	"time"
 
 	"go.dedis.ch/kyber/v3/pairing"
@@ -14,56 +14,28 @@ import (
 // SignProtocol starts a threshold BLS signature protocol.
 type SignProtocol struct {
 	*onet.TreeNodeInstance
-	Msg      []byte
-	initChan chan initChan
-	sigChan  chan sigChan
-	syncChan chan syncChan
+	Msg       []byte
+	Threshold int
+	initChan  chan initChan
+	sigChan   chan sigChan
 
+	syncChan   chan syncChan
 	verifyMesg func([]byte) error
 	sk         *share.PriShare
 	pk         *share.PubPoly
 	suite      pairing.Suite
-	threshold  int
 
 	FinalSignature chan []byte
 }
 
-// Init initializes the message to sign.
-type Init struct {
-	Msg []byte
-}
-type initChan struct {
-	*onet.TreeNode
-	Init
-}
-
-// Sig contains the full signature.
-type Sig struct {
-	ThresholdSig []byte
-}
-type sigChan struct {
-	*onet.TreeNode
-	Sig
-}
-
-// Sync is a synchronisation message.
-type Sync struct{}
-
-type syncChan struct {
-	*onet.TreeNode
-	Sync
-}
-
 // NewSignProtocol initialises the structure for use in one round.
 func NewSignProtocol(n *onet.TreeNodeInstance, vf func([]byte) error, sk *share.PriShare, pk *share.PubPoly, suite pairing.Suite) (onet.ProtocolInstance, error) {
-	numNodes := len(n.Roster().List)
 	t := &SignProtocol{
 		TreeNodeInstance: n,
 		verifyMesg:       vf,
 		sk:               sk,
 		pk:               pk,
 		suite:            suite,
-		threshold:        numNodes - (numNodes-1)/3,
 		FinalSignature:   make(chan []byte, 1),
 	}
 	if err := t.RegisterChannels(&t.initChan, &t.sigChan, &t.syncChan); err != nil {
@@ -75,7 +47,7 @@ func NewSignProtocol(n *onet.TreeNodeInstance, vf func([]byte) error, sk *share.
 // Start implements the onet.ProtocolInstance interface.
 func (p *SignProtocol) Start() error {
 	if len(p.Msg) == 0 {
-		return errors.New("empty message")
+		return xerrors.New("empty message")
 	}
 	log.Lvl3(p.ServerIdentity(), "starting")
 	return p.fullBroadcast(&Init{p.Msg})
@@ -106,7 +78,7 @@ func (p *SignProtocol) Dispatch() error {
 	}
 	//Fixed the threshold
 	//finalSig, err := tbls.Recover(p.suite, p.pk, initMsg.Msg, sigs, n-1, n)
-	finalSig, err := tbls.Recover(p.suite, p.pk, initMsg.Msg, sigs, p.threshold, n)
+	finalSig, err := tbls.Recover(p.suite, p.pk, initMsg.Msg, sigs, p.Threshold, n)
 	if err != nil {
 		return err
 	}
@@ -116,7 +88,7 @@ func (p *SignProtocol) Dispatch() error {
 			select {
 			case <-p.syncChan:
 			case <-time.After(time.Second):
-				return errors.New("time out while synchronising")
+				return xerrors.New("time out while synchronising")
 			}
 		}
 		p.FinalSignature <- finalSig

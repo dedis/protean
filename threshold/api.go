@@ -45,7 +45,3 @@ func (c *Client) Decrypt(id []byte, cs []utils.ElGamalPair) (*DecryptReply, erro
 	err := c.SendProtobuf(c.roster.List[0], req, reply)
 	return reply, err
 }
-
-func GetServiceID() onet.ServiceID {
-	return thresholdID
-}

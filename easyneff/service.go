@@ -47,7 +47,7 @@ func (s *EasyNeff) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 func (s *EasyNeff) Shuffle(req *ShuffleRequest) (*ShuffleReply, error) {
 	// create a "line" tree
 	tree := s.roster.GenerateNaryTree(1)
-	pi, err := s.CreateProtocol(protocol.NeffProtoName, tree)
+	pi, err := s.CreateProtocol(protocol.ShuffleProtoName, tree)
 	if err != nil {
 		return nil, err
 	}
@@ -58,10 +58,9 @@ func (s *EasyNeff) Shuffle(req *ShuffleRequest) (*ShuffleReply, error) {
 	}
 	select {
 	case proof := <-neff.FinalProof:
-		//log.Info(len(proof.Proofs))
 		nodeCount := len(s.roster.List)
 		tree := s.roster.GenerateNaryTreeWithRoot(nodeCount-1, s.ServerIdentity())
-		pi, err := s.CreateProtocol(protocol.ShuffleVerifyName, tree)
+		pi, err := s.CreateProtocol(protocol.VerifyProtoName, tree)
 		if err != nil {
 			return nil, err
 		}
@@ -80,10 +79,10 @@ func (s *EasyNeff) Shuffle(req *ShuffleRequest) (*ShuffleReply, error) {
 		shufVerify.Verify = s.ShuffleVerify
 		err = shufVerify.Start()
 		if err != nil {
-			return nil, xerrors.Errorf("Failed to start the shuffle verification protocol: " + err.Error())
+			return nil, xerrors.Errorf("Failed to start the verification protocol: " + err.Error())
 		}
 		if !<-shufVerify.Verified {
-			return nil, xerrors.New("shuffle failed")
+			return nil, xerrors.New("shuffle verify failed")
 		}
 		return &ShuffleReply{Proofs: proof.Proofs, Signature: shufVerify.FinalSignature}, nil
 	case <-time.After(time.Second * time.Duration(len(s.roster.List))):
@@ -134,15 +133,14 @@ func (s *EasyNeff) NewProtocol(tn *onet.TreeNodeInstance,
 	conf *onet.GenericConfig) (onet.ProtocolInstance, error) {
 	log.Lvl3(s.ServerIdentity(), tn.ProtocolName(), conf)
 	switch tn.ProtocolName() {
-	case protocol.NeffProtoName:
+	case protocol.ShuffleProtoName:
 		pi, err := protocol.NewShuffleProtocolDefaultSuite(tn)
 		if err != nil {
 			return nil, err
 		}
 		proto := pi.(*protocol.NeffShuffle)
-
 		return proto, nil
-	case protocol.ShuffleVerifyName:
+	case protocol.VerifyProtoName:
 		pi, err := protocol.NewShuffleVerify(tn)
 		if err != nil {
 			return nil, err
@@ -168,7 +166,7 @@ func newService(c *onet.Context) (onet.Service, error) {
 		return nil, err
 
 	}
-	_, err = s.ProtocolRegister(protocol.NeffProtoName, protocol.NewShuffleProtocolDefaultSuite)
+	_, err = s.ProtocolRegister(protocol.ShuffleProtoName, protocol.NewShuffleProtocolDefaultSuite)
 	if err != nil {
 		log.Errorf("Could not register protocols: %v", err)
 		return nil, err

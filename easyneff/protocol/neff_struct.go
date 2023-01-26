@@ -5,7 +5,7 @@ import (
 	"go.dedis.ch/kyber/v3"
 )
 
-const NeffProtoName = "neffprotocol"
+const ShuffleProtoName = "easyneff_shuffle"
 
 type Request struct {
 	Pairs []utils.ElGamalPair

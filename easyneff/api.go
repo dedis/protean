@@ -1,11 +1,11 @@
 package easyneff
 
 import (
-	"fmt"
 	"github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/onet/v3"
+	"golang.org/x/xerrors"
 )
 
 type Client struct {
@@ -31,7 +31,7 @@ func (c *Client) InitUnit() (*InitUnitReply, error) {
 
 func (c *Client) Shuffle(pairs []utils.ElGamalPair, h kyber.Point) (*ShuffleReply, error) {
 	if len(pairs) <= 0 {
-		return nil, fmt.Errorf("No ciphertext to shuffle")
+		return nil, xerrors.Errorf("No ciphertext to shuffle")
 	}
 	req := &ShuffleRequest{
 		Pairs: pairs,

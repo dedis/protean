@@ -7,7 +7,7 @@ import (
 	"go.dedis.ch/onet/v3"
 )
 
-const ShuffleVerifyName = "ShuffleVerifyProto"
+const VerifyProtoName = "easyneff_verify"
 
 type VerificationFn func(*ShuffleProof, kyber.Point, kyber.Point,
 	[]utils.ElGamalPair, []kyber.Point) error
