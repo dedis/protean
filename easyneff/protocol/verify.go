@@ -135,7 +135,8 @@ func (s *ShuffleVerify) verifyProofs(r structVerifyProofs) error {
 }
 
 func (s *ShuffleVerify) verifyProofsResponse(r structVerifyProofsResponse) error {
-	if len(r.Signature) == 0 {
+	index := searchPublicKey(s.TreeNodeInstance, r.ServerIdentity)
+	if len(r.Signature) == 0 || index < 0 {
 		log.Lvl2(r.ServerIdentity, "refused to respond")
 		s.Failures++
 		if s.Failures > (len(s.Roster().List) - s.Threshold) {
@@ -144,9 +145,10 @@ func (s *ShuffleVerify) verifyProofsResponse(r structVerifyProofsResponse) error
 		}
 		return nil
 	}
-	_, index := searchPublicKey(s.TreeNodeInstance, r.ServerIdentity)
+
 	s.mask.SetBit(index, true)
 	s.responses = append(s.responses, r.VerifyProofsResponse)
+
 	if len(s.responses) == s.Threshold {
 		finalSignature := s.suite.G1().Point()
 		for _, resp := range s.responses {
@@ -197,14 +199,13 @@ func CalculateHash(proofs []Proof) ([]byte, error) {
 	return h.Sum(nil), nil
 }
 
-func searchPublicKey(p *onet.TreeNodeInstance, servID *network.ServerIdentity) (
-	kyber.Point, int) {
+func searchPublicKey(p *onet.TreeNodeInstance, servID *network.ServerIdentity) int {
 	for idx, si := range p.Roster().List {
 		if si.Equal(servID) {
-			return p.NodePublic(si), idx
+			return idx
 		}
 	}
-	return nil, -1
+	return -1
 }
 
 func (s *ShuffleVerify) finish(result bool) {

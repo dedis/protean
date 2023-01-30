@@ -2,15 +2,17 @@ package protocol
 
 import (
 	blscosi "go.dedis.ch/cothority/v3/blscosi/protocol"
+	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/onet/v3"
 )
 
 const VerifyProtoName = "easyrand_verify"
 
 type Data struct {
-	Round uint64
-	Prev  []byte
-	Value []byte
+	Public kyber.Point
+	Round  uint64
+	Prev   []byte
+	Value  []byte
 }
 
 type VerifyRandomness struct {

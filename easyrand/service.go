@@ -110,7 +110,7 @@ func (s *EasyRand) Randomness(req *RandomnessRequest) (*RandomnessReply, error) 
 		s.blocks = append(s.blocks, sig)
 		round := uint64(len(s.blocks) - 1)
 		prev := s.getRoundBlock(round)
-
+		public := s.pubPoly.Commit()
 		// Start verify protocol
 		tree := s.roster.GenerateNaryTreeWithRoot(nodeCount-1, s.ServerIdentity())
 		pi, err := s.CreateProtocol(protocol.VerifyProtoName, tree)
@@ -119,7 +119,7 @@ func (s *EasyRand) Randomness(req *RandomnessRequest) (*RandomnessReply, error) 
 		}
 		randVerify := pi.(*protocol.RandomnessVerify)
 		randVerify.Threshold = nodeCount - (nodeCount-1)/3
-		randVerify.Data = &protocol.Data{Round: round, Prev: prev, Value: sig}
+		randVerify.Data = &protocol.Data{Public: public, Round: round, Prev: prev, Value: sig}
 		randVerify.BlsPublic = s.ServerIdentity().ServicePublic(blscosi.ServiceName)
 		randVerify.BlsPublics = s.roster.ServicePublics(blscosi.ServiceName)
 		randVerify.BlsSk = s.ServerIdentity().ServicePrivate(blscosi.ServiceName)
@@ -130,8 +130,8 @@ func (s *EasyRand) Randomness(req *RandomnessRequest) (*RandomnessReply, error) 
 		if !<-randVerify.Verified {
 			return nil, xerrors.New("randomness verify failed")
 		}
-		return &RandomnessReply{Round: round, Prev: prev, Value: sig,
-			Signature: randVerify.FinalSignature}, nil
+		return &RandomnessReply{Public: public, Round: round, Prev: prev,
+			Value: sig, Signature: randVerify.FinalSignature}, nil
 	case <-time.After(1 * time.Second):
 		log.Errorf("Timed out waiting for the final signature")
 		return nil, xerrors.New("timeout waiting for final signature")
@@ -225,7 +225,8 @@ func (s *EasyRand) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConf
 			return nil, err
 		}
 		proto := pi.(*protocol.RandomnessVerify)
-		proto.Data = &protocol.Data{Round: round, Prev: prev, Value: value}
+		proto.Data = &protocol.Data{Public: s.pubPoly.Commit(), Round: round,
+			Prev: prev, Value: value}
 		proto.BlsPublic = s.ServerIdentity().ServicePublic(blscosi.ServiceName)
 		proto.BlsPublics = s.roster.ServicePublics(blscosi.ServiceName)
 		proto.BlsSk = s.ServerIdentity().ServicePrivate(blscosi.ServiceName)

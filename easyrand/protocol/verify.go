@@ -66,7 +66,12 @@ func (rv *RandomnessVerify) Start() error {
 		rv.finish(false)
 		return xerrors.New("initialize Data first")
 	}
-	hash := CalculateHash(rv.Data)
+	hash, err := rv.CalculateHash()
+	if err != nil {
+		log.Errorf("root %s failed to calculate the hash: %v", rv.Name(), err)
+		rv.finish(false)
+		return err
+	}
 	resp, err := rv.generateResponse(hash)
 	if err != nil {
 		log.Errorf("root %s failed to generate response: %v", rv.Name(), err)
@@ -96,7 +101,13 @@ func (rv *RandomnessVerify) Start() error {
 
 func (rv *RandomnessVerify) verifyRandomness(r structVerifyRandomness) error {
 	defer rv.Done()
-	hash := CalculateHash(rv.Data)
+	//hash, err := CalculateHash(rv.Data)
+	hash, err := rv.CalculateHash()
+	if err != nil {
+		log.Errorf("%s: couldn't calculate the hash: %v", rv.Name(), err)
+		return cothority.ErrorOrNil(rv.SendToParent(&VerifyRandomnessResponse{}),
+			"sending VerifyRandomnessResponse to parent")
+	}
 	if !bytes.Equal(hash, r.Hash) {
 		log.Errorf("%s: hashes do not match", rv.Name())
 		return cothority.ErrorOrNil(rv.SendToParent(&VerifyRandomnessResponse{}),
@@ -111,7 +122,8 @@ func (rv *RandomnessVerify) verifyRandomness(r structVerifyRandomness) error {
 }
 
 func (rv *RandomnessVerify) verifyRandomnessResponse(r structVerifyRandomnessResponse) error {
-	if len(r.Signature) == 0 {
+	index := searchPublicKey(rv.TreeNodeInstance, r.ServerIdentity)
+	if len(r.Signature) == 0 || index < 0 {
 		log.Lvl2(r.ServerIdentity, "refused to respond")
 		rv.Failures++
 		if rv.Failures > (len(rv.Roster().List) - rv.Threshold) {
@@ -120,9 +132,10 @@ func (rv *RandomnessVerify) verifyRandomnessResponse(r structVerifyRandomnessRes
 		}
 		return nil
 	}
-	_, index := searchPublicKey(rv.TreeNodeInstance, r.ServerIdentity)
+
 	rv.mask.SetBit(index, true)
 	rv.responses = append(rv.responses, r.VerifyRandomnessResponse)
+
 	if len(rv.responses) == rv.Threshold {
 		finalSignature := rv.suite.G1().Point()
 		for _, resp := range rv.responses {
@@ -144,14 +157,19 @@ func (rv *RandomnessVerify) verifyRandomnessResponse(r structVerifyRandomnessRes
 	return nil
 }
 
-func CalculateHash(data *Data) []byte {
+func (rv *RandomnessVerify) CalculateHash() ([]byte, error) {
 	h := sha256.New()
+	buf, err := rv.Data.Public.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+	h.Write(buf)
 	b := make([]byte, 8)
-	binary.LittleEndian.PutUint64(b, uint64(data.Round))
+	binary.LittleEndian.PutUint64(b, uint64(rv.Data.Round))
 	h.Write(b)
-	h.Write(data.Prev)
-	h.Write(data.Value)
-	return h.Sum(nil)
+	h.Write(rv.Data.Prev)
+	h.Write(rv.Data.Value)
+	return h.Sum(nil), nil
 }
 
 func (rv *RandomnessVerify) generateResponse(data []byte) (VerifyRandomnessResponse, error) {
@@ -162,14 +180,13 @@ func (rv *RandomnessVerify) generateResponse(data []byte) (VerifyRandomnessRespo
 	return VerifyRandomnessResponse{Signature: sig}, nil
 }
 
-func searchPublicKey(p *onet.TreeNodeInstance, servID *network.ServerIdentity) (
-	kyber.Point, int) {
+func searchPublicKey(p *onet.TreeNodeInstance, servID *network.ServerIdentity) int {
 	for idx, si := range p.Roster().List {
 		if si.Equal(servID) {
-			return p.NodePublic(si), idx
+			return idx
 		}
 	}
-	return nil, -1
+	return -1
 }
 
 func (rv *RandomnessVerify) finish(result bool) {

@@ -241,7 +241,8 @@ func (d *ThreshDecrypt) reconstruct(r structReconstruct) error {
 }
 
 func (d *ThreshDecrypt) reconstructResponse(r structReconstructResponse) error {
-	if len(r.Signature) == 0 {
+	index := searchPublicKey(d.TreeNodeInstance, r.ServerIdentity)
+	if len(r.Signature) == 0 || index < 0 {
 		log.Lvl2(r.ServerIdentity, "refused to send back reconstruct response")
 		d.Failures++
 		if d.Failures > (len(d.Roster().List) - d.Threshold) {
@@ -250,9 +251,10 @@ func (d *ThreshDecrypt) reconstructResponse(r structReconstructResponse) error {
 		}
 		return nil
 	}
-	_, index := searchPublicKey(d.TreeNodeInstance, r.ServerIdentity)
+
 	d.mask.SetBit(index, true)
 	d.reconstructResponses = append(d.reconstructResponses, r.ReconstructResponse)
+
 	if len(d.reconstructResponses) == d.Threshold {
 		finalSignature := d.suite.G1().Point()
 		for _, resp := range d.reconstructResponses {
@@ -335,14 +337,13 @@ func (d *ThreshDecrypt) calculateHash() ([]byte, error) {
 	return h.Sum(nil), nil
 }
 
-func searchPublicKey(p *onet.TreeNodeInstance, servID *network.ServerIdentity) (
-	kyber.Point, int) {
+func searchPublicKey(p *onet.TreeNodeInstance, servID *network.ServerIdentity) int {
 	for idx, si := range p.Roster().List {
 		if si.Equal(servID) {
-			return p.NodePublic(si), idx
+			return idx
 		}
 	}
-	return nil, -1
+	return -1
 }
 
 func (d *ThreshDecrypt) finish(result bool) {

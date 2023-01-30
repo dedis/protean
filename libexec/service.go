@@ -3,8 +3,8 @@ package libexec
 import (
 	"github.com/dedis/protean/contracts"
 	"github.com/dedis/protean/core"
+	"github.com/dedis/protean/libexec/protocol/execute"
 	"github.com/dedis/protean/libexec/protocol/inittxn"
-	"go.dedis.ch/cothority/v3/blscosi"
 	"go.dedis.ch/kyber/v3/pairing"
 	"go.dedis.ch/kyber/v3/suites"
 	"go.dedis.ch/onet/v3"
@@ -22,9 +22,8 @@ var suite = suites.MustFind("bn256.adapter").(*pairing.SuiteBn256)
 func init() {
 	var err error
 	execID, err = onet.RegisterNewServiceWithSuite(ServiceName, suite, newService)
-	network.RegisterMessages(&InitUnitRequest{}, &InitUnitReply{},
-		&InitTransaction{},
-		&InitTransactionReply{})
+	network.RegisterMessages(&InitUnit{}, &InitUnitReply{},
+		&InitTransaction{}, &InitTransactionReply{}, &Execute{}, &ExecuteReply{})
 	if err != nil {
 		panic(err)
 	}
@@ -32,12 +31,11 @@ func init() {
 
 type Service struct {
 	*onet.ServiceProcessor
-	suite          pairing.SuiteBn256
-	blscosiService *blscosi.Service
-	roster         *onet.Roster
+	suite  pairing.SuiteBn256
+	roster *onet.Roster
 }
 
-func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
+func (s *Service) InitUnit(req *InitUnit) (*InitUnitReply, error) {
 	s.roster = req.Roster
 	return &InitUnitReply{}, nil
 }
@@ -49,12 +47,12 @@ func (s *Service) InitTransaction(req *InitTransaction) (*InitTransactionReply, 
 	}
 	nodeCount := len(s.roster.List)
 	threshold := nodeCount - (nodeCount-1)/3
-	tree := s.roster.GenerateNaryTreeWithRoot(nodeCount, s.ServerIdentity())
-	pi, err := s.CreateProtocol(initTxn.Name, tree)
+	tree := s.roster.GenerateNaryTreeWithRoot(nodeCount-1, s.ServerIdentity())
+	pi, err := s.CreateProtocol(inittxn.ProtoName, tree)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to create protocol: %v", err)
 	}
-	proto := pi.(*initTxn.InitTxn)
+	proto := pi.(*inittxn.InitTxn)
 	proto.Threshold = threshold
 	proto.VerificationData = vData
 	proto.Generate = s.generateExecutionPlan
@@ -69,6 +67,28 @@ func (s *Service) InitTransaction(req *InitTransaction) (*InitTransactionReply, 
 		Plan:      *proto.Plan,
 		Signature: proto.FinalSignature,
 	}, nil
+}
+
+func (s *Service) Execute(req *Execute) (*ExecuteReply, error) {
+	nodeCount := len(s.roster.List)
+	threshold := nodeCount - (nodeCount-1)/3
+	tree := s.roster.GenerateNaryTreeWithRoot(nodeCount-1, s.ServerIdentity())
+	pi, err := s.CreateProtocol(execute.ProtoName, tree)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to create the protocol: %v", err)
+	}
+	proto := pi.(*execute.Execute)
+	proto.Inputs = req.Inputs
+	proto.ExecFn = req.Fn
+	proto.Threshold = threshold
+	err = proto.Start()
+	if err != nil {
+		return nil, xerrors.Errorf("failed to start the protocol: %v", err)
+	}
+	if !<-proto.Executed {
+		return nil, xerrors.New("couldn't execute application code")
+	}
+	return &ExecuteReply{}, nil
 }
 
 func (s *Service) generateExecutionPlan(data []byte) (*core.ExecutionPlan, error) {
@@ -170,12 +190,12 @@ func verifyInitTxn(req *InitTransaction) (*core.DFURegistry, *core.ContractHeade
 
 func (s *Service) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConfig) (onet.ProtocolInstance, error) {
 	switch tn.ProtocolName() {
-	case initTxn.Name:
-		pi, err := initTxn.NewInitTxn(tn)
+	case inittxn.ProtoName:
+		pi, err := inittxn.NewInitTxn(tn)
 		if err != nil {
 			return nil, xerrors.Errorf("creating protocol instance: %v", err)
 		}
-		p := pi.(*initTxn.InitTxn)
+		p := pi.(*inittxn.InitTxn)
 		p.Generate = s.generateExecutionPlan
 		return p, nil
 	}
@@ -186,9 +206,9 @@ func newService(c *onet.Context) (onet.Service, error) {
 	s := &Service{
 		ServiceProcessor: onet.NewServiceProcessor(c),
 		suite:            *suite,
-		blscosiService:   c.Service(blscosi.ServiceName).(*blscosi.Service),
 	}
-	if err := s.RegisterHandlers(s.InitUnit, s.InitTransaction); err != nil {
+	if err := s.RegisterHandlers(s.InitUnit, s.InitTransaction,
+		s.Execute); err != nil {
 		return nil, xerrors.New("couldn't register messages")
 	}
 	return s, nil

@@ -19,7 +19,7 @@ type InitUnitRequest struct {
 
 type InitUnitReply struct{}
 
-type InitContract struct {
+type InitContractReply struct {
 	CID    byzcoin.InstanceID
 	TxResp *byzcoin.AddTxResponse
 }
@@ -40,4 +40,12 @@ type ReadState struct {
 type ReadStateReply struct {
 	Data      core.ReadState
 	Signature protocol.BlsSignature
+}
+
+type UpdateState struct {
+	CID byzcoin.InstanceID
+	Txn byzcoin.ClientTransaction
+}
+
+type UpdateStateReply struct {
 }

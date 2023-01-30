@@ -37,7 +37,8 @@ func NewClient(byzcoin *byzcoin.Client, signer darc.Signer) *Client {
 		ServiceName), signer: signer, ctr: uint64(1)}
 }
 
-func SetupByzcoin(r *onet.Roster, blockTime time.Duration) (*AdminClient, skipchain.SkipBlockID, error) {
+func SetupByzcoin(r *onet.Roster, blockTime time.Duration) (*AdminClient,
+	skipchain.SkipBlockID, error) {
 	signer := darc.NewSignerEd25519(nil, nil)
 	gMsg, err := byzcoin.DefaultGenesisMsg(byzcoin.CurrentVersion, r, []string{"spawn:keyValue", "invoke:keyValue.update"}, signer.Identity())
 	if err != nil {
@@ -63,8 +64,8 @@ func (c *Client) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 	return reply, nil
 }
 
-func (c *Client) InitContract(hdr *core.ContractHeader, gDarc darc.Darc, wait int) (*InitContract,
-	error) {
+func (c *Client) InitContract(hdr *core.ContractHeader, gDarc darc.Darc,
+	wait int) (*InitContractReply, error) {
 	hdrBuf, err := protobuf.Encode(hdr)
 	if err != nil {
 		return nil, xerrors.Errorf("encoding contract header: %v", err)
@@ -111,7 +112,7 @@ func (c *Client) InitContract(hdr *core.ContractHeader, gDarc darc.Darc, wait in
 	if err != nil {
 		return nil, xerrors.Errorf("adding update transaction: %v", err)
 	}
-	reply := &InitContract{CID: cid}
+	reply := &InitContractReply{CID: cid}
 	reply.TxResp, err = c.bcClient.AddTransactionAndWait(ctx, wait)
 	if err != nil {
 		return nil, xerrors.Errorf("adding transaction: %v", err)
@@ -141,6 +142,10 @@ func (c *Client) ReadState(cid byzcoin.InstanceID, keys []string) (*ReadStateRep
 		return nil, xerrors.Errorf("send get contract state message: %v", err)
 	}
 	return reply, nil
+}
+
+func (c *Client) UpdateState(cid byzcoin.InstanceID) (*UpdateStateReply, error) {
+	return nil, nil
 }
 
 // FetchGenesisBlock requires the hash of the genesis block. To retrieve,

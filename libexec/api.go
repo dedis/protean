@@ -1,6 +1,7 @@
 package libexec
 
 import (
+	"github.com/dedis/protean/libexec/commons"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/onet/v3"
 	"golang.org/x/xerrors"
@@ -16,7 +17,7 @@ func NewClient(r *onet.Roster) *Client {
 }
 
 func (c *Client) InitUnit() (*InitUnitReply, error) {
-	req := &InitUnitRequest{Roster: c.roster}
+	req := &InitUnit{Roster: c.roster}
 	reply := &InitUnitReply{}
 	for _, node := range c.roster.List {
 		err := c.SendProtobuf(node, req, reply)
@@ -39,6 +40,20 @@ func (c *Client) InitTransaction(rdata ByzData, cdata ByzData, wf string,
 	err := c.SendProtobuf(c.roster.List[0], req, reply)
 	if err != nil {
 		return nil, xerrors.Errorf("sending init transaction message: %v", err)
+	}
+	return reply, nil
+}
+
+func (c *Client) Execute(inputs []commons.Input, execFn commons.ExecutionFn) (*ExecuteReply,
+	error) {
+	reply := &ExecuteReply{}
+	req := &Execute{
+		Inputs: inputs,
+		Fn:     execFn,
+	}
+	err := c.SendProtobuf(c.roster.List[0], req, reply)
+	if err != nil {
+		return nil, xerrors.Errorf("sending execute request: %v", err)
 	}
 	return reply, nil
 }

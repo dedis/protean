@@ -1,4 +1,4 @@
-package initTxn
+package inittxn
 
 import (
 	"bytes"
@@ -17,7 +17,7 @@ import (
 )
 
 func init() {
-	onet.GlobalProtocolRegister(Name, NewInitTxn)
+	onet.GlobalProtocolRegister(ProtoName, NewInitTxn)
 }
 
 type InitTxn struct {
@@ -45,7 +45,7 @@ func NewInitTxn(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
 		Executed:         make(chan bool, 1),
 		suite:            pairing.NewSuiteBn256(),
 	}
-	err := p.RegisterHandlers(p.execute, p.executeReply)
+	err := p.RegisterHandlers(p.execute, p.executeResponse)
 	if err != nil {
 		return nil, xerrors.Errorf("couldn't register handlers: %v" + err.Error())
 	}
@@ -91,7 +91,7 @@ func (p *InitTxn) Start() error {
 	}
 	errs := p.Broadcast(req)
 	if len(errs) > (len(p.Roster().List) - p.Threshold) {
-		log.Errorf("Some nodes failed with error(s) %v", errs)
+		log.Errorf("some nodes failed with error(s) %v", errs)
 		return xerrors.New("too many nodes failed in broadcast")
 	}
 	return nil
@@ -113,7 +113,7 @@ func (p *InitTxn) execute(r StructRequest) error {
 	}
 	resp, err := p.makeResponse(r.Data)
 	if err != nil {
-		log.Lvlf2("%s failed preparing response: %v", p.ServerIdentity(), err)
+		log.Lvlf2("%s failed to prepare response: %v", p.ServerIdentity(), err)
 		return cothority.ErrorOrNil(p.SendToParent(&Response{}),
 			"sending empty Response to parent")
 	}
@@ -121,19 +121,20 @@ func (p *InitTxn) execute(r StructRequest) error {
 		"sending Response to parent")
 }
 
-func (p *InitTxn) executeReply(r StructResponse) error {
-	if len(r.Signature) == 0 {
+func (p *InitTxn) executeResponse(r StructResponse) error {
+	index := searchPublicKey(p.TreeNodeInstance, r.ServerIdentity)
+	if len(r.Signature) == 0 || index < 0 {
 		p.failures++
 		if p.failures > len(p.Roster().List)-p.Threshold {
 			log.Lvl2(p.ServerIdentity, "couldn't get enough shares")
 			p.finish(false)
 		}
 		return nil
-	} else {
-		_, index := searchPublicKey(p.TreeNodeInstance, r.ServerIdentity)
-		p.mask.SetBit(index, true)
-		p.responses = append(p.responses, r.Response)
 	}
+
+	p.mask.SetBit(index, true)
+	p.responses = append(p.responses, r.Response)
+
 	if len(p.responses) >= p.Threshold {
 		finalSignature := p.suite.G1().Point()
 		for _, resp := range p.responses {
@@ -163,15 +164,14 @@ func (p *InitTxn) makeResponse(data []byte) (*Response, error) {
 	return &Response{Signature: sig}, nil
 }
 
-func searchPublicKey(p *onet.TreeNodeInstance, servID *network.ServerIdentity) (
-	kyber.Point, int) {
+func searchPublicKey(p *onet.TreeNodeInstance,
+	servID *network.ServerIdentity) int {
 	for idx, si := range p.Roster().List {
 		if si.Equal(servID) {
-			return p.NodePublic(si), idx
+			return idx
 		}
 	}
-
-	return nil, -1
+	return -1
 }
 
 //func verifyInitTxn(data []byte) (*core.DFURegistry, *core.ContractHeader, error) {

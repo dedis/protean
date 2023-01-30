@@ -27,8 +27,9 @@ type RandomnessRequest struct{}
 
 // RandomnessReply is the returned public randomness.
 type RandomnessReply struct {
-	Round uint64
-	Prev  []byte
+	Public kyber.Point
+	Round  uint64
+	Prev   []byte
 	// Value is the collective signature. Use the hash of it!
 	Value     []byte
 	Signature blscosi.BlsSignature

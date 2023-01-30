@@ -2,13 +2,14 @@ package libexec
 
 import (
 	"github.com/dedis/protean/core"
+	"github.com/dedis/protean/libexec/commons"
 	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/onet/v3"
 )
 
-type InitUnitRequest struct {
+type InitUnit struct {
 	Roster *onet.Roster
 }
 
@@ -30,4 +31,15 @@ type InitTransaction struct {
 type InitTransactionReply struct {
 	Plan      core.ExecutionPlan
 	Signature protocol.BlsSignature
+}
+
+// Structs for execution request
+
+type Execute struct {
+	Inputs []commons.Input
+	Fn     commons.ExecutionFn
+}
+
+type ExecuteReply struct {
+	Outputs []commons.Output
 }

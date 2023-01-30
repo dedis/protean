@@ -194,16 +194,16 @@ func (rs *ReadState) Hash() []byte {
 	// Root
 	h.Sum(rs.Root)
 	// Deterministically serialize KVDict
-	sortedKVDict := make([]string, len(rs.KV.Data))
+	sortedKVDict := make([]string, len(rs.KVDict.Data))
 	i := 0
-	for k := range rs.KV.Data {
+	for k := range rs.KVDict.Data {
 		sortedKVDict[i] = k
 		i++
 	}
 	sort.Strings(sortedKVDict)
 	for _, key := range sortedKVDict {
 		h.Sum([]byte(key))
-		h.Sum(rs.KV.Data[key])
+		h.Sum(rs.KVDict.Data[key])
 	}
 	return h.Sum(nil)
 }

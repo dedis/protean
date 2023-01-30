@@ -29,7 +29,7 @@ func Test_Simple(t *testing.T) {
 	cl := NewClient(roster)
 	_, err := cl.InitUnit()
 	require.NoError(t, err)
-	dkgReply, err := cl.InitDKG()
+	_, err = cl.InitDKG()
 	require.NoError(t, err)
 
 	// Dummy call
@@ -38,15 +38,18 @@ func Test_Simple(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, randReply.Value)
 
-	// Check the signature over the randomness value
-	err = bls.Verify(suite, dkgReply.Public, randReply.Prev, randReply.Value)
+	rv := protocol.RandomnessVerify{Data: &protocol.Data{Public: randReply.
+		Public, Round: randReply.Round, Prev: randReply.Prev, Value: randReply.Value}}
+	hash, err := rv.CalculateHash()
 	require.NoError(t, err)
-
-	hash := protocol.CalculateHash(&protocol.Data{Round: randReply.Round,
-		Prev: randReply.Prev, Value: randReply.Value})
 	publics := roster.ServicePublics(blscosi.ServiceName)
+	// Check the collective signature on the randomness output
 	require.NoError(t, randReply.Signature.VerifyWithPolicy(testSuite, hash,
 		publics, sign.NewThresholdPolicy(threshold)))
+
+	// Check the signature on the randomness value (DKG)
+	err = bls.Verify(suite, randReply.Public, randReply.Prev, randReply.Value)
+	require.NoError(t, err)
 }
 
 //func Test_Simple(t *testing.T) {

@@ -116,12 +116,6 @@ type ContractHeader struct {
 	CurrState string
 }
 
-// This is the value that is stored with key "kvstore". Keyvalue contract stores
-// key-value pairs in a list instead of a Go map since the latter is
-// non-deterministic. This can result in poor lookup performance. To work around
-// this problem, we store the key-value pairs in a KVDict and store the
-// protobuf-encoded struct in the contract.
-
 type KVDict struct {
 	Data map[string][]byte
 }
@@ -132,6 +126,7 @@ type StateProof struct {
 
 type ReadState struct {
 	Root []byte
-	KV   KVDict
-	Sig  protocol.BlsSignature
+	// Prepared by each node in the state unit
+	KVDict KVDict
+	Sig    protocol.BlsSignature
 }

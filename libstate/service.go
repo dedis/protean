@@ -24,10 +24,9 @@ var suite = suites.MustFind("bn256.adapter").(*pairing.SuiteBn256)
 
 func init() {
 	var err error
-	stateID, err = onet.RegisterNewServiceWithSuite(ServiceName,
-		suite, newService)
+	stateID, err = onet.RegisterNewServiceWithSuite(ServiceName, suite, newService)
 	network.RegisterMessages(&InitUnitRequest{}, &InitUnitReply{},
-		&InitContract{}, &GetContractState{}, &GetContractStateReply{})
+		&InitContractReply{}, &GetContractState{}, &GetContractStateReply{})
 	if err != nil {
 		panic(err)
 	}
@@ -64,6 +63,7 @@ func (s *Service) ReadState(req *ReadState) (*ReadStateReply, error) {
 	if s.bc == nil {
 		s.bc = byzcoin.NewClient(s.byzID, *s.roster)
 	}
+	//TODO: Get CID from the execution plan
 	pr, err := s.bc.GetProof(req.CID.Slice())
 	if err != nil {
 		return nil, xerrors.Errorf("failed to get proof from byzcoin: %v", err)
@@ -74,8 +74,7 @@ func (s *Service) ReadState(req *ReadState) (*ReadStateReply, error) {
 		return nil, xerrors.Errorf("failed to encode proof: %v", err)
 	}
 	nodeCount := len(s.roster.List)
-	threshold := nodeCount - (nodeCount-1)/3
-	tree := s.roster.GenerateNaryTreeWithRoot(nodeCount, s.ServerIdentity())
+	tree := s.roster.GenerateNaryTreeWithRoot(nodeCount-1, s.ServerIdentity())
 	pi, err := s.CreateProtocol(protocol.RSProtocol, tree)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to create protocol: %v", err)
@@ -84,8 +83,8 @@ func (s *Service) ReadState(req *ReadState) (*ReadStateReply, error) {
 	rsProto.CID = req.CID
 	rsProto.SP = &proof
 	rsProto.ProofBytes = buf
-	rsProto.Keys = req.Keys
-	rsProto.Threshold = threshold
+	rsProto.ReqKeys = req.Keys
+	rsProto.Threshold = nodeCount - (nodeCount-1)/3
 	err = rsProto.Start()
 	if err != nil {
 		return nil, xerrors.Errorf("failed to start the protocol: %v", err)
@@ -98,56 +97,23 @@ func (s *Service) ReadState(req *ReadState) (*ReadStateReply, error) {
 	return &ReadStateReply{Data: *data, Signature: sig}, nil
 }
 
-func (s *Service) verifyGetContractState(cid byzcoin.InstanceID, data []byte) bool {
-	err := func() error {
-		if s.bc == nil {
-			s.bc = byzcoin.NewClient(s.byzID, *s.roster)
-		}
-		pr, err := s.bc.GetProof(cid.Slice())
-		if err != nil {
-			return xerrors.Errorf("failed to get proof from byzcoin: %v", err)
-		}
-		proof := core.StateProof{Proof: pr.Proof}
-		buf, err := protobuf.Encode(&proof)
-		if err != nil {
-			return xerrors.Errorf("failed to encode proof: %v", err)
-		}
-		if !bytes.Equal(data, buf) {
-			return xerrors.New("state mismatch")
-		}
-		return nil
-	}()
-	if err != nil {
-		log.Lvlf2("cannot verify request: %v", err)
-		return false
+func (s *Service) verifyReadState(cid byzcoin.InstanceID, proofBytes []byte) (*core.StateProof, error) {
+	if s.bc == nil {
+		s.bc = byzcoin.NewClient(s.byzID, *s.roster)
 	}
-	return true
-}
-
-func (s *Service) verifyReadState(cid byzcoin.InstanceID, proofBytes []byte, sp *core.StateProof) bool {
-	err := func() error {
-		if s.bc == nil {
-			s.bc = byzcoin.NewClient(s.byzID, *s.roster)
-		}
-		pr, err := s.bc.GetProof(cid.Slice())
-		if err != nil {
-			return xerrors.Errorf("failed to get proof from byzcoin: %v", err)
-		}
-		sp.Proof = pr.Proof
-		buf, err := protobuf.Encode(sp)
-		if err != nil {
-			return xerrors.Errorf("failed to encode proof: %v", err)
-		}
-		if !bytes.Equal(proofBytes, buf) {
-			return xerrors.New("state mismatch")
-		}
-		return nil
-	}()
+	pr, err := s.bc.GetProof(cid.Slice())
 	if err != nil {
-		log.Lvlf2("cannot verify request: %v", err)
-		return false
+		return nil, xerrors.Errorf("[verifyReadState] failed to get proof from byzcoin: %v", err)
 	}
-	return true
+	sp := &core.StateProof{Proof: pr.Proof}
+	buf, err := protobuf.Encode(sp)
+	if err != nil {
+		return nil, xerrors.Errorf("[verifyReadState] failed to encode proof: %v", err)
+	}
+	if !bytes.Equal(proofBytes, buf) {
+		return nil, xerrors.New("[verifyReadState] state mismatch")
+	}
+	return sp, nil
 }
 
 func (s *Service) verifyUpdate(cid []byte, root []byte) bool {
@@ -173,14 +139,6 @@ func (s *Service) verifyUpdate(cid []byte, root []byte) bool {
 
 func (s *Service) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConfig) (onet.ProtocolInstance, error) {
 	switch tn.ProtocolName() {
-	case protocol.GCSProtocol:
-		pi, err := protocol.NewGetContractState(tn)
-		if err != nil {
-			return nil, xerrors.Errorf("creating protocol instance: %v", err)
-		}
-		p := pi.(*protocol.GetContractState)
-		p.Verify = s.verifyGetContractState
-		return p, nil
 	case protocol.RSProtocol:
 		pi, err := protocol.NewReadState(tn)
 		if err != nil {
