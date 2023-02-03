@@ -3,7 +3,7 @@ package protocol
 import (
 	"bytes"
 	"crypto/sha256"
-	"github.com/dedis/protean/utils"
+	"github.com/dedis/protean/easyneff/base"
 	"go.dedis.ch/cothority/v3"
 	blscosi "go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/kyber/v3"
@@ -30,10 +30,9 @@ func init() {
 type ShuffleVerify struct {
 	*onet.TreeNodeInstance
 
-	Pairs  []utils.ElGamalPair
-	H      kyber.Point
-	SProof ShuffleProof
-	Verify VerificationFn
+	ShufInput base.ShuffleInput
+	ShufProof ShuffleProof
+	Verify    VerificationFn
 
 	Publics        []kyber.Point
 	BlsPublic      kyber.Point
@@ -67,11 +66,11 @@ func NewShuffleVerify(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
 
 func (s *ShuffleVerify) Start() error {
 	var err error
-	if len(s.SProof.Proofs) == 0 {
+	if len(s.ShufProof.Proofs) == 0 {
 		s.finish(false)
 		return xerrors.New("initialize Proofs first")
 	}
-	hash, err := CalculateHash(s.SProof.Proofs)
+	hash, err := CalculateHash(s.ShufProof.Proofs)
 	if err != nil {
 		log.Errorf("root %s failed to calculate the hash: %v", s.Name(), err)
 		s.finish(false)
@@ -90,10 +89,9 @@ func (s *ShuffleVerify) Start() error {
 		return xerrors.Errorf("couldn't generate mask: %v", err)
 	}
 	vp := &VerifyProofs{
-		Pairs:  s.Pairs,
-		H:      s.H,
-		SProof: s.SProof,
-		Hash:   hash,
+		ShufInput: s.ShufInput,
+		ShufProof: s.ShufProof,
+		Hash:      hash,
 	}
 	s.timeout = time.AfterFunc(2*time.Minute, func() {
 		log.Lvl1("ShuffleVerify protocol timeout")
@@ -109,13 +107,14 @@ func (s *ShuffleVerify) Start() error {
 
 func (s *ShuffleVerify) verifyProofs(r structVerifyProofs) error {
 	defer s.Done()
-	err := s.Verify(&r.SProof, nil, r.H, r.Pairs, s.Publics)
+	err := s.Verify(&r.ShufProof, nil, r.ShufInput.H, r.ShufInput.Pairs,
+		s.Publics)
 	if err != nil {
 		log.Lvl2(s.ServerIdentity(), "failed to verify the proofs")
 		return cothority.ErrorOrNil(s.SendToParent(&VerifyProofsResponse{}),
 			"sending VerifyProofsResponse to parent")
 	}
-	hash, err := CalculateHash(r.SProof.Proofs)
+	hash, err := CalculateHash(r.ShufProof.Proofs)
 	if err != nil {
 		log.Errorf("%s couldn't calculate the hash: %v", s.Name(), err)
 		return cothority.ErrorOrNil(s.SendToParent(&VerifyProofsResponse{}),
@@ -181,7 +180,7 @@ func (s *ShuffleVerify) generateResponse(data []byte) (VerifyProofsResponse, err
 func CalculateHash(proofs []Proof) ([]byte, error) {
 	h := sha256.New()
 	for _, pr := range proofs {
-		for _, pair := range pr.Pairs {
+		for _, pair := range pr.Pairs.Pairs {
 			kbuf, err := pair.K.MarshalBinary()
 			if err != nil {
 				return nil, err

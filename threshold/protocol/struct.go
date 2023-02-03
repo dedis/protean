@@ -1,14 +1,20 @@
 package protocol
 
 import (
-	"github.com/dedis/protean/utils"
+	"github.com/dedis/protean/threshold/base"
 	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/share"
 	"go.dedis.ch/onet/v3"
+	"go.dedis.ch/onet/v3/network"
 )
 
 const DecryptProtoName = "threshold_decrypt"
+
+func init() {
+	network.RegisterMessages(&DecryptShare{}, &DecryptShareResponse{},
+		&Reconstruct{}, &ReconstructResponse{})
+}
 
 type Partial struct {
 	Shares []*share.PubShare
@@ -17,7 +23,8 @@ type Partial struct {
 }
 
 type DecryptShare struct {
-	Cs []utils.ElGamalPair
+	//Cs utils.ElGamalPairs
+	base.DecryptInput
 }
 
 type structDecryptShare struct {

@@ -15,20 +15,20 @@ type Data struct {
 	Value  []byte
 }
 
-type VerifyRandomness struct {
+type VerifyRand struct {
 	Hash []byte
 }
 
-type structVerifyRandomness struct {
+type structVerifyRand struct {
 	*onet.TreeNode
-	VerifyRandomness
+	VerifyRand
 }
 
-type VerifyRandomnessResponse struct {
+type VerifyResponse struct {
 	Signature blscosi.BlsSignature
 }
 
-type structVerifyRandomnessResponse struct {
+type structVerifyResponse struct {
 	*onet.TreeNode
-	VerifyRandomnessResponse
+	VerifyResponse
 }

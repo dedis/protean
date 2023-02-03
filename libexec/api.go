@@ -1,6 +1,7 @@
 package libexec
 
 import (
+	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/libexec/commons"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/onet/v3"
@@ -44,7 +45,7 @@ func (c *Client) InitTransaction(rdata ByzData, cdata ByzData, wf string,
 	return reply, nil
 }
 
-func (c *Client) Execute(inputs []commons.Input, execFn commons.ExecutionFn) (*ExecuteReply,
+func (c *Client) Execute(inputs []core.OpcodeRequest, execFn commons.ExecutionFn) (*ExecuteReply,
 	error) {
 	reply := &ExecuteReply{}
 	req := &Execute{

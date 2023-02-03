@@ -3,10 +3,16 @@ package core
 import (
 	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/cothority/v3/byzcoin"
+	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/kyber/v3"
 )
 
 // Workflow
+
+const (
+	SUID  string = "state"
+	CEUID string = "code_exec"
+)
 
 const (
 	CONST    string = "CONST"
@@ -51,14 +57,13 @@ type ExecutionPlan struct {
 	TxnName   string
 	Txn       *Transaction
 	DFUData   map[string]*DFUIdentity
+	Sig       protocol.BlsSignature
 }
 
 type ExecutionRequest struct {
-	Index      int
-	EP         *ExecutionPlan
-	EPSig      protocol.BlsSignature // from CEU
-	OpReceipts map[string]*OpcodeReceipt
-	//OpReceiptSigs map[string]protocol.BlsSignature
+	Index        int
+	EP           *ExecutionPlan
+	OpReceipts   map[string]*OpcodeReceipt
 	KVReceipt    map[string]KVDict
 	KVReceiptSig protocol.BlsSignature
 }
@@ -116,12 +121,13 @@ type ContractHeader struct {
 	CurrState string
 }
 
-type KVDict struct {
-	Data map[string][]byte
+type StateProof struct {
+	Proof   byzcoin.Proof
+	Genesis skipchain.SkipBlock
 }
 
-type StateProof struct {
-	Proof byzcoin.Proof
+type KVDict struct {
+	Data map[string][]byte
 }
 
 type ReadState struct {
@@ -129,4 +135,15 @@ type ReadState struct {
 	// Prepared by each node in the state unit
 	KVDict KVDict
 	Sig    protocol.BlsSignature
+}
+
+// Opcode request
+
+type OpcodeRequest struct {
+	Input   interface{}
+	ExecReq ExecutionRequest
+}
+
+type Output struct {
+	O interface{}
 }

@@ -36,10 +36,10 @@ type InitTransactionReply struct {
 // Structs for execution request
 
 type Execute struct {
-	Inputs []commons.Input
+	Inputs []core.OpcodeRequest
 	Fn     commons.ExecutionFn
 }
 
 type ExecuteReply struct {
-	Outputs []commons.Output
+	Outputs []core.Output
 }

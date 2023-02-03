@@ -1,6 +1,7 @@
 package protocol
 
 import (
+	"github.com/dedis/protean/easyneff/base"
 	"github.com/dedis/protean/utils"
 	blscosi "go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/kyber/v3"
@@ -10,13 +11,12 @@ import (
 const VerifyProtoName = "easyneff_verify"
 
 type VerificationFn func(*ShuffleProof, kyber.Point, kyber.Point,
-	[]utils.ElGamalPair, []kyber.Point) error
+	utils.ElGamalPairs, []kyber.Point) error
 
 type VerifyProofs struct {
-	Pairs  []utils.ElGamalPair
-	H      kyber.Point
-	SProof ShuffleProof
-	Hash   []byte
+	ShufInput base.ShuffleInput
+	ShufProof ShuffleProof
+	Hash      []byte
 }
 
 type structVerifyProofs struct {

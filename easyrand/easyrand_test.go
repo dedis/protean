@@ -1,6 +1,7 @@
 package easyrand
 
 import (
+	"fmt"
 	"github.com/dedis/protean/easyrand/protocol"
 	"github.com/stretchr/testify/require"
 	"go.dedis.ch/cothority/v3"
@@ -33,10 +34,13 @@ func Test_Simple(t *testing.T) {
 	require.NoError(t, err)
 
 	// Dummy call
-	cl.Randomness()
-	randReply, err := cl.Randomness()
+	cl.Randomness(0)
+	cl.Randomness(1)
+	cl.Randomness(2)
+	randReply, err := cl.Randomness(3)
 	require.NoError(t, err)
 	require.NotNil(t, randReply.Value)
+	fmt.Println(randReply.Round)
 
 	rv := protocol.RandomnessVerify{Data: &protocol.Data{Public: randReply.
 		Public, Round: randReply.Round, Prev: randReply.Prev, Value: randReply.Value}}

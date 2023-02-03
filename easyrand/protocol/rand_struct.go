@@ -1,13 +1,17 @@
 package protocol
 
-import "go.dedis.ch/onet/v3"
+import (
+	"github.com/dedis/protean/easyrand/base"
+	"go.dedis.ch/onet/v3"
+)
 
 const DKGProtoName = "easyrand_dkg"
 const SignProtoName = "easyrand_sign"
 
 // Init initializes the message to sign.
 type Init struct {
-	Msg []byte
+	Msg   []byte
+	Input base.RandomnessInput
 }
 type initChan struct {
 	*onet.TreeNode

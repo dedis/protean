@@ -16,7 +16,6 @@ import (
 	"go.dedis.ch/kyber/v3/util/key"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
-	"go.dedis.ch/onet/v3/network"
 )
 
 var easyrandID onet.ServiceID
@@ -24,7 +23,6 @@ var suite = bn256.NewSuite()
 var vssSuite = suite.G2().(vss.Suite)
 
 const genesisMsg = "genesis_msg"
-
 const ServiceName = "EasyrandService"
 
 func init() {
@@ -33,20 +31,18 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
-	network.RegisterMessages(&InitUnitRequest{}, &InitUnitReply{}, &InitDKGRequest{}, &InitDKGReply{}, &RandomnessRequest{}, &RandomnessReply{})
 }
 
 // EasyRand holds the internal state of the service.
 type EasyRand struct {
 	*onet.ServiceProcessor
-	blsService *blscosi.Service
 	roster     *onet.Roster
+	blsService *blscosi.Service
 
 	keypair      *key.Pair
 	distKeyStore *dkg.DistKeyShare
 	pubPoly      *share.PubPoly
-
-	blocks [][]byte
+	blocks       [][]byte
 }
 
 func (s *EasyRand) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
@@ -100,7 +96,8 @@ func (s *EasyRand) Randomness(req *RandomnessRequest) (*RandomnessReply, error) 
 	signPi := pi.(*protocol.SignProtocol)
 	signPi.Msg = createNextMsg(s.blocks)
 	signPi.Threshold = threshold
-	err = pi.Start()
+	signPi.Input = req.Input
+	err = signPi.Start()
 	if err != nil {
 		log.Errorf("Start protocol error: %v", err)
 		return nil, err
@@ -117,21 +114,21 @@ func (s *EasyRand) Randomness(req *RandomnessRequest) (*RandomnessReply, error) 
 		if err != nil {
 			return nil, err
 		}
-		randVerify := pi.(*protocol.RandomnessVerify)
-		randVerify.Threshold = nodeCount - (nodeCount-1)/3
-		randVerify.Data = &protocol.Data{Public: public, Round: round, Prev: prev, Value: sig}
-		randVerify.BlsPublic = s.ServerIdentity().ServicePublic(blscosi.ServiceName)
-		randVerify.BlsPublics = s.roster.ServicePublics(blscosi.ServiceName)
-		randVerify.BlsSk = s.ServerIdentity().ServicePrivate(blscosi.ServiceName)
-		err = randVerify.Start()
+		verifyPi := pi.(*protocol.RandomnessVerify)
+		verifyPi.Threshold = nodeCount - (nodeCount-1)/3
+		verifyPi.Data = &protocol.Data{Public: public, Round: round, Prev: prev, Value: sig}
+		verifyPi.Public = s.ServerIdentity().ServicePublic(blscosi.ServiceName)
+		verifyPi.Publics = s.roster.ServicePublics(blscosi.ServiceName)
+		verifyPi.Sk = s.ServerIdentity().ServicePrivate(blscosi.ServiceName)
+		err = verifyPi.Start()
 		if err != nil {
 			return nil, xerrors.Errorf("Failed to start the verification protocol: " + err.Error())
 		}
-		if !<-randVerify.Verified {
+		if !<-verifyPi.Verified {
 			return nil, xerrors.New("randomness verify failed")
 		}
 		return &RandomnessReply{Public: public, Round: round, Prev: prev,
-			Value: sig, Signature: randVerify.FinalSignature}, nil
+			Value: sig, Signature: verifyPi.FinalSignature}, nil
 	case <-time.After(1 * time.Second):
 		log.Errorf("Timed out waiting for the final signature")
 		return nil, xerrors.New("timeout waiting for final signature")
@@ -161,9 +158,13 @@ func (s *EasyRand) storeShare(setup *dkgprotocol.Setup) error {
 	return nil
 }
 
-func (s *EasyRand) verifyMessage(msg []byte) error {
+func (s *EasyRand) verifyRequest(msg []byte, round uint64) error {
 	if !bytes.Equal(msg, createNextMsg(s.blocks)) {
 		return xerrors.New("bad message")
+	}
+	if uint64(len(s.blocks)) != round {
+		return xerrors.Errorf("round values do not match: expected %d"+
+			" recevied %d", uint64(len(s.blocks)), round)
 	}
 	return nil
 }
@@ -199,7 +200,7 @@ func (s *EasyRand) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConf
 		}()
 		return pi, nil
 	case protocol.SignProtoName:
-		pi, err := protocol.NewSignProtocol(tn, s.verifyMessage, s.distKeyStore.PriShare(), s.pubPoly, suite)
+		pi, err := protocol.NewSignProtocol(tn, s.verifyRequest, s.distKeyStore.PriShare(), s.pubPoly, suite)
 		if err != nil {
 			log.Errorf("Cannot initialize the signing protocol: %v", err)
 			return nil, err
@@ -227,9 +228,9 @@ func (s *EasyRand) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConf
 		proto := pi.(*protocol.RandomnessVerify)
 		proto.Data = &protocol.Data{Public: s.pubPoly.Commit(), Round: round,
 			Prev: prev, Value: value}
-		proto.BlsPublic = s.ServerIdentity().ServicePublic(blscosi.ServiceName)
-		proto.BlsPublics = s.roster.ServicePublics(blscosi.ServiceName)
-		proto.BlsSk = s.ServerIdentity().ServicePrivate(blscosi.ServiceName)
+		proto.Public = s.ServerIdentity().ServicePublic(blscosi.ServiceName)
+		proto.Publics = s.roster.ServicePublics(blscosi.ServiceName)
+		proto.Sk = s.ServerIdentity().ServicePrivate(blscosi.ServiceName)
 		return proto, nil
 	default:
 		return nil, nil
@@ -253,7 +254,8 @@ func newService(c *onet.Context) (onet.Service, error) {
 	_, err = s.ProtocolRegister(protocol.SignProtoName, func(n *onet.TreeNodeInstance) (
 		onet.ProtocolInstance, error) {
 		// TODO giving NewSignProtocol to pointers isn't so nice because these mutate
-		return protocol.NewSignProtocol(n, s.verifyMessage, s.distKeyStore.PriShare(), s.pubPoly, suite)
+		return protocol.NewSignProtocol(n, s.verifyRequest, s.distKeyStore.PriShare(), s.pubPoly, suite)
+		//return protocol.NewSignProtocol(n, s.verifyRequest, s.distKeyStore.PriShare(), s.pubPoly, suite)
 	})
 	if err != nil {
 		log.Errorf("Registering protocol %s failed: %v", protocol.SignProtoName, err)

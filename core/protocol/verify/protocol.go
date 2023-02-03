@@ -143,7 +143,7 @@ func (p *VP) verifyExecutionRequest() error {
 	// 2) Check CEU's signature on the execution plan
 	ceuData := p.ExecRequest.EP.DFUData[p.CEUID]
 	epHash := p.ExecRequest.EP.Hash()
-	err := p.ExecRequest.EPSig.VerifyWithPolicy(suite, epHash, ceuData.Keys,
+	err := p.ExecRequest.EP.Sig.VerifyWithPolicy(suite, epHash, ceuData.Keys,
 		sign.NewThresholdPolicy(ceuData.Threshold))
 	if err != nil {
 		return xerrors.Errorf("cannot verify signature on the execution plan: %v", err)

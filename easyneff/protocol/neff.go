@@ -1,6 +1,7 @@
 package protocol
 
 import (
+	"github.com/dedis/protean/easyneff/base"
 	"golang.org/x/xerrors"
 	"time"
 
@@ -16,7 +17,8 @@ import (
 // NeffShuffle is a protocol for running the Neff shuffle in a chain.
 type NeffShuffle struct {
 	*onet.TreeNodeInstance
-	Request    Request
+
+	ShufInput  base.ShuffleInput
 	FinalProof chan ShuffleProof
 
 	suite     proof.Suite
@@ -64,17 +66,18 @@ func (p *NeffShuffle) Start() error {
 		return xerrors.New("tree must be a line")
 	}
 	// start the shuffle
-	return p.SendTo(p.Root(), &p.Request)
+	return p.SendTo(p.Root(), &Request{ShuffleInput: p.ShufInput})
 }
 
 // Dispatch implements the onet.ProtocolInstance interface.
 func (p *NeffShuffle) Dispatch() error {
 	defer p.Done()
-
 	// handle the first request
 	req := <-p.reqChan
-	X, Y := splitPairs(req.Pairs)
-	Xbar, Ybar, prover := shuffle.Shuffle(p.suite, nil, req.H, X, Y, p.suite.RandomStream())
+	shInput := req.ShuffleInput
+	X, Y := splitPairs(shInput.Pairs)
+	Xbar, Ybar, prover := shuffle.Shuffle(p.suite, nil, shInput.H, X, Y,
+		p.suite.RandomStream())
 	prf, err := proof.HashProve(p.suite, "", prover)
 	if err != nil {
 		return err
@@ -93,19 +96,21 @@ func (p *NeffShuffle) Dispatch() error {
 	if err := p.SendTo(p.Root(), &signedPrf); err != nil {
 		return err
 	}
-	// Nothing more to do if I'm a child.
+	// Nothing more to do if Input'm a child.
 	if p.IsLeaf() {
 		return nil
 	}
 	// Send to the next node in the chain.
 	newReq := Request{
-		Pairs: signedPrf.Pairs,
-		H:     req.H,
+		ShuffleInput: base.ShuffleInput{
+			Pairs: signedPrf.Pairs,
+			H:     shInput.H,
+		},
 	}
 	if err := p.SendTo(p.Children()[0], &newReq); err != nil {
 		return err
 	}
-	// No need to collect other proof if I'm not the root.
+	// No need to collect other proof if Input'm not the root.
 	if !p.IsRoot() {
 		return nil
 	}
@@ -123,17 +128,19 @@ func (p *NeffShuffle) Dispatch() error {
 	return nil
 }
 
-func splitPairs(pairs []utils.ElGamalPair) ([]kyber.Point, []kyber.Point) {
-	xs := make([]kyber.Point, len(pairs))
-	ys := make([]kyber.Point, len(pairs))
-	for i := range pairs {
-		xs[i] = pairs[i].K
-		ys[i] = pairs[i].C
+//func splitPairs(pairs []utils.ElGamalPair) ([]kyber.Point, []kyber.Point) {
+func splitPairs(pairs utils.ElGamalPairs) ([]kyber.Point, []kyber.Point) {
+	ps := pairs.Pairs
+	xs := make([]kyber.Point, len(ps))
+	ys := make([]kyber.Point, len(ps))
+	for i := range ps {
+		xs[i] = ps[i].K
+		ys[i] = ps[i].C
 	}
 	return xs, ys
 }
 
-func combinePairs(xs, ys []kyber.Point) []utils.ElGamalPair {
+func combinePairs(xs, ys []kyber.Point) utils.ElGamalPairs {
 	if len(xs) != len(ys) {
 		panic("slices have different lengths")
 	}
@@ -141,7 +148,7 @@ func combinePairs(xs, ys []kyber.Point) []utils.ElGamalPair {
 	for i := range xs {
 		pairs[i] = utils.ElGamalPair{K: xs[i], C: ys[i]}
 	}
-	return pairs
+	return utils.ElGamalPairs{Pairs: pairs}
 }
 
 func sortProofs(proofs map[onet.TreeNodeID]Proof, root *onet.TreeNode) []Proof {

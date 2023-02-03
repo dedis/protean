@@ -2,10 +2,13 @@ package threshold
 
 import (
 	"crypto/sha256"
+	"fmt"
 	"github.com/dedis/protean/threshold/utils"
+	protean "github.com/dedis/protean/utils"
 	"github.com/stretchr/testify/require"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/blscosi"
+	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/pairing"
 	"go.dedis.ch/kyber/v3/sign"
 	"go.dedis.ch/onet/v3"
@@ -35,7 +38,7 @@ func Test_Threshold(t *testing.T) {
 	id := utils.GenerateRandBytes()
 	dkgReply, err := cl.InitDKG(id)
 	require.Nil(t, err)
-	mesgs, cts := utils.GenerateMesgs(10, "Go Badgers!", dkgReply.X)
+	mesgs, cts := generateMesgs(10, "Go Badgers!", dkgReply.X)
 	reply, err := cl.Decrypt(id, cts)
 	require.NoError(t, err)
 	require.NotNil(t, reply.Ps)
@@ -52,4 +55,16 @@ func Test_Threshold(t *testing.T) {
 	publics := roster.ServicePublics(blscosi.ServiceName)
 	require.NoError(t, reply.Signature.VerifyWithPolicy(testSuite, hash,
 		publics, sign.NewThresholdPolicy(threshold)))
+}
+
+func generateMesgs(count int, m string, key kyber.Point) ([][]byte, []protean.ElGamalPair) {
+	mesgs := make([][]byte, count)
+	cs := make([]protean.ElGamalPair, count)
+	for i := 0; i < count; i++ {
+		s := fmt.Sprintf("%s%s%d%s", m, " -- ", i, "!")
+		mesgs[i] = []byte(s)
+		c := protean.ElGamalEncrypt(key, mesgs[i])
+		cs[i] = c
+	}
+	return mesgs, cs
 }

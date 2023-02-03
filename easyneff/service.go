@@ -14,7 +14,6 @@ import (
 
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
-	"go.dedis.ch/onet/v3/network"
 )
 
 var easyneffID onet.ServiceID
@@ -27,8 +26,6 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
-	network.RegisterMessages(&InitUnitRequest{}, &InitUnitReply{},
-		&ShuffleRequest{}, &ShuffleReply{})
 }
 
 // EasyNeff is the service that runs a Neff shuffle.
@@ -52,7 +49,7 @@ func (s *EasyNeff) Shuffle(req *ShuffleRequest) (*ShuffleReply, error) {
 		return nil, err
 	}
 	neff := pi.(*protocol.NeffShuffle)
-	neff.Request = protocol.Request{Pairs: req.Pairs, H: req.H}
+	neff.ShufInput = req.Input
 	if err := pi.Start(); err != nil {
 		return nil, err
 	}
@@ -66,9 +63,8 @@ func (s *EasyNeff) Shuffle(req *ShuffleRequest) (*ShuffleReply, error) {
 		}
 		shufVerify := pi.(*protocol.ShuffleVerify)
 		shufVerify.Threshold = nodeCount - (nodeCount-1)/3
-		shufVerify.Pairs = req.Pairs
-		shufVerify.H = req.H
-		shufVerify.SProof = proof
+		shufVerify.ShufInput = req.Input
+		shufVerify.ShufProof = proof
 		// Public keys to verify shuffle proofs
 		shufVerify.Publics = s.roster.Publics()
 		// Cryptographic identites for BLS
@@ -91,7 +87,7 @@ func (s *EasyNeff) Shuffle(req *ShuffleRequest) (*ShuffleReply, error) {
 }
 
 func (s *EasyNeff) ShuffleVerify(sp *protocol.ShuffleProof, G, H kyber.Point,
-	initialPairs []utils.ElGamalPair, publics []kyber.Point) error {
+	initialPairs utils.ElGamalPairs, publics []kyber.Point) error {
 	x, y := splitPairs(initialPairs)
 	for i, proof := range sp.Proofs {
 		// check that the signature on the proof is correct
@@ -119,12 +115,13 @@ func Verify(prf []byte, G, H kyber.Point, x, y, xbar, ybar []kyber.Point) error 
 	return proof.HashVerify(cothority.Suite, "", verifier, prf)
 }
 
-func splitPairs(pairs []utils.ElGamalPair) ([]kyber.Point, []kyber.Point) {
-	xs := make([]kyber.Point, len(pairs))
-	ys := make([]kyber.Point, len(pairs))
-	for i := range pairs {
-		xs[i] = pairs[i].K
-		ys[i] = pairs[i].C
+func splitPairs(pairs utils.ElGamalPairs) ([]kyber.Point, []kyber.Point) {
+	ps := pairs.Pairs
+	xs := make([]kyber.Point, len(ps))
+	ys := make([]kyber.Point, len(ps))
+	for i := range ps {
+		xs[i] = ps[i].K
+		ys[i] = ps[i].C
 	}
 	return xs, ys
 }

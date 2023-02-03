@@ -1,6 +1,7 @@
 package execute
 
 import (
+	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/libexec/commons"
 	"go.dedis.ch/kyber/v3/pairing"
 	"go.dedis.ch/kyber/v3/sign"
@@ -18,7 +19,7 @@ func init() {
 type Execute struct {
 	*onet.TreeNodeInstance
 
-	Inputs []commons.Input
+	Inputs []core.OpcodeRequest
 	ExecFn commons.ExecutionFn
 
 	Threshold int

@@ -3,6 +3,7 @@ package protocol
 import (
 	"bytes"
 	"crypto/sha256"
+	"github.com/dedis/protean/threshold/base"
 	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/kyber/v3/pairing"
 	"go.dedis.ch/kyber/v3/sign"
@@ -24,18 +25,16 @@ import (
 func init() {
 	_, err := onet.GlobalProtocolRegister(DecryptProtoName, NewThreshDecrypt)
 	if err != nil {
-		log.Errorf("Cannot register protocol: %v", err)
+		log.Errorf("cannot register protocol: %v", err)
 		panic(err)
 	}
-	network.RegisterMessages(&DecryptShare{}, &DecryptShareResponse{},
-		&Reconstruct{}, &ReconstructResponse{})
 }
 
 type ThreshDecrypt struct {
 	*onet.TreeNodeInstance
-	Shared *dkgprotocol.SharedSecret
-	Poly   *share.PubPoly
-	Cs     []utils.ElGamalPair
+	Shared   *dkgprotocol.SharedSecret
+	Poly     *share.PubPoly
+	DecInput base.DecryptInput
 
 	partials []Partial // len(partials) == number of ciphertexts to be dec
 	Ptexts   []kyber.Point
@@ -78,14 +77,14 @@ func (d *ThreshDecrypt) Start() error {
 		d.finish(false)
 		return xerrors.New("initialize Shared first")
 	}
-	if len(d.Cs) == 0 {
+	//if len(d.Cs.Pairs) == 0 {
+	if len(d.DecInput.Pairs) == 0 {
 		d.finish(false)
 		return xerrors.New("empty ciphertext list")
 	}
-	ds := &DecryptShare{
-		Cs: d.Cs,
-	}
-	d.partials = make([]Partial, len(d.Cs))
+	ds := &DecryptShare{d.DecInput}
+	//d.partials = make([]Partial, len(d.Cs.Pairs))
+	d.partials = make([]Partial, len(d.DecInput.Pairs))
 	d.pubShares = make(map[int]kyber.Point)
 	d.timeout = time.AfterFunc(1*time.Minute, func() {
 		log.Lvl1("ThreshDecrypt protocol timeout")
@@ -101,9 +100,12 @@ func (d *ThreshDecrypt) Start() error {
 
 func (d *ThreshDecrypt) decryptShare(r structDecryptShare) error {
 	log.Lvl3(d.Name() + ": starting decryptShare")
-	d.Cs = r.Cs
-	shares := make([]Share, len(d.Cs))
-	for i, c := range d.Cs {
+	//d.Cs = r.Cs
+	d.DecInput = r.DecryptInput
+	//shares := make([]Share, len(d.Cs.Pairs))
+	shares := make([]Share, len(d.DecInput.Pairs))
+	//for i, c := range d.Cs.Pairs {
+	for i, c := range d.DecInput.Pairs {
 		sh := cothority.Suite.Point().Mul(d.Shared.V, c.K)
 		ei, fi := d.generateDecProof(c.K, sh)
 		shares[i].Sh = &share.PubShare{I: d.Shared.Index, V: sh}
@@ -127,7 +129,8 @@ func (d *ThreshDecrypt) decryptShareResponse(r structDecryptShareResponse) error
 		// Verify decryption proof
 		idx := r.Shares[0].Sh.I
 		d.pubShares[idx] = d.Poly.Eval(idx).V
-		for i, c := range d.Cs {
+		//for i, c := range d.Cs.Pairs {
+		for i, c := range d.DecInput.Pairs {
 			tmpSh := r.Shares[i]
 			ok := verifyDecProof(tmpSh.Sh.V, tmpSh.Ei, tmpSh.Fi, c.K,
 				d.pubShares[tmpSh.Sh.I])
@@ -149,7 +152,8 @@ func (d *ThreshDecrypt) decryptShareResponse(r structDecryptShareResponse) error
 	if len(d.dsResponses) == d.Threshold-1 {
 		d.Failures = 0
 		idx := -1
-		for i, c := range d.Cs {
+		//for i, c := range d.Cs.Pairs {
+		for i, c := range d.DecInput.Pairs {
 			// Root prepares its shares
 			sh := cothority.Suite.Point().Mul(d.Shared.V, c.K)
 			ei, fi := d.generateDecProof(c.K, sh)
@@ -168,7 +172,8 @@ func (d *ThreshDecrypt) decryptShareResponse(r structDecryptShareResponse) error
 		d.pubShares[idx] = d.Poly.Eval(idx).V
 		d.Ptexts = make([]kyber.Point, len(d.partials))
 		for i, partial := range d.partials {
-			d.Ptexts[i] = d.recoverCommit(d.Cs[i], partial.Shares)
+			//d.Ptexts[i] = d.recoverCommit(d.Cs.Pairs[i], partial.Shares)
+			d.Ptexts[i] = d.recoverCommit(d.DecInput.Pairs[i], partial.Shares)
 		}
 		// prepare BLS signature and mask
 		hash, err := d.calculateHash()
@@ -208,7 +213,8 @@ func (d *ThreshDecrypt) reconstruct(r structReconstruct) error {
 	log.Lvl3(d.Name() + ": starting reconstruct")
 	defer d.Done()
 	d.Ptexts = make([]kyber.Point, len(r.Partials))
-	for i, c := range d.Cs {
+	//for i, c := range d.Cs.Pairs {
+	for i, c := range d.DecInput.Pairs {
 		partial := r.Partials[i]
 		for j, _ := range partial.Shares {
 			ok := verifyDecProof(partial.Shares[j].V, partial.Eis[j],
@@ -316,6 +322,7 @@ func verifyDecProof(sh kyber.Point, ei kyber.Scalar, fi kyber.Scalar,
 }
 
 func (d *ThreshDecrypt) recoverCommit(cs utils.ElGamalPair, pubShares []*share.PubShare) kyber.Point {
+	log.Lvlf1("%s: threshold is %d", d.ServerIdentity(), d.Threshold)
 	rc, err := share.RecoverCommit(cothority.Suite, pubShares, d.Threshold, len(d.List()))
 	if err != nil {
 		log.Errorf("couldn't recover message: %v", err)

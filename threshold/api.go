@@ -1,6 +1,7 @@
 package threshold
 
 import (
+	"github.com/dedis/protean/threshold/base"
 	"github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/onet/v3"
@@ -38,8 +39,9 @@ func (c *Client) InitDKG(id []byte) (*InitDKGReply, error) {
 
 func (c *Client) Decrypt(id []byte, cs []utils.ElGamalPair) (*DecryptReply, error) {
 	req := &DecryptRequest{
-		ID: NewDKGID(id),
-		Cs: cs,
+		ID:    NewDKGID(id),
+		Input: base.DecryptInput{utils.ElGamalPairs{Pairs: cs}},
+		//ExecReq: core.ExecutionRequest{}
 	}
 	reply := &DecryptReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)

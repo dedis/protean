@@ -7,17 +7,6 @@ import (
 	"go.dedis.ch/kyber/v3"
 )
 
-// KVInputData is an input of JoinLottery
-type KVInputData struct {
-	StateProof core.StateProof
-	Genesis    skipchain.SkipBlock
-}
-
-// KVOutputData is an output of JoinLottery
-type KVOutputData struct {
-	Args byzcoin.Arguments
-}
-
 type JoinLotteryInput struct {
 	Ticket Ticket
 	KVData KVInputData
@@ -29,14 +18,23 @@ type Ticket struct {
 	Sig []byte
 }
 
-type Tickets struct {
-	Data []Ticket
+// KVInputData is an input of JoinLottery
+type KVInputData struct {
+	StateProof core.StateProof
+	Genesis    skipchain.SkipBlock
+}
+
+type CloseJoinInput struct {
+	KVData KVInputData
+	// needs to match the CONST value in the workflow
+	BlockNum int
 }
 
 type RevealWinnerInput struct {
 	KVData     KVInputData
 	Randomness RandomnessData
-	Round      int
+	// needs to match the CONST value in the workflow
+	Round int
 }
 
 // RandomnessData is an input
@@ -46,4 +44,13 @@ type RandomnessData struct {
 	Prev   []byte
 	// Value is the collective signature. Use the hash of it!
 	Value []byte
+}
+
+// KVOutputData is an output of JoinLottery
+type KVOutputData struct {
+	Args byzcoin.Arguments
+}
+
+type Tickets struct {
+	Data []Ticket
 }

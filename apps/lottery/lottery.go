@@ -4,7 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"github.com/dedis/protean/contracts"
-	"github.com/dedis/protean/libexec/commons"
+	"github.com/dedis/protean/core"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/kyber/v3/pairing"
@@ -14,15 +14,15 @@ import (
 	"golang.org/x/xerrors"
 )
 
-func JoinLottery(inputs []commons.Input) ([]commons.Output, error) {
-	//ticket, ok := inputs[0].I.(Ticket)
+func JoinLottery(inputs []core.OpcodeRequest) ([]core.Output, error) {
+	//ticket, ok := inputs[0].Input.(Ticket)
 	//if !ok {
 	//	return nil, xerrors.Errorf("couldn't find the ticket input")
 	//}
 
-	input, ok := inputs[0].I.(JoinLotteryInput)
+	input, ok := inputs[0].Input.(JoinLotteryInput)
 	if !ok {
-		return nil, xerrors.Errorf("couldn't find the join lottery input")
+		return nil, xerrors.Errorf("didn't receive JoinLottery input")
 	}
 	ticket := input.Ticket
 	h := sha256.New()
@@ -37,7 +37,7 @@ func JoinLottery(inputs []commons.Input) ([]commons.Output, error) {
 		return nil, xerrors.Errorf("cannot verify signature: %v", err)
 	}
 
-	//kvData, ok := inputs[1].I.(KVInputData)
+	//kvData, ok := inputs[1].Input.(KVInputData)
 	//if !ok {
 	//	return nil, xerrors.Errorf("couldn't find the kv data input")
 	//}
@@ -77,16 +77,34 @@ func JoinLottery(inputs []commons.Input) ([]commons.Output, error) {
 		return nil, xerrors.Errorf("couldn't encode tickets: %v", err)
 	}
 	kv := byzcoin.Arguments{{Name: "tickets", Value: kvBuf}}
-	outputs := make([]commons.Output, 1)
+	outputs := make([]core.Output, 1)
 	outputs[0].O = KVOutputData{Args: kv}
 	return outputs, nil
 }
 
-func RevealWinner(inputs []commons.Input) ([]commons.Output, error) {
-	//randomness, ok := inputs[0].I.(RandomnessInput)
-	input, ok := inputs[0].I.(RevealWinnerInput)
+func CloseJoin(inputs []core.OpcodeRequest) ([]core.Output, error) {
+	input, ok := inputs[0].Input.(CloseJoinInput)
 	if !ok {
-		return nil, xerrors.Errorf("couldn't find the randomness input")
+		return nil, xerrors.Errorf("didn't receive CloseJoin input")
+	}
+	//TODO: check that CONST value matches
+	kvData := input.KVData
+	//TODO: verify proof using VerifyFromBlock
+	currBlkNum := kvData.StateProof.Proof.Latest.Index
+	if currBlkNum < input.BlockNum {
+		return nil, xerrors.Errorf(
+			"couldn't close join: current block number %d is smaller than the"+
+				" barrier point block number %d", currBlkNum, input.BlockNum)
+	}
+	//
+	return nil, nil
+}
+
+func RevealWinner(inputs []core.OpcodeRequest) ([]core.Output, error) {
+	//randomness, ok := inputs[0].Input.(RandomnessInput)
+	input, ok := inputs[0].Input.(RevealWinnerInput)
+	if !ok {
+		return nil, xerrors.Errorf("didn't receive RevealWinner input")
 	}
 	//TODO: Check the round value == constant value in the workflow
 	suite := pairing.NewSuiteBn256()
@@ -96,7 +114,7 @@ func RevealWinner(inputs []commons.Input) ([]commons.Output, error) {
 		return nil, xerrors.Errorf("couldn't verify randomness value: %v", err)
 	}
 
-	//kvData, ok := inputs[1].I.(KVInputData)
+	//kvData, ok := inputs[1].Input.(KVInputData)
 	//if !ok {
 	//	return nil, xerrors.Errorf("couldn't find the kv data input")
 	//}

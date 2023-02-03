@@ -1,13 +1,19 @@
 package easyrand
 
 import (
+	"github.com/dedis/protean/core"
+	"github.com/dedis/protean/easyrand/base"
 	blscosi "go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/onet/v3"
+	"go.dedis.ch/onet/v3/network"
 )
 
-const DKG = "InitDKG"
-const RAND = "Randomness"
+func init() {
+	network.RegisterMessages(&InitUnitRequest{}, &InitUnitReply{},
+		&InitDKGRequest{}, &InitDKGReply{}, &RandomnessRequest{},
+		&RandomnessReply{})
+}
 
 type InitUnitRequest struct {
 	Roster *onet.Roster
@@ -23,7 +29,10 @@ type InitDKGReply struct {
 }
 
 // RandomnessRequest is a request to get the public randomness.
-type RandomnessRequest struct{}
+type RandomnessRequest struct {
+	Input   base.RandomnessInput
+	ExecReq core.ExecutionRequest
+}
 
 // RandomnessReply is the returned public randomness.
 type RandomnessReply struct {

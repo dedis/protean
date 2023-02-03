@@ -24,16 +24,16 @@ func init() {
 		log.Errorf("cannot register protocol: %v", err)
 		panic(err)
 	}
-	network.RegisterMessages(&VerifyRandomness{}, &VerifyRandomnessResponse{})
+	network.RegisterMessages(&VerifyRand{}, &VerifyResponse{})
 }
 
 type RandomnessVerify struct {
 	*onet.TreeNodeInstance
 
 	Data           *Data
-	BlsPublic      kyber.Point
-	BlsPublics     []kyber.Point
-	BlsSk          kyber.Scalar
+	Public         kyber.Point
+	Publics        []kyber.Point
+	Sk             kyber.Scalar
 	FinalSignature blscosi.BlsSignature
 
 	Threshold int
@@ -41,7 +41,7 @@ type RandomnessVerify struct {
 	Verified  chan bool
 
 	suite     *pairing.SuiteBn256
-	responses []VerifyRandomnessResponse
+	responses []VerifyResponse
 	mask      *sign.Mask
 	timeout   *time.Timer
 	doneOnce  sync.Once
@@ -53,7 +53,7 @@ func NewRandomnessVerify(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error
 		Verified:         make(chan bool, 1),
 		suite:            pairing.NewSuiteBn256(),
 	}
-	err := rv.RegisterHandlers(rv.verifyRandomness, rv.verifyRandomnessResponse)
+	err := rv.RegisterHandlers(rv.verifyRandomness, rv.verifyResponse)
 	if err != nil {
 		return nil, err
 	}
@@ -79,12 +79,12 @@ func (rv *RandomnessVerify) Start() error {
 		return err
 	}
 	rv.responses = append(rv.responses, resp)
-	rv.mask, err = sign.NewMask(rv.suite, rv.BlsPublics, rv.BlsPublic)
+	rv.mask, err = sign.NewMask(rv.suite, rv.Publics, rv.Public)
 	if err != nil {
 		rv.finish(false)
 		return xerrors.Errorf("couldn't generate mask: %v", err)
 	}
-	vp := &VerifyRandomness{
+	vp := &VerifyRand{
 		Hash: hash,
 	}
 	rv.timeout = time.AfterFunc(2*time.Minute, func() {
@@ -99,29 +99,28 @@ func (rv *RandomnessVerify) Start() error {
 	return nil
 }
 
-func (rv *RandomnessVerify) verifyRandomness(r structVerifyRandomness) error {
+func (rv *RandomnessVerify) verifyRandomness(r structVerifyRand) error {
 	defer rv.Done()
-	//hash, err := CalculateHash(rv.Data)
 	hash, err := rv.CalculateHash()
 	if err != nil {
 		log.Errorf("%s: couldn't calculate the hash: %v", rv.Name(), err)
-		return cothority.ErrorOrNil(rv.SendToParent(&VerifyRandomnessResponse{}),
-			"sending VerifyRandomnessResponse to parent")
+		return cothority.ErrorOrNil(rv.SendToParent(&VerifyResponse{}),
+			"sending VerifyResponse to parent")
 	}
 	if !bytes.Equal(hash, r.Hash) {
 		log.Errorf("%s: hashes do not match", rv.Name())
-		return cothority.ErrorOrNil(rv.SendToParent(&VerifyRandomnessResponse{}),
-			"sending VerifyRandomnessResponse to parent")
+		return cothority.ErrorOrNil(rv.SendToParent(&VerifyResponse{}),
+			"sending VerifyResponse to parent")
 	}
 	resp, err := rv.generateResponse(hash)
 	if err != nil {
 		log.Errorf("%s couldn't generate response: %v", rv.Name(), err)
 	}
 	return cothority.ErrorOrNil(rv.SendToParent(&resp),
-		"sending VerifyRandomnessResponse to parent")
+		"sending VerifyResponse to parent")
 }
 
-func (rv *RandomnessVerify) verifyRandomnessResponse(r structVerifyRandomnessResponse) error {
+func (rv *RandomnessVerify) verifyResponse(r structVerifyResponse) error {
 	index := searchPublicKey(rv.TreeNodeInstance, r.ServerIdentity)
 	if len(r.Signature) == 0 || index < 0 {
 		log.Lvl2(r.ServerIdentity, "refused to respond")
@@ -134,7 +133,7 @@ func (rv *RandomnessVerify) verifyRandomnessResponse(r structVerifyRandomnessRes
 	}
 
 	rv.mask.SetBit(index, true)
-	rv.responses = append(rv.responses, r.VerifyRandomnessResponse)
+	rv.responses = append(rv.responses, r.VerifyResponse)
 
 	if len(rv.responses) == rv.Threshold {
 		finalSignature := rv.suite.G1().Point()
@@ -172,12 +171,12 @@ func (rv *RandomnessVerify) CalculateHash() ([]byte, error) {
 	return h.Sum(nil), nil
 }
 
-func (rv *RandomnessVerify) generateResponse(data []byte) (VerifyRandomnessResponse, error) {
-	sig, err := bls.Sign(rv.suite, rv.BlsSk, data)
+func (rv *RandomnessVerify) generateResponse(data []byte) (VerifyResponse, error) {
+	sig, err := bls.Sign(rv.suite, rv.Sk, data)
 	if err != nil {
-		return VerifyRandomnessResponse{}, err
+		return VerifyResponse{}, err
 	}
-	return VerifyRandomnessResponse{Signature: sig}, nil
+	return VerifyResponse{Signature: sig}, nil
 }
 
 func searchPublicKey(p *onet.TreeNodeInstance, servID *network.ServerIdentity) int {

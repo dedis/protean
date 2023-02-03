@@ -1,14 +1,19 @@
 package threshold
 
 import (
-	"github.com/dedis/protean/utils"
+	"github.com/dedis/protean/core"
+	"github.com/dedis/protean/threshold/base"
 	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/onet/v3"
+	"go.dedis.ch/onet/v3/network"
 )
 
-const DKG = "InitDKG"
-const DEC = "Decrypt"
+func init() {
+	network.RegisterMessages(&InitUnitRequest{}, &InitUnitReply{},
+		&InitDKGRequest{}, &InitDKGReply{}, &DecryptRequest{},
+		&DecryptReply{})
+}
 
 type DKGID [32]byte
 
@@ -19,8 +24,8 @@ type InitUnitRequest struct {
 type InitUnitReply struct{}
 
 type InitDKGRequest struct {
-	ID DKGID
-	//ExecData *sys.ExecutionData
+	ID      DKGID
+	ExecReq core.ExecutionRequest
 }
 
 type InitDKGReply struct {
@@ -29,9 +34,9 @@ type InitDKGReply struct {
 }
 
 type DecryptRequest struct {
-	ID DKGID
-	Cs []utils.ElGamalPair
-	//ExecData *sys.ExecutionData
+	ID      DKGID
+	Input   base.DecryptInput
+	ExecReq core.ExecutionRequest
 }
 
 type DecryptReply struct {
@@ -45,13 +50,3 @@ type pubPoly struct {
 	B       kyber.Point
 	Commits []kyber.Point
 }
-
-//type DecryptReply struct {
-//	// If server = true, Ps will contain the plaintext. If server =
-//	// false, Ps will be nil
-//	Ps []kyber.Point
-//	// If server = false, partials will contain the partial decryptions and
-//	// decryption proofs. If server = true, partials will be nil
-//	partials  []*Partial
-//	Signature protocol.BlsSignature
-//}

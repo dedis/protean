@@ -68,7 +68,7 @@ func TestShuffle_DKG(t *testing.T) {
 
 	var ctexts []protean.ElGamalPair
 	cs := shReply.Proofs[n-1].Pairs
-	for _, p := range cs {
+	for _, p := range cs.Pairs {
 		ctexts = append(ctexts, p)
 	}
 	decReply, err := thCl.Decrypt(id, ctexts)
@@ -117,7 +117,7 @@ func TestShuffle_EGDecrypt(t *testing.T) {
 
 	// Should be able to decrypt the shuffled ciphertexts
 	cs := reply.Proofs[n-1].Pairs
-	for _, p := range cs {
+	for _, p := range cs.Pairs {
 		pt := protean.ElGamalDecrypt(kp.Private, p)
 		data, err := pt.Data()
 		require.NoError(t, err)
@@ -139,7 +139,7 @@ func TestShuffle_EGDecrypt(t *testing.T) {
 //   - req - ShuffleRequest with ciphertexts
 //   - kp  - If a public key is provided, key pair only contains that public
 //   key. Otherwise (pub = nil), key pair is the newly-generated key pair
-func generateRequest(n int, msg []byte, pub kyber.Point) ([]protean.ElGamalPair, *key.Pair) {
+func generateRequest(n int, msg []byte, pub kyber.Point) (protean.ElGamalPairs, *key.Pair) {
 	var kp *key.Pair
 	if pub != nil {
 		kp = &key.Pair{
@@ -153,9 +153,5 @@ func generateRequest(n int, msg []byte, pub kyber.Point) ([]protean.ElGamalPair,
 		c := protean.ElGamalEncrypt(kp.Public, msg)
 		pairs[i] = protean.ElGamalPair{K: c.K, C: c.C}
 	}
-	//req = ShuffleRequest{
-	//	Pairs: pairs,
-	//	H:     kp.Public,
-	//}
-	return pairs, kp
+	return protean.ElGamalPairs{Pairs: pairs}, kp
 }

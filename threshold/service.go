@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/dedis/protean/threshold/protocol"
 	"go.dedis.ch/cothority/v3/blscosi"
+	"go.dedis.ch/onet/v3/network"
 	"golang.org/x/xerrors"
 	"sync"
 	"time"
@@ -15,11 +16,10 @@ import (
 	"go.dedis.ch/kyber/v3/util/key"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
-	"go.dedis.ch/onet/v3/network"
 )
 
 var thresholdID onet.ServiceID
-var ServiceName = "ThreshCryptoService"
+var ServiceName = "ThresholdService"
 var storageKey = []byte("storage")
 
 const propagationTimeout = 20 * time.Second
@@ -50,9 +50,7 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
-	network.RegisterMessages(&storage{}, &InitUnitRequest{}, &InitUnitReply{},
-		&InitDKGRequest{}, &InitDKGReply{}, &DecryptRequest{},
-		&DecryptReply{})
+	network.RegisterMessages(&storage{})
 }
 
 func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
@@ -120,18 +118,6 @@ func (s *Service) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
 }
 
 func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
-	// First verify the execution request
-	//db := s.scService.GetDB()
-	//blk, err := db.GetLatest(db.GetByID(s.genesis))
-	//if err != nil {
-	//	log.Errorf("Cannot get the latest block: %v", err)
-	//	return nil, err
-	//}
-	//verified := s.verifyExecutionRequest(DEC, blk, req.ExecData)
-	//if !verified {
-	//	log.Errorf("Cannot verify execution plan")
-	//	return nil, fmt.Errorf("cannot verify execution plan")
-	//}
 	// create protocol
 	nodeCount := len(s.roster.List)
 	tree := s.roster.GenerateNaryTreeWithRoot(nodeCount-1, s.ServerIdentity())
@@ -140,7 +126,8 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 		return nil, xerrors.New("failed to create decryptShare protocol: " + err.Error())
 	}
 	decProto := pi.(*protocol.ThreshDecrypt)
-	decProto.Cs = req.Cs
+	//decProto.Cs = req.Input.Cs
+	decProto.DecInput = req.Input
 	decProto.BlsPublic = s.ServerIdentity().ServicePublic(blscosi.ServiceName)
 	decProto.BlsPublics = s.roster.ServicePublics(blscosi.ServiceName)
 	decProto.BlsSk = s.ServerIdentity().ServicePrivate(blscosi.ServiceName)
@@ -266,11 +253,13 @@ func (s *Service) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConfi
 		if !ok {
 			return nil, xerrors.Errorf("couldn't find shared data with id: %x", id)
 		}
+		nodeCount := len(s.roster.List)
 		pi, err := protocol.NewThreshDecrypt(tn)
 		if err != nil {
 			return nil, err
 		}
 		dec := pi.(*protocol.ThreshDecrypt)
+		dec.Threshold = nodeCount - (nodeCount-1)/3
 		dec.Shared = shared
 		dec.BlsPublic = s.ServerIdentity().ServicePublic(blscosi.ServiceName)
 		dec.BlsPublics = s.roster.ServicePublics(blscosi.ServiceName)

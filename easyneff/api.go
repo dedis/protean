@@ -1,6 +1,7 @@
 package easyneff
 
 import (
+	"github.com/dedis/protean/easyneff/base"
 	"github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/kyber/v3"
@@ -29,13 +30,16 @@ func (c *Client) InitUnit() (*InitUnitReply, error) {
 	return reply, nil
 }
 
-func (c *Client) Shuffle(pairs []utils.ElGamalPair, h kyber.Point) (*ShuffleReply, error) {
-	if len(pairs) <= 0 {
+func (c *Client) Shuffle(ps utils.ElGamalPairs, h kyber.Point) (*ShuffleReply, error) {
+	if len(ps.Pairs) <= 0 {
 		return nil, xerrors.Errorf("No ciphertext to shuffle")
 	}
 	req := &ShuffleRequest{
-		Pairs: pairs,
-		H:     h,
+		Input: base.ShuffleInput{
+			Pairs: ps,
+			H:     h,
+		},
+		//ExecReq: core.ExecutionRequest{},
 	}
 	reply := &ShuffleReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)

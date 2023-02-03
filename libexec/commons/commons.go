@@ -1,12 +1,6 @@
 package commons
 
+import "github.com/dedis/protean/core"
+
 //TODO: add execution request to input parameters
-type ExecutionFn func([]Input) ([]Output, error)
-
-type Input struct {
-	I interface{}
-}
-
-type Output struct {
-	O interface{}
-}
+type ExecutionFn func([]core.OpcodeRequest) ([]core.Output, error)
