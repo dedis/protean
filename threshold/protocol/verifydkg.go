@@ -41,7 +41,6 @@ type VerifyDKG struct {
 	Failures  int
 	Verified  chan bool
 
-	//hash      []byte
 	responses []*VerifyResponse
 	suite     *pairing.SuiteBn256
 	mask      *sign.Mask
@@ -69,19 +68,13 @@ func (v *VerifyDKG) Start() error {
 	}
 	err := v.runVerification()
 	if err != nil {
-		log.Errorf("%s couldn't verify request: %v:", v.Name(), err)
+		log.Errorf("%s couldn't verify the execution request: %v:", v.Name(), err)
 		v.finish(false)
 		return err
 	}
-	//v.hash, err = utils.Hash(v.X)
-	//if err != nil {
-	//	log.Errorf("%s failed to calculate the hash: %v", v.Name(), err)
-	//	v.finish(false)
-	//	return err
-	//}
 	resp, err := v.generateResponse()
 	if err != nil {
-		log.Errorf("root %s failed to generate response: %v", v.Name(), err)
+		log.Errorf("%s failed to generate response: %v", v.Name(), err)
 		v.finish(false)
 		return err
 	}
@@ -139,7 +132,6 @@ func (v *VerifyDKG) verifyDKGResponse(r structVerifyResponse) error {
 
 	v.mask.SetBit(index, true)
 	v.responses = append(v.responses, &r.VerifyResponse)
-
 	if len(v.responses) == v.Threshold {
 		for name, receipt := range v.Receipts {
 			aggSignature := v.suite.G1().Point()
@@ -193,11 +185,7 @@ func (v *VerifyDKG) runVerification() error {
 		UID:        base.UID,
 		OpcodeName: base.DKG,
 	}
-	err := v.ExecReq.Verify(vData)
-	if err != nil {
-		return xerrors.Errorf("failed to verify the execution request: %v", err)
-	}
-	return nil
+	return v.ExecReq.Verify(vData)
 }
 
 func (v *VerifyDKG) finish(result bool) {

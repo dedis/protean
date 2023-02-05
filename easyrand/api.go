@@ -1,6 +1,7 @@
 package easyrand
 
 import (
+	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/easyrand/base"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/onet/v3"
@@ -34,10 +35,10 @@ func (c *Client) InitDKG() (*InitDKGReply, error) {
 	return reply, err
 }
 
-func (c *Client) Randomness(round uint64) (*RandomnessReply, error) {
+func (c *Client) Randomness(round uint64, execReq *core.ExecutionRequest) (*RandomnessReply, error) {
 	req := &RandomnessRequest{
-		Input: base.RandomnessInput{Round: round},
-		//ExecReq: core.ExecutionRequest{},
+		Input:   base.RandomnessInput{Round: round},
+		ExecReq: *execReq,
 	}
 	reply := &RandomnessReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)

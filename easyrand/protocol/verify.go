@@ -16,7 +16,6 @@ import (
 	"go.dedis.ch/kyber/v3/sign/bls"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
-	"go.dedis.ch/onet/v3/network"
 	"golang.org/x/xerrors"
 )
 
@@ -26,7 +25,6 @@ func init() {
 		log.Errorf("cannot register protocol: %v", err)
 		panic(err)
 	}
-	network.RegisterMessages(&VerifyRand{}, &VerifyResponse{})
 }
 
 type RandomnessVerify struct {
@@ -62,31 +60,23 @@ func NewRandomnessVerify(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error
 }
 
 func (rv *RandomnessVerify) Start() error {
-	var err error
-	//if rv.Data == nil {
 	if rv.RandOutput == nil {
 		rv.finish(false)
 		return xerrors.New("initialize Data first")
 	}
-	//hash, err := rv.RandOutput.Hash()
-	//if err != nil {
-	//	log.Errorf("root %s failed to calculate the hash: %v", rv.Name(), err)
-	//	rv.finish(false)
-	//	return err
-	//}
-	//resp, err := rv.generateResponse(hash)
-	//if err != nil {
-	//	log.Errorf("root %s failed to generate response: %v", rv.Name(), err)
-	//	rv.finish(false)
-	//	return err
-	//}
 	resp, err := rv.generateResponse()
+	if err != nil {
+		log.Errorf("%s failed to generate response: %v", rv.Name(), err)
+		rv.finish(false)
+		return err
+	}
 	rv.responses = append(rv.responses, resp)
 	rv.mask, err = sign.NewMask(rv.suite, rv.Roster().ServicePublics(blscosi.ServiceName),
 		rv.KP.Public)
 	if err != nil {
+		log.Errorf("couldn't generate mask: %v", err)
 		rv.finish(false)
-		return xerrors.Errorf("couldn't generate mask: %v", err)
+		return err
 	}
 	rv.timeout = time.AfterFunc(2*time.Minute, func() {
 		log.Lvl1("RandomnessVerify protocol timeout")

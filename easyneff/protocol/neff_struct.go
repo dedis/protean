@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"crypto/sha256"
+	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/easyneff/base"
 	"github.com/dedis/protean/utils"
 	"go.dedis.ch/onet/v3/network"
@@ -14,7 +15,8 @@ func init() {
 }
 
 type Request struct {
-	ShuffleInput base.ShuffleInput
+	ShuffleInput *base.ShuffleInput
+	ExecReq      *core.ExecutionRequest
 }
 
 type ShuffleProof struct {

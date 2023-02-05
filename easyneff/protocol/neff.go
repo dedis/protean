@@ -1,7 +1,9 @@
 package protocol
 
 import (
+	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/easyneff/base"
+	"go.dedis.ch/onet/v3/log"
 	"golang.org/x/xerrors"
 	"time"
 
@@ -18,7 +20,10 @@ import (
 type NeffShuffle struct {
 	*onet.TreeNodeInstance
 
-	ShufInput  base.ShuffleInput
+	ShufInput   *base.ShuffleInput
+	ExecReq     *core.ExecutionRequest
+	InputHashes map[string][]byte
+
 	FinalProof chan ShuffleProof
 
 	suite     proof.Suite
@@ -65,18 +70,33 @@ func (p *NeffShuffle) Start() error {
 	if !treeIsChain(p.Root(), len(p.List())) {
 		return xerrors.New("tree must be a line")
 	}
+	if p.ExecReq == nil {
+		return xerrors.New("missing execution request")
+	}
 	// start the shuffle
-	return p.SendTo(p.Root(), &Request{ShuffleInput: p.ShufInput})
+	return p.SendTo(p.Root(), &Request{ShuffleInput: p.ShufInput, ExecReq: p.ExecReq})
 }
 
 // Dispatch implements the onet.ProtocolInstance interface.
 func (p *NeffShuffle) Dispatch() error {
 	defer p.Done()
+	var err error
 	// handle the first request
 	req := <-p.reqChan
-	shInput := req.ShuffleInput
-	X, Y := splitPairs(shInput.Pairs)
-	Xbar, Ybar, prover := shuffle.Shuffle(p.suite, nil, shInput.H, X, Y,
+	p.ShufInput = req.ShuffleInput
+	p.ExecReq = req.ExecReq
+	p.InputHashes, err = p.ShufInput.PrepareInputHashes()
+	if err != nil {
+		log.Errorf("%s couldn't generate the input hashes: %v", p.Name(), err)
+		return err
+	}
+	err = p.runVerification()
+	if err != nil {
+		log.Errorf("%s couldn't verify the execution request: %v", p.Name(), err)
+		return err
+	}
+	X, Y := splitPairs(p.ShufInput.Pairs)
+	Xbar, Ybar, prover := shuffle.Shuffle(p.suite, nil, p.ShufInput.H, X, Y,
 		p.suite.RandomStream())
 	prf, err := proof.HashProve(p.suite, "", prover)
 	if err != nil {
@@ -102,15 +122,15 @@ func (p *NeffShuffle) Dispatch() error {
 	}
 	// Send to the next node in the chain.
 	newReq := Request{
-		ShuffleInput: base.ShuffleInput{
+		ShuffleInput: &base.ShuffleInput{
 			Pairs: signedPrf.Pairs,
-			H:     shInput.H,
+			H:     p.ShufInput.H,
 		},
 	}
 	if err := p.SendTo(p.Children()[0], &newReq); err != nil {
 		return err
 	}
-	// No need to collect other proof if Input'm not the root.
+	// No need to collect other proof if I'm not the root.
 	if !p.IsRoot() {
 		return nil
 	}
@@ -182,4 +202,13 @@ func treeIsChain(start *onet.TreeNode, n int) bool {
 		return true
 	}
 	return false
+}
+
+func (p *NeffShuffle) runVerification() error {
+	vData := &core.VerificationData{
+		UID:         base.UID,
+		OpcodeName:  base.SHUFFLE,
+		InputHashes: p.InputHashes,
+	}
+	return p.ExecReq.Verify(vData)
 }

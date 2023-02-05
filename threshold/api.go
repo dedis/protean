@@ -29,10 +29,8 @@ func (c *Client) InitUnit() (*InitUnitReply, error) {
 	return reply, nil
 }
 
-//func (c *Client) InitDKG(id []byte) (*InitDKGReply, error) {
 func (c *Client) InitDKG(execReq *core.ExecutionRequest) (*InitDKGReply, error) {
 	req := &InitDKGRequest{
-		//ID: NewDKGID(id),
 		ExecReq: *execReq,
 	}
 	reply := &InitDKGReply{}
@@ -40,11 +38,8 @@ func (c *Client) InitDKG(execReq *core.ExecutionRequest) (*InitDKGReply, error) 
 	return reply, err
 }
 
-//func (c *Client) Decrypt(id []byte, cs []utils.ElGamalPair) (*DecryptReply, error) {
-func (c *Client) Decrypt(cs []utils.ElGamalPair,
-	execReq *core.ExecutionRequest) (*DecryptReply, error) {
+func (c *Client) Decrypt(cs []utils.ElGamalPair, execReq *core.ExecutionRequest) (*DecryptReply, error) {
 	req := &DecryptRequest{
-		//ID:    NewDKGID(id),
 		Input:   base.DecryptInput{utils.ElGamalPairs{Pairs: cs}},
 		ExecReq: *execReq,
 	}

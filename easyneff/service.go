@@ -49,7 +49,13 @@ func (s *EasyNeff) Shuffle(req *ShuffleRequest) (*ShuffleReply, error) {
 		return nil, err
 	}
 	neff := pi.(*protocol.NeffShuffle)
-	neff.ShufInput = req.Input
+	neff.ShufInput = &req.Input
+	neff.ExecReq = &req.ExecReq
+	neff.InputHashes, err = req.Input.PrepareInputHashes()
+	if err != nil {
+		log.Errorf("failed to prepare the input hashes: %v", err)
+		return nil, err
+	}
 	if err := pi.Start(); err != nil {
 		return nil, err
 	}
@@ -62,12 +68,13 @@ func (s *EasyNeff) Shuffle(req *ShuffleRequest) (*ShuffleReply, error) {
 			return nil, err
 		}
 		shufVerify := pi.(*protocol.ShuffleVerify)
-		shufVerify.Threshold = nodeCount - (nodeCount-1)/3
 		shufVerify.ShufInput = &req.Input
 		shufVerify.ShufProof = &shufProof
+		shufVerify.ExecReq = &req.ExecReq
 		shufVerify.KP = protean.GetBLSKeyPair(s.ServerIdentity())
 		// Verification function
 		shufVerify.Verify = s.ShuffleVerify
+		shufVerify.Threshold = nodeCount - (nodeCount-1)/3
 		err = shufVerify.Start()
 		if err != nil {
 			return nil, xerrors.Errorf("Failed to start the verification protocol: " + err.Error())
@@ -75,7 +82,8 @@ func (s *EasyNeff) Shuffle(req *ShuffleRequest) (*ShuffleReply, error) {
 		if !<-shufVerify.Verified {
 			return nil, xerrors.New("shuffle verify failed")
 		}
-		return &ShuffleReply{Proofs: shufProof.Proofs, Signature: shufVerify.FinalSignature}, nil
+		return &ShuffleReply{Proofs: shufProof.Proofs,
+			Receipts: shufVerify.Receipts}, nil
 	case <-time.After(time.Second * time.Duration(len(s.roster.List))):
 		return nil, xerrors.New("timeout waiting for shuffle")
 	}

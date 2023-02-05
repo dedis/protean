@@ -10,7 +10,7 @@ import (
 const VerifyDKGProtoName = "threshold_verifydkg"
 
 func init() {
-	network.RegisterMessages()
+	network.RegisterMessages(&VerifyRequest{}, &VerifyResponse{})
 }
 
 type VerifyRequest struct {

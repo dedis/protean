@@ -60,7 +60,7 @@ func (p *SignProtocol) Start() error {
 	}
 	err := p.runVerification()
 	if err != nil {
-		log.Errorf("%s couldn't verify request: %v", p.Name(), err)
+		log.Errorf("%s couldn't verify the execution request: %v", p.Name(), err)
 		return err
 	}
 	log.Lvl3(p.ServerIdentity(), "starting")
@@ -76,8 +76,7 @@ func (p *SignProtocol) Dispatch() error {
 	p.ExecReq = initMsg.ExecReq
 	p.InputHashes, err = p.Input.PrepareInputHashes()
 	if err != nil {
-		log.Errorf("%s couldn't generate the input hashes: %v",
-			p.ServerIdentity(), err)
+		log.Errorf("%s couldn't generate the input hashes: %v", p.Name(), err)
 		return err
 	}
 	err = p.runVerification()
@@ -86,8 +85,8 @@ func (p *SignProtocol) Dispatch() error {
 		return err
 	}
 	// If the above verification succeeds,
-	// that means the round value passed by the client (
-	// and the root) equals the constant value in the workflow
+	// it means that the round value passed by the client
+	// (hence the root) equals the constant value in the workflow
 	if err := p.verifyRoundMsg(initMsg.Msg, initMsg.Input.Round); err != nil {
 		return err
 	}
@@ -150,9 +149,5 @@ func (p *SignProtocol) runVerification() error {
 		OpcodeName:  base.RAND,
 		InputHashes: p.InputHashes,
 	}
-	err := p.ExecReq.Verify(vData)
-	if err != nil {
-		return xerrors.Errorf("failed to verify the execution request: %v", err)
-	}
-	return nil
+	return p.ExecReq.Verify(vData)
 }

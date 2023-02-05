@@ -93,7 +93,7 @@ func (d *ThreshDecrypt) Start() error {
 	// First verify the execution request
 	err := d.runVerification()
 	if err != nil {
-		log.Errorf("%s couldn't verify request: %v:", d.Name(), err)
+		log.Errorf("%s couldn't verify the execution request: %v:", d.Name(), err)
 		d.finish(false)
 		return err
 	}
@@ -207,19 +207,6 @@ func (d *ThreshDecrypt) decryptShareResponse(r structDecryptShareResponse) error
 			d.Ps[i] = d.recoverCommit(d.DecInput.Pairs[i], partial.Shares)
 		}
 		// prepare BLS signature and mask
-
-		//hash, err := d.calculateHash()
-		//if err != nil {
-		//	log.Errorf("root couldn't calculate the hash: %v", err)
-		//	d.finish(false)
-		//	return err
-		//}
-		//rr, err := d.generateResponse(hash)
-		//if err != nil {
-		//	log.Errorf("root couldn't generate reconstruct response: %v", err)
-		//	d.finish(false)
-		//	return err
-		//}
 		resp, err := d.generateResponse()
 		if err != nil {
 			log.Errorf("%s couldn't generate reconstruct response: %v",
@@ -263,16 +250,6 @@ func (d *ThreshDecrypt) reconstruct(r structReconstruct) error {
 		}
 		d.Ps[i] = d.recoverCommit(c, partial.Shares)
 	}
-	//hash, err := d.calculateHash()
-	//if err != nil {
-	//	log.Errorf("root couldn't calculate the hash: %v", err)
-	//	return cothority.ErrorOrNil(d.SendToParent(&ReconstructResponse{}),
-	//		"sending ReconstructResponse to parent")
-	//}
-	//rr, err := d.generateResponse(hash)
-	//if err != nil {
-	//	log.Errorf("%s couldn't generate reconstruct response: %v", d.Name(), err)
-	//}
 	resp, err := d.generateResponse()
 	if err != nil {
 		log.Errorf("%s couldn't generate reconstruct response: %v", d.Name(), err)
@@ -295,24 +272,7 @@ func (d *ThreshDecrypt) reconstructResponse(r structReconstructResponse) error {
 
 	d.mask.SetBit(index, true)
 	d.reconstructResponses = append(d.reconstructResponses, &r.ReconstructResponse)
-
 	if len(d.reconstructResponses) == d.Threshold {
-		//finalSignature := d.suite.G1().Point()
-		//for _, resp := range d.reconstructResponses {
-		//	sig, err := resp.Signature.Point(d.suite)
-		//	if err != nil {
-		//		d.finish(false)
-		//		return err
-		//	}
-		//	finalSignature = finalSignature.Add(finalSignature, sig)
-		//}
-		//sig, err := finalSignature.MarshalBinary()
-		//if err != nil {
-		//	d.finish(false)
-		//	return err
-		//}
-		//d.FinalSignature = append(sig, d.mask.Mask()...)
-		//d.finish(true)
 		for name, receipt := range d.Receipts {
 			aggSignature := d.suite.G1().Point()
 			for _, resp := range d.reconstructResponses {
@@ -341,11 +301,7 @@ func (d *ThreshDecrypt) runVerification() error {
 		OpcodeName:  base.DEC,
 		InputHashes: d.InputHashes,
 	}
-	err := d.ExecReq.Verify(vData)
-	if err != nil {
-		return xerrors.Errorf("failed to verify the execution request: %v", err)
-	}
-	return nil
+	return d.ExecReq.Verify(vData)
 }
 
 func (d *ThreshDecrypt) generateResponse() (*ReconstructResponse, error) {
