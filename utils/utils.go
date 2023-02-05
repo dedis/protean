@@ -2,19 +2,20 @@ package utils
 
 import (
 	"crypto/sha256"
+	"go.dedis.ch/cothority/v3/blscosi"
+	"go.dedis.ch/kyber/v3/util/key"
+	"go.dedis.ch/onet/v3/network"
 	"sort"
 	"time"
 
 	"github.com/dedis/protean/sys"
 	"go.dedis.ch/cothority/v3"
-	"go.dedis.ch/cothority/v3/blscosi"
 	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/pairing"
 	"go.dedis.ch/kyber/v3/util/random"
 	"go.dedis.ch/onet/v3"
-	"go.dedis.ch/onet/v3/network"
 	"go.dedis.ch/protobuf"
 )
 
@@ -27,7 +28,9 @@ type ElGamalPair struct {
 	C kyber.Point // C2
 }
 
-type Pairs []ElGamalPair
+type ElGamalPairs struct {
+	Pairs []ElGamalPair
+}
 
 // ElGamalEncrypt performs the ElGamal encryption algorithm.
 func ElGamalEncrypt(public kyber.Point, message []byte) ElGamalPair {
@@ -51,9 +54,9 @@ func ElGamalDecrypt(private kyber.Scalar, egp ElGamalPair) kyber.Point {
 	return cothority.Suite.Point().Sub(egp.C, S)     // use to un-blind the message
 }
 
-func (ps Pairs) Hash() ([]byte, error) {
+func (ps *ElGamalPairs) Hash() ([]byte, error) {
 	h := sha256.New()
-	for _, p := range ps {
+	for _, p := range ps.Pairs {
 		bufK, err := p.K.MarshalBinary()
 		if err != nil {
 			return nil, err
@@ -68,12 +71,23 @@ func (ps Pairs) Hash() ([]byte, error) {
 	return h.Sum(nil), nil
 }
 
-func BlsCosiSign(s *blscosi.Service, r *onet.Roster, data []byte) (network.Message, error) {
-	resp, err := s.SignatureRequest(&blscosi.SignatureRequest{
-		Message: data,
-		Roster:  r,
-	})
-	return resp, err
+func Hash(p kyber.Point) ([]byte, error) {
+	buf, err := p.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+	h := sha256.New()
+	h.Write(buf)
+	return h.Sum(nil), nil
+}
+
+// Utility functions for BLS
+
+func GetBLSKeyPair(id *network.ServerIdentity) *key.Pair {
+	return &key.Pair{
+		Public:  id.ServicePublic(blscosi.ServiceName),
+		Private: id.ServicePrivate(blscosi.ServiceName),
+	}
 }
 
 func VerifyBLSSignature(s interface{}, sig protocol.BlsSignature, publics []kyber.Point) error {
@@ -86,21 +100,14 @@ func VerifyBLSSignature(s interface{}, sig protocol.BlsSignature, publics []kybe
 	return sig.Verify(ps, h.Sum(nil), publics)
 }
 
-//func ComputeWFHash(wf *sys.Workflow) ([]byte, error) {
-//authBytes := serializeAuthKeys(wf.AuthPublics)
-//serialWf := &sys.SerializedWf{
-//Nodes:       wf.Nodes,
-//AuthPublics: authBytes,
-//All:         wf.All,
-//}
-//buf, err := protobuf.Encode(serialWf)
-//if err != nil {
-//return nil, err
-//}
-//h := sha256.New()
-//h.Write(buf)
-//return h.Sum(nil), err
-//}
+func SearchPublicKey(p *onet.TreeNodeInstance, servID *network.ServerIdentity) int {
+	for idx, si := range p.Roster().List {
+		if si.Equal(servID) {
+			return idx
+		}
+	}
+	return -1
+}
 
 func ComputeEPHash(ep *sys.ExecutionPlan) ([]byte, error) {
 	//authBytes := serializeAuthKeys(ep.Workflow.AuthPublics)

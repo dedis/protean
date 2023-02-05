@@ -1,6 +1,7 @@
 package threshold
 
 import (
+	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/threshold/base"
 	"github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3"
@@ -28,20 +29,24 @@ func (c *Client) InitUnit() (*InitUnitReply, error) {
 	return reply, nil
 }
 
-func (c *Client) InitDKG(id []byte) (*InitDKGReply, error) {
+//func (c *Client) InitDKG(id []byte) (*InitDKGReply, error) {
+func (c *Client) InitDKG(execReq *core.ExecutionRequest) (*InitDKGReply, error) {
 	req := &InitDKGRequest{
-		ID: NewDKGID(id),
+		//ID: NewDKGID(id),
+		ExecReq: *execReq,
 	}
 	reply := &InitDKGReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)
 	return reply, err
 }
 
-func (c *Client) Decrypt(id []byte, cs []utils.ElGamalPair) (*DecryptReply, error) {
+//func (c *Client) Decrypt(id []byte, cs []utils.ElGamalPair) (*DecryptReply, error) {
+func (c *Client) Decrypt(cs []utils.ElGamalPair,
+	execReq *core.ExecutionRequest) (*DecryptReply, error) {
 	req := &DecryptRequest{
-		ID:    NewDKGID(id),
-		Input: base.DecryptInput{utils.ElGamalPairs{Pairs: cs}},
-		//ExecReq: core.ExecutionRequest{}
+		//ID:    NewDKGID(id),
+		Input:   base.DecryptInput{utils.ElGamalPairs{Pairs: cs}},
+		ExecReq: *execReq,
 	}
 	reply := &DecryptReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)

@@ -14,8 +14,8 @@ type VerificationFn func(*ShuffleProof, kyber.Point, kyber.Point,
 	utils.ElGamalPairs, []kyber.Point) error
 
 type VerifyProofs struct {
-	ShufInput base.ShuffleInput
-	ShufProof ShuffleProof
+	ShufInput *base.ShuffleInput
+	ShufProof *ShuffleProof
 	Hash      []byte
 }
 

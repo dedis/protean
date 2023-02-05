@@ -3,11 +3,14 @@ package protocol
 import (
 	"bytes"
 	"crypto/sha256"
+	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/threshold/base"
-	"go.dedis.ch/cothority/v3/blscosi/protocol"
+	"go.dedis.ch/cothority/v3/blscosi"
+	blsproto "go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/kyber/v3/pairing"
 	"go.dedis.ch/kyber/v3/sign"
 	"go.dedis.ch/kyber/v3/sign/bls"
+	"go.dedis.ch/kyber/v3/util/key"
 	"golang.org/x/xerrors"
 	"sync"
 	"time"
@@ -19,7 +22,6 @@ import (
 	"go.dedis.ch/kyber/v3/share"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
-	"go.dedis.ch/onet/v3/network"
 )
 
 func init() {
@@ -32,26 +34,29 @@ func init() {
 
 type ThreshDecrypt struct {
 	*onet.TreeNodeInstance
-	Shared   *dkgprotocol.SharedSecret
-	Poly     *share.PubPoly
-	DecInput base.DecryptInput
 
-	partials []Partial // len(partials) == number of ciphertexts to be dec
-	Ptexts   []kyber.Point
+	DKGID  [32]byte
+	Shared *dkgprotocol.SharedSecret
+	Poly   *share.PubPoly
+
+	DecInput    *base.DecryptInput
+	ExecReq     *core.ExecutionRequest
+	InputHashes map[string][]byte
+	KP          *key.Pair
+	Ps          []kyber.Point
+	Receipts    map[string]*core.OpcodeReceipt
 
 	Threshold int
 	Failures  int
 
-	FinalSignature protocol.BlsSignature
-	Decrypted      chan bool
+	Decrypted chan bool
+
 	// private fields
 	suite                *pairing.SuiteBn256
 	pubShares            map[int]kyber.Point
-	dsResponses          []DecryptShareResponse
-	reconstructResponses []ReconstructResponse
-	BlsPublic            kyber.Point
-	BlsPublics           []kyber.Point
-	BlsSk                kyber.Scalar
+	partials             []Partial // len(partials) == number of ciphertexts to be dec
+	dsResponses          []*DecryptShareResponse
+	reconstructResponses []*ReconstructResponse
 	mask                 *sign.Mask
 	timeout              *time.Timer
 	doneOnce             sync.Once
@@ -77,20 +82,31 @@ func (d *ThreshDecrypt) Start() error {
 		d.finish(false)
 		return xerrors.New("initialize Shared first")
 	}
-	//if len(d.Cs.Pairs) == 0 {
 	if len(d.DecInput.Pairs) == 0 {
 		d.finish(false)
 		return xerrors.New("empty ciphertext list")
 	}
-	ds := &DecryptShare{d.DecInput}
-	//d.partials = make([]Partial, len(d.Cs.Pairs))
+	if d.ExecReq == nil {
+		d.finish(false)
+		return xerrors.New("missing ExecutionRequest")
+	}
+	// First verify the execution request
+	err := d.runVerification()
+	if err != nil {
+		log.Errorf("%s couldn't verify request: %v:", d.Name(), err)
+		d.finish(false)
+		return err
+	}
 	d.partials = make([]Partial, len(d.DecInput.Pairs))
 	d.pubShares = make(map[int]kyber.Point)
 	d.timeout = time.AfterFunc(1*time.Minute, func() {
 		log.Lvl1("ThreshDecrypt protocol timeout")
 		d.finish(false)
 	})
-	errs := d.Broadcast(ds)
+	errs := d.Broadcast(&DecryptShare{
+		DecryptInput: d.DecInput,
+		ExecReq:      d.ExecReq,
+	})
 	if len(errs) > (len(d.Roster().List) - d.Threshold) {
 		log.Errorf("some nodes failed with error(s) %v", errs)
 		return xerrors.New("too many nodes failed in broadcast")
@@ -99,12 +115,30 @@ func (d *ThreshDecrypt) Start() error {
 }
 
 func (d *ThreshDecrypt) decryptShare(r structDecryptShare) error {
-	log.Lvl3(d.Name() + ": starting decryptShare")
-	//d.Cs = r.Cs
+	var err error
 	d.DecInput = r.DecryptInput
-	//shares := make([]Share, len(d.Cs.Pairs))
+	d.ExecReq = r.ExecReq
+	if !bytes.Equal(d.DKGID[:], d.ExecReq.EP.CID) {
+		log.Errorf("%s: DKGID does not match CID", d.Name())
+		d.Done()
+		return cothority.ErrorOrNil(d.SendToParent(&DecryptShareResponse{}),
+			"sending DecryptShareResponse to parent")
+	}
+	d.InputHashes, err = d.DecInput.PrepareInputHashes()
+	if err != nil {
+		log.Errorf("%s couldn't generate the input hashes: %v", d.Name(), err)
+		d.Done()
+		return cothority.ErrorOrNil(d.SendToParent(&DecryptShareResponse{}),
+			"sending DecryptShareResponse to parent")
+	}
+	err = d.runVerification()
+	if err != nil {
+		log.Errorf("%s couldn't verify the execution request: %v", d.Name(), err)
+		d.Done()
+		return cothority.ErrorOrNil(d.SendToParent(&DecryptShareResponse{}),
+			"sending DecryptShareResponse to parent")
+	}
 	shares := make([]Share, len(d.DecInput.Pairs))
-	//for i, c := range d.Cs.Pairs {
 	for i, c := range d.DecInput.Pairs {
 		sh := cothority.Suite.Point().Mul(d.Shared.V, c.K)
 		ei, fi := d.generateDecProof(c.K, sh)
@@ -129,7 +163,6 @@ func (d *ThreshDecrypt) decryptShareResponse(r structDecryptShareResponse) error
 		// Verify decryption proof
 		idx := r.Shares[0].Sh.I
 		d.pubShares[idx] = d.Poly.Eval(idx).V
-		//for i, c := range d.Cs.Pairs {
 		for i, c := range d.DecInput.Pairs {
 			tmpSh := r.Shares[i]
 			ok := verifyDecProof(tmpSh.Sh.V, tmpSh.Ei, tmpSh.Fi, c.K,
@@ -147,12 +180,11 @@ func (d *ThreshDecrypt) decryptShareResponse(r structDecryptShareResponse) error
 		}
 	}
 
-	d.dsResponses = append(d.dsResponses, r.DecryptShareResponse)
+	d.dsResponses = append(d.dsResponses, &r.DecryptShareResponse)
 
 	if len(d.dsResponses) == d.Threshold-1 {
 		d.Failures = 0
 		idx := -1
-		//for i, c := range d.Cs.Pairs {
 		for i, c := range d.DecInput.Pairs {
 			// Root prepares its shares
 			sh := cothority.Suite.Point().Mul(d.Shared.V, c.K)
@@ -170,36 +202,42 @@ func (d *ThreshDecrypt) decryptShareResponse(r structDecryptShareResponse) error
 			idx = ps.I
 		}
 		d.pubShares[idx] = d.Poly.Eval(idx).V
-		d.Ptexts = make([]kyber.Point, len(d.partials))
+		d.Ps = make([]kyber.Point, len(d.partials))
 		for i, partial := range d.partials {
-			//d.Ptexts[i] = d.recoverCommit(d.Cs.Pairs[i], partial.Shares)
-			d.Ptexts[i] = d.recoverCommit(d.DecInput.Pairs[i], partial.Shares)
+			d.Ps[i] = d.recoverCommit(d.DecInput.Pairs[i], partial.Shares)
 		}
 		// prepare BLS signature and mask
-		hash, err := d.calculateHash()
+
+		//hash, err := d.calculateHash()
+		//if err != nil {
+		//	log.Errorf("root couldn't calculate the hash: %v", err)
+		//	d.finish(false)
+		//	return err
+		//}
+		//rr, err := d.generateResponse(hash)
+		//if err != nil {
+		//	log.Errorf("root couldn't generate reconstruct response: %v", err)
+		//	d.finish(false)
+		//	return err
+		//}
+		resp, err := d.generateResponse()
 		if err != nil {
-			log.Errorf("root couldn't calculate the hash: %v", err)
+			log.Errorf("%s couldn't generate reconstruct response: %v",
+				d.Name(), err)
 			d.finish(false)
 			return err
 		}
-		rr, err := d.generateReconstructResponse(hash)
+		d.mask, err = sign.NewMask(d.suite, d.Roster().ServicePublics(blscosi.ServiceName), d.KP.Public)
 		if err != nil {
-			log.Errorf("root couldn't generate reconstruct response: %v", err)
-			d.finish(false)
-			return err
-		}
-		d.mask, err = sign.NewMask(d.suite, d.BlsPublics, d.BlsPublic)
-		if err != nil {
-			log.Errorf("root couldn't generate mask: %v", err)
+			log.Errorf("couldn't generate mask: %v", err)
 			d.finish(false)
 			return err
 		}
 		// add root's reconstruct response to the array
-		d.reconstructResponses = append(d.reconstructResponses, *rr)
+		d.reconstructResponses = append(d.reconstructResponses, resp)
 		errs := d.Broadcast(&Reconstruct{
 			Partials: d.partials,
 			Publics:  d.pubShares,
-			Hash:     hash,
 		})
 		if len(errs) > (len(d.Roster().List) - d.Threshold) {
 			log.Errorf("some nodes failed with error(s) %v", errs)
@@ -210,10 +248,8 @@ func (d *ThreshDecrypt) decryptShareResponse(r structDecryptShareResponse) error
 }
 
 func (d *ThreshDecrypt) reconstruct(r structReconstruct) error {
-	log.Lvl3(d.Name() + ": starting reconstruct")
 	defer d.Done()
-	d.Ptexts = make([]kyber.Point, len(r.Partials))
-	//for i, c := range d.Cs.Pairs {
+	d.Ps = make([]kyber.Point, len(r.Partials))
 	for i, c := range d.DecInput.Pairs {
 		partial := r.Partials[i]
 		for j, _ := range partial.Shares {
@@ -225,30 +261,29 @@ func (d *ThreshDecrypt) reconstruct(r structReconstruct) error {
 					"sending ReconstructResponse to parent")
 			}
 		}
-		d.Ptexts[i] = d.recoverCommit(c, partial.Shares)
+		d.Ps[i] = d.recoverCommit(c, partial.Shares)
 	}
-	hash, err := d.calculateHash()
-	if err != nil {
-		log.Errorf("root couldn't calculate the hash: %v", err)
-		return cothority.ErrorOrNil(d.SendToParent(&ReconstructResponse{}),
-			"sending ReconstructResponse to parent")
-	}
-	if !bytes.Equal(r.Hash, hash) {
-		log.Errorf("hashes do not match")
-		return cothority.ErrorOrNil(d.SendToParent(&ReconstructResponse{}),
-			"sending ReconstructResponse to parent")
-	}
-	rr, err := d.generateReconstructResponse(hash)
+	//hash, err := d.calculateHash()
+	//if err != nil {
+	//	log.Errorf("root couldn't calculate the hash: %v", err)
+	//	return cothority.ErrorOrNil(d.SendToParent(&ReconstructResponse{}),
+	//		"sending ReconstructResponse to parent")
+	//}
+	//rr, err := d.generateResponse(hash)
+	//if err != nil {
+	//	log.Errorf("%s couldn't generate reconstruct response: %v", d.Name(), err)
+	//}
+	resp, err := d.generateResponse()
 	if err != nil {
 		log.Errorf("%s couldn't generate reconstruct response: %v", d.Name(), err)
 	}
-	return cothority.ErrorOrNil(d.SendToParent(rr),
+	return cothority.ErrorOrNil(d.SendToParent(resp),
 		"sending ReconstructResponse to parent")
 }
 
 func (d *ThreshDecrypt) reconstructResponse(r structReconstructResponse) error {
-	index := searchPublicKey(d.TreeNodeInstance, r.ServerIdentity)
-	if len(r.Signature) == 0 || index < 0 {
+	index := utils.SearchPublicKey(d.TreeNodeInstance, r.ServerIdentity)
+	if len(r.Signatures) == 0 || index < 0 {
 		log.Lvl2(r.ServerIdentity, "refused to send back reconstruct response")
 		d.Failures++
 		if d.Failures > (len(d.Roster().List) - d.Threshold) {
@@ -259,35 +294,94 @@ func (d *ThreshDecrypt) reconstructResponse(r structReconstructResponse) error {
 	}
 
 	d.mask.SetBit(index, true)
-	d.reconstructResponses = append(d.reconstructResponses, r.ReconstructResponse)
+	d.reconstructResponses = append(d.reconstructResponses, &r.ReconstructResponse)
 
 	if len(d.reconstructResponses) == d.Threshold {
-		finalSignature := d.suite.G1().Point()
-		for _, resp := range d.reconstructResponses {
-			sig, err := resp.Signature.Point(d.suite)
+		//finalSignature := d.suite.G1().Point()
+		//for _, resp := range d.reconstructResponses {
+		//	sig, err := resp.Signature.Point(d.suite)
+		//	if err != nil {
+		//		d.finish(false)
+		//		return err
+		//	}
+		//	finalSignature = finalSignature.Add(finalSignature, sig)
+		//}
+		//sig, err := finalSignature.MarshalBinary()
+		//if err != nil {
+		//	d.finish(false)
+		//	return err
+		//}
+		//d.FinalSignature = append(sig, d.mask.Mask()...)
+		//d.finish(true)
+		for name, receipt := range d.Receipts {
+			aggSignature := d.suite.G1().Point()
+			for _, resp := range d.reconstructResponses {
+				sig, err := resp.Signatures[name].Point(d.suite)
+				if err != nil {
+					d.finish(false)
+					return err
+				}
+				aggSignature = aggSignature.Add(aggSignature, sig)
+			}
+			sig, err := aggSignature.MarshalBinary()
 			if err != nil {
 				d.finish(false)
 				return err
 			}
-			finalSignature = finalSignature.Add(finalSignature, sig)
+			receipt.Sig = append(sig, d.mask.Mask()...)
 		}
-		sig, err := finalSignature.MarshalBinary()
-		if err != nil {
-			d.finish(false)
-			return err
-		}
-		d.FinalSignature = append(sig, d.mask.Mask()...)
 		d.finish(true)
 	}
 	return nil
 }
 
-func (d *ThreshDecrypt) generateReconstructResponse(data []byte) (*ReconstructResponse, error) {
-	sig, err := bls.Sign(d.suite, d.BlsSk, data)
+func (d *ThreshDecrypt) runVerification() error {
+	vData := &core.VerificationData{
+		UID:         base.UID,
+		OpcodeName:  base.DEC,
+		InputHashes: d.InputHashes,
+	}
+	err := d.ExecReq.Verify(vData)
+	if err != nil {
+		return xerrors.Errorf("failed to verify the execution request: %v", err)
+	}
+	return nil
+}
+
+func (d *ThreshDecrypt) generateResponse() (*ReconstructResponse, error) {
+	hash, err := d.calculateHash()
 	if err != nil {
 		return &ReconstructResponse{}, err
 	}
-	return &ReconstructResponse{Signature: sig}, nil
+	r := &core.OpcodeReceipt{
+		EPID:      d.ExecReq.EP.Hash(),
+		OpIdx:     d.ExecReq.Index,
+		Name:      "plaintexts",
+		HashBytes: hash,
+	}
+	if d.IsRoot() {
+		d.Receipts = make(map[string]*core.OpcodeReceipt)
+		d.Receipts["plaintexts"] = r
+	}
+	sig, err := bls.Sign(d.suite, d.KP.Private, r.Hash())
+	if err != nil {
+		return &ReconstructResponse{}, err
+	}
+	sigs := make(map[string]blsproto.BlsSignature)
+	sigs["plaintexts"] = sig
+	return &ReconstructResponse{Signatures: sigs}, nil
+}
+
+func (d *ThreshDecrypt) calculateHash() ([]byte, error) {
+	h := sha256.New()
+	for i, ptext := range d.Ps {
+		data, err := ptext.Data()
+		if err != nil {
+			return nil, xerrors.Errorf("couldn't extract data item %d: %v", i, err)
+		}
+		h.Write(data)
+	}
+	return h.Sum(nil), nil
 }
 
 func (d *ThreshDecrypt) generateDecProof(u kyber.Point, sh kyber.Point) (kyber.Scalar, kyber.Scalar) {
@@ -322,7 +416,6 @@ func verifyDecProof(sh kyber.Point, ei kyber.Scalar, fi kyber.Scalar,
 }
 
 func (d *ThreshDecrypt) recoverCommit(cs utils.ElGamalPair, pubShares []*share.PubShare) kyber.Point {
-	log.Lvlf1("%s: threshold is %d", d.ServerIdentity(), d.Threshold)
 	rc, err := share.RecoverCommit(cothority.Suite, pubShares, d.Threshold, len(d.List()))
 	if err != nil {
 		log.Errorf("couldn't recover message: %v", err)
@@ -330,27 +423,6 @@ func (d *ThreshDecrypt) recoverCommit(cs utils.ElGamalPair, pubShares []*share.P
 	}
 	p := cothority.Suite.Point().Sub(cs.C, rc)
 	return p
-}
-
-func (d *ThreshDecrypt) calculateHash() ([]byte, error) {
-	h := sha256.New()
-	for i, ptext := range d.Ptexts {
-		data, err := ptext.Data()
-		if err != nil {
-			return nil, xerrors.Errorf("couldn't extract data item %d: %v", i, err)
-		}
-		h.Write(data)
-	}
-	return h.Sum(nil), nil
-}
-
-func searchPublicKey(p *onet.TreeNodeInstance, servID *network.ServerIdentity) int {
-	for idx, si := range p.Roster().List {
-		if si.Equal(servID) {
-			return idx
-		}
-	}
-	return -1
 }
 
 func (d *ThreshDecrypt) finish(result bool) {

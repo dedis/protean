@@ -2,7 +2,9 @@ package threshold
 
 import (
 	"fmt"
+	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/threshold/protocol"
+	protean "github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3/blscosi"
 	"go.dedis.ch/onet/v3/network"
 	"golang.org/x/xerrors"
@@ -23,6 +25,8 @@ var ServiceName = "ThresholdService"
 var storageKey = []byte("storage")
 
 const propagationTimeout = 20 * time.Second
+
+type DKGID [32]byte
 
 type storage struct {
 	Shared map[DKGID]*dkgprotocol.SharedSecret
@@ -60,6 +64,7 @@ func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 
 func (s *Service) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
 	// Run DKG
+	dkgID := NewDKGID(req.ExecReq.EP.CID)
 	reply := &InitDKGReply{}
 	tree := s.roster.GenerateNaryTreeWithRoot(len(s.roster.List)-1, s.ServerIdentity())
 	if tree == nil {
@@ -72,7 +77,7 @@ func (s *Service) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
 		return nil, err
 	}
 	setupDKG := pi.(*dkgprotocol.Setup)
-	err = setupDKG.SetConfig(&onet.GenericConfig{Data: req.ID[:]})
+	err = setupDKG.SetConfig(&onet.GenericConfig{Data: dkgID[:]})
 	if err != nil {
 		log.Errorf("could not set config: %v", err)
 		return nil, err
@@ -92,13 +97,18 @@ func (s *Service) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
 			log.Errorf("SharedSecret call error: %v", err)
 			return nil, err
 		}
+		receipts, err := s.verifyDKG(dkgID, shared.X, &req.ExecReq)
+		if err != nil {
+			return nil, err
+		}
 		reply = &InitDKGReply{
-			X: shared.X,
+			X:        shared.X,
+			Receipts: receipts,
 		}
 		s.storage.Lock()
-		s.storage.Shared[req.ID] = shared
-		s.storage.Polys[req.ID] = &pubPoly{s.Suite().Point().Base(), dks.Commits}
-		s.storage.DKS[req.ID] = dks
+		s.storage.Shared[dkgID] = shared
+		s.storage.Polys[dkgID] = &pubPoly{s.Suite().Point().Base(), dks.Commits}
+		s.storage.DKS[dkgID] = dks
 		s.storage.Unlock()
 		err = s.save()
 		if err != nil {
@@ -107,17 +117,11 @@ func (s *Service) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
 	case <-time.After(propagationTimeout):
 		return nil, xerrors.New("DKG did not finish in time")
 	}
-	// Collectively sign the execution plan
-	//sig, err := s.signExecutionPlan(req.ExecData.ExecPlan)
-	//if err != nil {
-	//	log.Errorf("Cannot produce blscosi signature: %v", err)
-	//	return nil, err
-	//}
-	//reply.Sig = sig
 	return reply, nil
 }
 
 func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
+	dkgID := NewDKGID(req.ExecReq.EP.CID)
 	// create protocol
 	nodeCount := len(s.roster.List)
 	tree := s.roster.GenerateNaryTreeWithRoot(nodeCount-1, s.ServerIdentity())
@@ -126,29 +130,32 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 		return nil, xerrors.New("failed to create decryptShare protocol: " + err.Error())
 	}
 	decProto := pi.(*protocol.ThreshDecrypt)
-	//decProto.Cs = req.Input.Cs
-	decProto.DecInput = req.Input
-	decProto.BlsPublic = s.ServerIdentity().ServicePublic(blscosi.ServiceName)
-	decProto.BlsPublics = s.roster.ServicePublics(blscosi.ServiceName)
-	decProto.BlsSk = s.ServerIdentity().ServicePrivate(blscosi.ServiceName)
+	decProto.InputHashes, err = req.Input.PrepareInputHashes()
+	if err != nil {
+		log.Errorf("failed to prepare the input hashes: %v", err)
+		return nil, err
+	}
+	decProto.DecInput = &req.Input
+	decProto.ExecReq = &req.ExecReq
+	decProto.KP = protean.GetBLSKeyPair(s.ServerIdentity())
 	decProto.Threshold = nodeCount - (nodeCount-1)/3
-	err = decProto.SetConfig(&onet.GenericConfig{Data: req.ID[:]})
+	err = decProto.SetConfig(&onet.GenericConfig{Data: dkgID[:]})
 	if err != nil {
 		log.Errorf("Could not set config: %v", err)
 		return nil, err
 	}
 	s.storage.Lock()
-	shared, ok := s.storage.Shared[req.ID]
+	shared, ok := s.storage.Shared[dkgID]
 	if !ok {
 		s.storage.Unlock()
-		log.Errorf("Cannot find ID: %v", req.ID)
+		log.Errorf("Cannot find ID: %v", dkgID)
 		return nil, xerrors.New("no DKG entry found for the given ID")
 	}
 	decProto.Shared = shared.Clone()
-	pp, ok := s.storage.Polys[req.ID]
+	pp, ok := s.storage.Polys[dkgID]
 	if !ok {
 		s.storage.Unlock()
-		log.Errorf("Cannot find ID: %v", req.ID)
+		log.Errorf("Cannot find ID: %v", dkgID)
 		return nil, xerrors.New("no DKG entry found for the given ID")
 	}
 	commits := make([]kyber.Point, len(pp.Commits))
@@ -165,7 +172,31 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 	if !<-decProto.Decrypted {
 		return nil, xerrors.New("decryption got refused")
 	}
-	return &DecryptReply{Ps: decProto.Ptexts, Signature: decProto.FinalSignature}, nil
+	return &DecryptReply{Ps: decProto.Ps, Receipts: decProto.Receipts}, nil
+}
+
+func (s *Service) verifyDKG(dkgID DKGID, X kyber.Point,
+	req *core.ExecutionRequest) (map[string]*core.OpcodeReceipt, error) {
+	tree := s.roster.GenerateNaryTreeWithRoot(len(s.roster.List)-1, s.ServerIdentity())
+	if tree == nil {
+		return nil, xerrors.New("error while generating tree")
+	}
+	pi, err := s.CreateProtocol(protocol.VerifyDKGProtoName, tree)
+	if err != nil {
+		return nil, err
+	}
+	vfDKG := pi.(*protocol.VerifyDKG)
+	vfDKG.X = X
+	vfDKG.ExecReq = req
+	vfDKG.KP = protean.GetBLSKeyPair(s.ServerIdentity())
+	err = vfDKG.SetConfig(&onet.GenericConfig{Data: dkgID[:]})
+	if err := vfDKG.Start(); err != nil {
+		return nil, err
+	}
+	if !<-vfDKG.Verified {
+		return nil, xerrors.New("verification failed")
+	}
+	return vfDKG.Receipts, nil
 }
 
 func (s *Service) getKeyPair() *key.Pair {
@@ -261,10 +292,26 @@ func (s *Service) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConfi
 		dec := pi.(*protocol.ThreshDecrypt)
 		dec.Threshold = nodeCount - (nodeCount-1)/3
 		dec.Shared = shared
-		dec.BlsPublic = s.ServerIdentity().ServicePublic(blscosi.ServiceName)
-		dec.BlsPublics = s.roster.ServicePublics(blscosi.ServiceName)
-		dec.BlsSk = s.ServerIdentity().ServicePrivate(blscosi.ServiceName)
+		dec.DKGID = NewDKGID(conf.Data)
+		dec.KP = protean.GetBLSKeyPair(s.ServerIdentity())
 		return dec, nil
+	case protocol.VerifyDKGProtoName:
+		pi, err := protocol.NewVerifyDKG(tn)
+		if err != nil {
+			return nil, err
+		}
+		vfDKG := pi.(*protocol.VerifyDKG)
+		vfDKG.DKGID = NewDKGID(conf.Data)
+		vfDKG.KP = protean.GetBLSKeyPair(s.ServerIdentity())
+		s.storage.Lock()
+		shared, ok := s.storage.Shared[vfDKG.DKGID]
+		shared = shared.Clone()
+		s.storage.Unlock()
+		if !ok {
+			return nil, xerrors.Errorf("couldn't find shared data with id: %x", vfDKG.DKGID)
+		}
+		vfDKG.X = shared.X
+		return vfDKG, nil
 	}
 	return nil, nil
 }

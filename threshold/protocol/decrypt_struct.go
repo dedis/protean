@@ -1,8 +1,9 @@
 package protocol
 
 import (
+	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/threshold/base"
-	"go.dedis.ch/cothority/v3/blscosi/protocol"
+	blscosi "go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/share"
 	"go.dedis.ch/onet/v3"
@@ -23,8 +24,8 @@ type Partial struct {
 }
 
 type DecryptShare struct {
-	//Cs utils.ElGamalPairs
-	base.DecryptInput
+	*base.DecryptInput
+	ExecReq *core.ExecutionRequest
 }
 
 type structDecryptShare struct {
@@ -50,7 +51,6 @@ type structDecryptShareResponse struct {
 type Reconstruct struct {
 	Partials []Partial
 	Publics  map[int]kyber.Point
-	Hash     []byte
 }
 
 type structReconstruct struct {
@@ -59,7 +59,7 @@ type structReconstruct struct {
 }
 
 type ReconstructResponse struct {
-	Signature protocol.BlsSignature
+	Signatures map[string]blscosi.BlsSignature
 }
 
 type structReconstructResponse struct {

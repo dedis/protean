@@ -18,12 +18,12 @@ import (
 	"golang.org/x/xerrors"
 )
 
+var suite = pairing.NewSuiteBn256()
+
 type VerificationData struct {
-	Suite      *pairing.SuiteBn256
 	UID        string
 	OpcodeName string
-	// Prepared by the root node. key: input variable,
-	// value: H(output) from parent opcode.
+	// key: input variable, value: H(output) from parent opcode.
 	InputHashes map[string][]byte
 	// Prepared by the client. key: input variable.
 	//KVMap map[string]ReadState
@@ -46,7 +46,7 @@ func (r *ExecutionRequest) Verify(data *VerificationData) error {
 	// 2) Check CEU's signature on the execution plan
 	ceuData := r.EP.DFUData[CEUID]
 	epHash := r.EP.Hash()
-	err := r.EP.Sig.VerifyWithPolicy(data.Suite, epHash, ceuData.Keys,
+	err := r.EP.Sig.VerifyWithPolicy(suite, epHash, ceuData.Keys,
 		sign.NewThresholdPolicy(ceuData.Threshold))
 	if err != nil {
 		return xerrors.Errorf("cannot verify signature on the execution plan: %v", err)
@@ -69,7 +69,7 @@ func (r *ExecutionRequest) Verify(data *VerificationData) error {
 			if !ok {
 				return xerrors.Errorf("cannot find the input data for %s", inputName)
 			}
-			if !bytes.Equal(inputHash, receipt.Digest) {
+			if !bytes.Equal(inputHash, receipt.HashBytes) {
 				return xerrors.Errorf("hashes do not match for input %s", inputName)
 			}
 			hash := receipt.Hash()
@@ -78,7 +78,7 @@ func (r *ExecutionRequest) Verify(data *VerificationData) error {
 			if !ok {
 				return xerrors.Errorf("cannot find dfu info for %s", dfuid)
 			}
-			err := receipt.Sig.VerifyWithPolicy(data.Suite, hash, dfuData.Keys,
+			err := receipt.Sig.VerifyWithPolicy(suite, hash, dfuData.Keys,
 				sign.NewThresholdPolicy(dfuData.Threshold))
 			if err != nil {
 				return xerrors.Errorf("cannot verify signature from %s for on opcode receipt: %v", err)
@@ -258,15 +258,15 @@ func (p *ExecutionPlan) String() string {
 func (r *OpcodeReceipt) Hash() []byte {
 	h := sha256.New()
 	// EPID
-	h.Write([]byte(r.EPID))
+	h.Write(r.EPID)
 	// OpIdx
 	b := make([]byte, 8)
 	binary.LittleEndian.PutUint64(b, uint64(r.OpIdx))
 	h.Write(b)
 	// Name
 	h.Write([]byte(r.Name))
-	// Digest
-	h.Write(r.Digest)
+	// HashBytes
+	h.Write(r.HashBytes)
 	return h.Sum(nil)
 }
 

@@ -3,7 +3,9 @@ package easyrand
 import (
 	"bytes"
 	"encoding/binary"
+	"github.com/dedis/protean/easyrand/base"
 	"github.com/dedis/protean/easyrand/protocol"
+	protean "github.com/dedis/protean/utils"
 	"golang.org/x/xerrors"
 	"time"
 
@@ -94,9 +96,15 @@ func (s *EasyRand) Randomness(req *RandomnessRequest) (*RandomnessReply, error) 
 		return nil, err
 	}
 	signPi := pi.(*protocol.SignProtocol)
+	signPi.InputHashes, err = req.Input.PrepareInputHashes()
+	if err != nil {
+		log.Errorf("failed to prepare the input hashes: %v", err)
+		return nil, err
+	}
+	signPi.Input = &req.Input
+	signPi.ExecReq = &req.ExecReq
 	signPi.Msg = createNextMsg(s.blocks)
 	signPi.Threshold = threshold
-	signPi.Input = req.Input
 	err = signPi.Start()
 	if err != nil {
 		log.Errorf("Start protocol error: %v", err)
@@ -114,12 +122,13 @@ func (s *EasyRand) Randomness(req *RandomnessRequest) (*RandomnessReply, error) 
 		if err != nil {
 			return nil, err
 		}
+		randOutput := base.RandomnessOutput{Public: public, Round: round,
+			Prev: prev, Value: sig}
 		verifyPi := pi.(*protocol.RandomnessVerify)
 		verifyPi.Threshold = nodeCount - (nodeCount-1)/3
-		verifyPi.Data = &protocol.Data{Public: public, Round: round, Prev: prev, Value: sig}
-		verifyPi.Public = s.ServerIdentity().ServicePublic(blscosi.ServiceName)
-		verifyPi.Publics = s.roster.ServicePublics(blscosi.ServiceName)
-		verifyPi.Sk = s.ServerIdentity().ServicePrivate(blscosi.ServiceName)
+		verifyPi.ExecReq = &req.ExecReq
+		verifyPi.RandOutput = &randOutput
+		verifyPi.KP = protean.GetBLSKeyPair(s.ServerIdentity())
 		err = verifyPi.Start()
 		if err != nil {
 			return nil, xerrors.Errorf("Failed to start the verification protocol: " + err.Error())
@@ -127,8 +136,7 @@ func (s *EasyRand) Randomness(req *RandomnessRequest) (*RandomnessReply, error) 
 		if !<-verifyPi.Verified {
 			return nil, xerrors.New("randomness verify failed")
 		}
-		return &RandomnessReply{Public: public, Round: round, Prev: prev,
-			Value: sig, Signature: verifyPi.FinalSignature}, nil
+		return &RandomnessReply{Output: randOutput, Receipts: verifyPi.Receipts}, nil
 	case <-time.After(1 * time.Second):
 		log.Errorf("Timed out waiting for the final signature")
 		return nil, xerrors.New("timeout waiting for final signature")
@@ -158,13 +166,13 @@ func (s *EasyRand) storeShare(setup *dkgprotocol.Setup) error {
 	return nil
 }
 
-func (s *EasyRand) verifyRequest(msg []byte, round uint64) error {
+func (s *EasyRand) verifyRoundMsg(msg []byte, round uint64) error {
 	if !bytes.Equal(msg, createNextMsg(s.blocks)) {
 		return xerrors.New("bad message")
 	}
 	if uint64(len(s.blocks)) != round {
 		return xerrors.Errorf("round values do not match: expected %d"+
-			" recevied %d", uint64(len(s.blocks)), round)
+			" received %d", uint64(len(s.blocks)), round)
 	}
 	return nil
 }
@@ -200,7 +208,7 @@ func (s *EasyRand) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConf
 		}()
 		return pi, nil
 	case protocol.SignProtoName:
-		pi, err := protocol.NewSignProtocol(tn, s.verifyRequest, s.distKeyStore.PriShare(), s.pubPoly, suite)
+		pi, err := protocol.NewSignProtocol(tn, s.verifyRoundMsg, s.distKeyStore.PriShare(), s.pubPoly, suite)
 		if err != nil {
 			log.Errorf("Cannot initialize the signing protocol: %v", err)
 			return nil, err
@@ -226,11 +234,9 @@ func (s *EasyRand) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConf
 			return nil, err
 		}
 		proto := pi.(*protocol.RandomnessVerify)
-		proto.Data = &protocol.Data{Public: s.pubPoly.Commit(), Round: round,
+		proto.RandOutput = &base.RandomnessOutput{Public: s.pubPoly.Commit(), Round: round,
 			Prev: prev, Value: value}
-		proto.Public = s.ServerIdentity().ServicePublic(blscosi.ServiceName)
-		proto.Publics = s.roster.ServicePublics(blscosi.ServiceName)
-		proto.Sk = s.ServerIdentity().ServicePrivate(blscosi.ServiceName)
+		proto.KP = protean.GetBLSKeyPair(s.ServerIdentity())
 		return proto, nil
 	default:
 		return nil, nil
@@ -254,8 +260,7 @@ func newService(c *onet.Context) (onet.Service, error) {
 	_, err = s.ProtocolRegister(protocol.SignProtoName, func(n *onet.TreeNodeInstance) (
 		onet.ProtocolInstance, error) {
 		// TODO giving NewSignProtocol to pointers isn't so nice because these mutate
-		return protocol.NewSignProtocol(n, s.verifyRequest, s.distKeyStore.PriShare(), s.pubPoly, suite)
-		//return protocol.NewSignProtocol(n, s.verifyRequest, s.distKeyStore.PriShare(), s.pubPoly, suite)
+		return protocol.NewSignProtocol(n, s.verifyRoundMsg, s.distKeyStore.PriShare(), s.pubPoly, suite)
 	})
 	if err != nil {
 		log.Errorf("Registering protocol %s failed: %v", protocol.SignProtoName, err)

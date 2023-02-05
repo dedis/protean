@@ -2,11 +2,15 @@ package protocol
 
 import (
 	"bytes"
-	"crypto/sha256"
+	"go.dedis.ch/cothority/v3/blscosi"
+	"go.dedis.ch/kyber/v3/util/key"
+	"sync"
+	"time"
+
 	"github.com/dedis/protean/easyneff/base"
+	"github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3"
-	blscosi "go.dedis.ch/cothority/v3/blscosi/protocol"
-	"go.dedis.ch/kyber/v3"
+	blsproto "go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/kyber/v3/pairing"
 	"go.dedis.ch/kyber/v3/sign"
 	"go.dedis.ch/kyber/v3/sign/bls"
@@ -14,8 +18,6 @@ import (
 	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/onet/v3/network"
 	"golang.org/x/xerrors"
-	"sync"
-	"time"
 )
 
 func init() {
@@ -30,22 +32,19 @@ func init() {
 type ShuffleVerify struct {
 	*onet.TreeNodeInstance
 
-	ShufInput base.ShuffleInput
-	ShufProof ShuffleProof
+	ShufInput *base.ShuffleInput
+	ShufProof *ShuffleProof
 	Verify    VerificationFn
 
-	Publics        []kyber.Point
-	BlsPublic      kyber.Point
-	BlsPublics     []kyber.Point
-	BlsSk          kyber.Scalar
-	FinalSignature blscosi.BlsSignature
+	KP             *key.Pair
+	FinalSignature blsproto.BlsSignature
 
 	Threshold int
 	Failures  int
 	Verified  chan bool
 
 	suite     *pairing.SuiteBn256
-	responses []VerifyProofsResponse
+	responses []*VerifyProofsResponse
 	mask      *sign.Mask
 	timeout   *time.Timer
 	doneOnce  sync.Once
@@ -65,12 +64,11 @@ func NewShuffleVerify(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
 }
 
 func (s *ShuffleVerify) Start() error {
-	var err error
 	if len(s.ShufProof.Proofs) == 0 {
 		s.finish(false)
 		return xerrors.New("initialize Proofs first")
 	}
-	hash, err := CalculateHash(s.ShufProof.Proofs)
+	hash, err := s.ShufProof.Hash()
 	if err != nil {
 		log.Errorf("root %s failed to calculate the hash: %v", s.Name(), err)
 		s.finish(false)
@@ -83,7 +81,7 @@ func (s *ShuffleVerify) Start() error {
 		return err
 	}
 	s.responses = append(s.responses, resp)
-	s.mask, err = sign.NewMask(s.suite, s.BlsPublics, s.BlsPublic)
+	s.mask, err = sign.NewMask(s.suite, s.Roster().ServicePublics(blscosi.ServiceName), s.KP.Public)
 	if err != nil {
 		s.finish(false)
 		return xerrors.Errorf("couldn't generate mask: %v", err)
@@ -107,14 +105,15 @@ func (s *ShuffleVerify) Start() error {
 
 func (s *ShuffleVerify) verifyProofs(r structVerifyProofs) error {
 	defer s.Done()
-	err := s.Verify(&r.ShufProof, nil, r.ShufInput.H, r.ShufInput.Pairs,
-		s.Publics)
+	//err := s.Verify(&r.ShufProof, nil, r.ShufInput.H, r.ShufInput.Pairs, s.Publics)
+	err := s.Verify(r.ShufProof, nil, r.ShufInput.H, r.ShufInput.Pairs,
+		s.Roster().Publics())
 	if err != nil {
 		log.Lvl2(s.ServerIdentity(), "failed to verify the proofs")
 		return cothority.ErrorOrNil(s.SendToParent(&VerifyProofsResponse{}),
 			"sending VerifyProofsResponse to parent")
 	}
-	hash, err := CalculateHash(r.ShufProof.Proofs)
+	hash, err := r.ShufProof.Hash()
 	if err != nil {
 		log.Errorf("%s couldn't calculate the hash: %v", s.Name(), err)
 		return cothority.ErrorOrNil(s.SendToParent(&VerifyProofsResponse{}),
@@ -129,12 +128,12 @@ func (s *ShuffleVerify) verifyProofs(r structVerifyProofs) error {
 	if err != nil {
 		log.Errorf("%s couldn't generate response: %v", s.Name(), err)
 	}
-	return cothority.ErrorOrNil(s.SendToParent(&resp),
+	return cothority.ErrorOrNil(s.SendToParent(resp),
 		"sending VerifyProofsResponse to parent")
 }
 
 func (s *ShuffleVerify) verifyProofsResponse(r structVerifyProofsResponse) error {
-	index := searchPublicKey(s.TreeNodeInstance, r.ServerIdentity)
+	index := utils.SearchPublicKey(s.TreeNodeInstance, r.ServerIdentity)
 	if len(r.Signature) == 0 || index < 0 {
 		log.Lvl2(r.ServerIdentity, "refused to respond")
 		s.Failures++
@@ -146,7 +145,7 @@ func (s *ShuffleVerify) verifyProofsResponse(r structVerifyProofsResponse) error
 	}
 
 	s.mask.SetBit(index, true)
-	s.responses = append(s.responses, r.VerifyProofsResponse)
+	s.responses = append(s.responses, &r.VerifyProofsResponse)
 
 	if len(s.responses) == s.Threshold {
 		finalSignature := s.suite.G1().Point()
@@ -169,42 +168,12 @@ func (s *ShuffleVerify) verifyProofsResponse(r structVerifyProofsResponse) error
 	return nil
 }
 
-func (s *ShuffleVerify) generateResponse(data []byte) (VerifyProofsResponse, error) {
-	sig, err := bls.Sign(s.suite, s.BlsSk, data)
+func (s *ShuffleVerify) generateResponse(data []byte) (*VerifyProofsResponse, error) {
+	sig, err := bls.Sign(s.suite, s.KP.Private, data)
 	if err != nil {
-		return VerifyProofsResponse{}, err
+		return &VerifyProofsResponse{}, err
 	}
-	return VerifyProofsResponse{Signature: sig}, nil
-}
-
-func CalculateHash(proofs []Proof) ([]byte, error) {
-	h := sha256.New()
-	for _, pr := range proofs {
-		for _, pair := range pr.Pairs.Pairs {
-			kbuf, err := pair.K.MarshalBinary()
-			if err != nil {
-				return nil, err
-			}
-			cbuf, err := pair.C.MarshalBinary()
-			if err != nil {
-				return nil, err
-			}
-			h.Write(kbuf)
-			h.Write(cbuf)
-		}
-		h.Write(pr.Proof)
-		h.Write(pr.Signature)
-	}
-	return h.Sum(nil), nil
-}
-
-func searchPublicKey(p *onet.TreeNodeInstance, servID *network.ServerIdentity) int {
-	for idx, si := range p.Roster().List {
-		if si.Equal(servID) {
-			return idx
-		}
-	}
-	return -1
+	return &VerifyProofsResponse{Signature: sig}, nil
 }
 
 func (s *ShuffleVerify) finish(result bool) {

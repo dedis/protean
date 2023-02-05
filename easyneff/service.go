@@ -2,7 +2,7 @@ package easyneff
 
 import (
 	"github.com/dedis/protean/easyneff/protocol"
-	"github.com/dedis/protean/utils"
+	protean "github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/blscosi"
 	"go.dedis.ch/kyber/v3"
@@ -54,7 +54,7 @@ func (s *EasyNeff) Shuffle(req *ShuffleRequest) (*ShuffleReply, error) {
 		return nil, err
 	}
 	select {
-	case proof := <-neff.FinalProof:
+	case shufProof := <-neff.FinalProof:
 		nodeCount := len(s.roster.List)
 		tree := s.roster.GenerateNaryTreeWithRoot(nodeCount-1, s.ServerIdentity())
 		pi, err := s.CreateProtocol(protocol.VerifyProtoName, tree)
@@ -63,14 +63,9 @@ func (s *EasyNeff) Shuffle(req *ShuffleRequest) (*ShuffleReply, error) {
 		}
 		shufVerify := pi.(*protocol.ShuffleVerify)
 		shufVerify.Threshold = nodeCount - (nodeCount-1)/3
-		shufVerify.ShufInput = req.Input
-		shufVerify.ShufProof = proof
-		// Public keys to verify shuffle proofs
-		shufVerify.Publics = s.roster.Publics()
-		// Cryptographic identites for BLS
-		shufVerify.BlsPublic = s.ServerIdentity().ServicePublic(blscosi.ServiceName)
-		shufVerify.BlsPublics = s.roster.ServicePublics(blscosi.ServiceName)
-		shufVerify.BlsSk = s.ServerIdentity().ServicePrivate(blscosi.ServiceName)
+		shufVerify.ShufInput = &req.Input
+		shufVerify.ShufProof = &shufProof
+		shufVerify.KP = protean.GetBLSKeyPair(s.ServerIdentity())
 		// Verification function
 		shufVerify.Verify = s.ShuffleVerify
 		err = shufVerify.Start()
@@ -80,14 +75,14 @@ func (s *EasyNeff) Shuffle(req *ShuffleRequest) (*ShuffleReply, error) {
 		if !<-shufVerify.Verified {
 			return nil, xerrors.New("shuffle verify failed")
 		}
-		return &ShuffleReply{Proofs: proof.Proofs, Signature: shufVerify.FinalSignature}, nil
+		return &ShuffleReply{Proofs: shufProof.Proofs, Signature: shufVerify.FinalSignature}, nil
 	case <-time.After(time.Second * time.Duration(len(s.roster.List))):
 		return nil, xerrors.New("timeout waiting for shuffle")
 	}
 }
 
 func (s *EasyNeff) ShuffleVerify(sp *protocol.ShuffleProof, G, H kyber.Point,
-	initialPairs utils.ElGamalPairs, publics []kyber.Point) error {
+	initialPairs protean.ElGamalPairs, publics []kyber.Point) error {
 	x, y := splitPairs(initialPairs)
 	for i, proof := range sp.Proofs {
 		// check that the signature on the proof is correct
@@ -115,7 +110,7 @@ func Verify(prf []byte, G, H kyber.Point, x, y, xbar, ybar []kyber.Point) error 
 	return proof.HashVerify(cothority.Suite, "", verifier, prf)
 }
 
-func splitPairs(pairs utils.ElGamalPairs) ([]kyber.Point, []kyber.Point) {
+func splitPairs(pairs protean.ElGamalPairs) ([]kyber.Point, []kyber.Point) {
 	ps := pairs.Pairs
 	xs := make([]kyber.Point, len(ps))
 	ys := make([]kyber.Point, len(ps))
@@ -143,10 +138,7 @@ func (s *EasyNeff) NewProtocol(tn *onet.TreeNodeInstance,
 			return nil, err
 		}
 		proto := pi.(*protocol.ShuffleVerify)
-		proto.Publics = s.roster.Publics()
-		proto.BlsPublic = s.ServerIdentity().ServicePublic(blscosi.ServiceName)
-		proto.BlsPublics = s.roster.ServicePublics(blscosi.ServiceName)
-		proto.BlsSk = s.ServerIdentity().ServicePrivate(blscosi.ServiceName)
+		proto.KP = protean.GetBLSKeyPair(s.ServerIdentity())
 		proto.Verify = s.ShuffleVerify
 		return proto, nil
 	}

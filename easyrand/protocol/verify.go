@@ -1,12 +1,16 @@
 package protocol
 
 import (
-	"bytes"
-	"crypto/sha256"
-	"encoding/binary"
+	"github.com/dedis/protean/core"
+	"github.com/dedis/protean/easyrand/base"
+	"github.com/dedis/protean/utils"
+	"go.dedis.ch/cothority/v3/blscosi"
+	blsproto "go.dedis.ch/cothority/v3/blscosi/protocol"
+	"go.dedis.ch/kyber/v3/util/key"
+	"sync"
+	"time"
+
 	"go.dedis.ch/cothority/v3"
-	blscosi "go.dedis.ch/cothority/v3/blscosi/protocol"
-	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/pairing"
 	"go.dedis.ch/kyber/v3/sign"
 	"go.dedis.ch/kyber/v3/sign/bls"
@@ -14,8 +18,6 @@ import (
 	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/onet/v3/network"
 	"golang.org/x/xerrors"
-	"sync"
-	"time"
 )
 
 func init() {
@@ -30,18 +32,17 @@ func init() {
 type RandomnessVerify struct {
 	*onet.TreeNodeInstance
 
-	Data           *Data
-	Public         kyber.Point
-	Publics        []kyber.Point
-	Sk             kyber.Scalar
-	FinalSignature blscosi.BlsSignature
+	RandOutput *base.RandomnessOutput
+	ExecReq    *core.ExecutionRequest
+	KP         *key.Pair
+	Receipts   map[string]*core.OpcodeReceipt
 
 	Threshold int
 	Failures  int
 	Verified  chan bool
 
 	suite     *pairing.SuiteBn256
-	responses []VerifyResponse
+	responses []*VerifyResponse
 	mask      *sign.Mask
 	timeout   *time.Timer
 	doneOnce  sync.Once
@@ -62,36 +63,36 @@ func NewRandomnessVerify(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error
 
 func (rv *RandomnessVerify) Start() error {
 	var err error
-	if rv.Data == nil {
+	//if rv.Data == nil {
+	if rv.RandOutput == nil {
 		rv.finish(false)
 		return xerrors.New("initialize Data first")
 	}
-	hash, err := rv.CalculateHash()
-	if err != nil {
-		log.Errorf("root %s failed to calculate the hash: %v", rv.Name(), err)
-		rv.finish(false)
-		return err
-	}
-	resp, err := rv.generateResponse(hash)
-	if err != nil {
-		log.Errorf("root %s failed to generate response: %v", rv.Name(), err)
-		rv.finish(false)
-		return err
-	}
+	//hash, err := rv.RandOutput.Hash()
+	//if err != nil {
+	//	log.Errorf("root %s failed to calculate the hash: %v", rv.Name(), err)
+	//	rv.finish(false)
+	//	return err
+	//}
+	//resp, err := rv.generateResponse(hash)
+	//if err != nil {
+	//	log.Errorf("root %s failed to generate response: %v", rv.Name(), err)
+	//	rv.finish(false)
+	//	return err
+	//}
+	resp, err := rv.generateResponse()
 	rv.responses = append(rv.responses, resp)
-	rv.mask, err = sign.NewMask(rv.suite, rv.Publics, rv.Public)
+	rv.mask, err = sign.NewMask(rv.suite, rv.Roster().ServicePublics(blscosi.ServiceName),
+		rv.KP.Public)
 	if err != nil {
 		rv.finish(false)
 		return xerrors.Errorf("couldn't generate mask: %v", err)
-	}
-	vp := &VerifyRand{
-		Hash: hash,
 	}
 	rv.timeout = time.AfterFunc(2*time.Minute, func() {
 		log.Lvl1("RandomnessVerify protocol timeout")
 		rv.finish(false)
 	})
-	errs := rv.Broadcast(vp)
+	errs := rv.Broadcast(&VerifyRand{ExecReq: rv.ExecReq})
 	if len(errs) > (len(rv.Roster().List) - rv.Threshold) {
 		log.Errorf("some nodes failed with error(s) %v", errs)
 		return xerrors.New("too many nodes failed in broadcast")
@@ -101,28 +102,18 @@ func (rv *RandomnessVerify) Start() error {
 
 func (rv *RandomnessVerify) verifyRandomness(r structVerifyRand) error {
 	defer rv.Done()
-	hash, err := rv.CalculateHash()
-	if err != nil {
-		log.Errorf("%s: couldn't calculate the hash: %v", rv.Name(), err)
-		return cothority.ErrorOrNil(rv.SendToParent(&VerifyResponse{}),
-			"sending VerifyResponse to parent")
-	}
-	if !bytes.Equal(hash, r.Hash) {
-		log.Errorf("%s: hashes do not match", rv.Name())
-		return cothority.ErrorOrNil(rv.SendToParent(&VerifyResponse{}),
-			"sending VerifyResponse to parent")
-	}
-	resp, err := rv.generateResponse(hash)
+	rv.ExecReq = r.ExecReq
+	resp, err := rv.generateResponse()
 	if err != nil {
 		log.Errorf("%s couldn't generate response: %v", rv.Name(), err)
 	}
-	return cothority.ErrorOrNil(rv.SendToParent(&resp),
+	return cothority.ErrorOrNil(rv.SendToParent(resp),
 		"sending VerifyResponse to parent")
 }
 
 func (rv *RandomnessVerify) verifyResponse(r structVerifyResponse) error {
-	index := searchPublicKey(rv.TreeNodeInstance, r.ServerIdentity)
-	if len(r.Signature) == 0 || index < 0 {
+	index := utils.SearchPublicKey(rv.TreeNodeInstance, r.ServerIdentity)
+	if len(r.Signatures) == 0 || index < 0 {
 		log.Lvl2(r.ServerIdentity, "refused to respond")
 		rv.Failures++
 		if rv.Failures > (len(rv.Roster().List) - rv.Threshold) {
@@ -133,59 +124,52 @@ func (rv *RandomnessVerify) verifyResponse(r structVerifyResponse) error {
 	}
 
 	rv.mask.SetBit(index, true)
-	rv.responses = append(rv.responses, r.VerifyResponse)
-
+	rv.responses = append(rv.responses, &r.VerifyResponse)
 	if len(rv.responses) == rv.Threshold {
-		finalSignature := rv.suite.G1().Point()
-		for _, resp := range rv.responses {
-			sig, err := resp.Signature.Point(rv.suite)
+		for name, receipt := range rv.Receipts {
+			aggSignature := rv.suite.G1().Point()
+			for _, resp := range rv.responses {
+				sig, err := resp.Signatures[name].Point(rv.suite)
+				if err != nil {
+					rv.finish(false)
+					return err
+				}
+				aggSignature = aggSignature.Add(aggSignature, sig)
+			}
+			sig, err := aggSignature.MarshalBinary()
 			if err != nil {
 				rv.finish(false)
 				return err
 			}
-			finalSignature = finalSignature.Add(finalSignature, sig)
+			receipt.Sig = append(sig, rv.mask.Mask()...)
 		}
-		sig, err := finalSignature.MarshalBinary()
-		if err != nil {
-			rv.finish(false)
-			return err
-		}
-		rv.FinalSignature = append(sig, rv.mask.Mask()...)
 		rv.finish(true)
 	}
 	return nil
 }
 
-func (rv *RandomnessVerify) CalculateHash() ([]byte, error) {
-	h := sha256.New()
-	buf, err := rv.Data.Public.MarshalBinary()
+func (rv *RandomnessVerify) generateResponse() (*VerifyResponse, error) {
+	hash, err := rv.RandOutput.Hash()
 	if err != nil {
-		return nil, err
+		return &VerifyResponse{}, err
 	}
-	h.Write(buf)
-	b := make([]byte, 8)
-	binary.LittleEndian.PutUint64(b, uint64(rv.Data.Round))
-	h.Write(b)
-	h.Write(rv.Data.Prev)
-	h.Write(rv.Data.Value)
-	return h.Sum(nil), nil
-}
-
-func (rv *RandomnessVerify) generateResponse(data []byte) (VerifyResponse, error) {
-	sig, err := bls.Sign(rv.suite, rv.Sk, data)
+	r := &core.OpcodeReceipt{
+		EPID:      rv.ExecReq.EP.Hash(),
+		OpIdx:     rv.ExecReq.Index,
+		Name:      "randomness",
+		HashBytes: hash,
+	}
+	if rv.IsRoot() {
+		rv.Receipts = make(map[string]*core.OpcodeReceipt)
+		rv.Receipts["randomness"] = r
+	}
+	sig, err := bls.Sign(rv.suite, rv.KP.Private, r.Hash())
 	if err != nil {
-		return VerifyResponse{}, err
+		return &VerifyResponse{}, err
 	}
-	return VerifyResponse{Signature: sig}, nil
-}
-
-func searchPublicKey(p *onet.TreeNodeInstance, servID *network.ServerIdentity) int {
-	for idx, si := range p.Roster().List {
-		if si.Equal(servID) {
-			return idx
-		}
-	}
-	return -1
+	sigs := make(map[string]blsproto.BlsSignature)
+	sigs["randomness"] = sig
+	return &VerifyResponse{Signatures: sigs}, nil
 }
 
 func (rv *RandomnessVerify) finish(result bool) {

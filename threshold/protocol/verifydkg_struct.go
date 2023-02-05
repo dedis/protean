@@ -4,21 +4,25 @@ import (
 	"github.com/dedis/protean/core"
 	blscosi "go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/onet/v3"
+	"go.dedis.ch/onet/v3/network"
 )
 
-const VerifyProtoName = "easyrand_verify"
+const VerifyDKGProtoName = "threshold_verifydkg"
 
-type VerifyRand struct {
+func init() {
+	network.RegisterMessages()
+}
+
+type VerifyRequest struct {
 	ExecReq *core.ExecutionRequest
 }
 
-type structVerifyRand struct {
+type structVerifyRequest struct {
 	*onet.TreeNode
-	VerifyRand
+	VerifyRequest
 }
 
 type VerifyResponse struct {
-	//Signature blscosi.BlsSignature
 	Signatures map[string]blscosi.BlsSignature
 }
 

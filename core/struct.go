@@ -69,14 +69,14 @@ type ExecutionRequest struct {
 }
 
 type OpcodeReceipt struct {
-	EPID  string // Hash of the execution plan
+	EPID  []byte // Hash of the execution plan
 	OpIdx int
 	//OpName string
 	// Name of the output variable
 	Name string
-	// digest = H(output)
-	Digest []byte
-	Sig    protocol.BlsSignature
+	// hash = H(output)
+	HashBytes []byte
+	Sig       protocol.BlsSignature
 }
 
 type DFUIdentity struct {
