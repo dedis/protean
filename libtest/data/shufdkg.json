@@ -1,0 +1,63 @@
+{
+	"workflows": {
+		"shufdkg": {
+			"txns": {
+				"testtxn": {
+					"opcodes": [
+						{
+							"name": "init_dkg",
+							"dfu_id": "threshold"
+						},
+						{
+							"name": "exec",
+							"dfu_id": "codeexec"
+						},
+						{
+							"name": "shuffle",
+							"dfu_id": "easyneff",
+							"inputs": {
+								"pairs": {
+									"src": "OPCODE",
+									"src_name": "pairs",
+									"idx":1
+								},
+								"H": {
+									"src": "CONST",
+									"value": "1"
+								}
+							}
+						},
+						{
+							"name": "exec",
+							"dfu_id": "codeexec",
+							"inputs": {
+								"proofs": {
+									"src": "OPCODE",
+									"src_name": "proofs",
+									"idx": 2
+								}
+							}
+						},
+						{
+							"name": "decrypt",
+							"dfu_id": "threshold",
+							"inputs": {
+								"ciphertexts": {
+									"src": "OPCODE",
+									"src_name": "ciphertexts",
+									"idx": 3
+								}
+							}
+						}
+					]
+				}
+			},
+			"precommits": []
+		}
+	},
+	"dfus": [
+		"codeexec",
+		"threshold",
+		"easyneff"
+	]
+}

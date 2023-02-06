@@ -8,7 +8,7 @@ import (
 
 const (
 	UID  string = "easyrand"
-	RAND string = "Randomness"
+	RAND string = "randomness"
 )
 
 type RandomnessInput struct {

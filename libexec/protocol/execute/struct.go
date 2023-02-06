@@ -1,6 +1,7 @@
 package execute
 
 import (
+	"github.com/dedis/protean/libexec/base"
 	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/network"
@@ -12,9 +13,10 @@ func init() {
 	network.RegisterMessages(&Request{}, &Response{})
 }
 
-//type GenerateFn func(data []byte) (*core.ExecutionPlan, error)
-
 type Request struct {
+	FnName string
+	Input  *base.ExecuteInput
+	//ExecFn base.ExecutionFn
 }
 
 type StructRequest struct {
@@ -23,7 +25,7 @@ type StructRequest struct {
 }
 
 type Response struct {
-	Signature protocol.BlsSignature
+	Signatures map[string]protocol.BlsSignature
 }
 
 type StructResponse struct {

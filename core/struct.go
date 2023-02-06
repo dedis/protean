@@ -11,7 +11,7 @@ import (
 
 const (
 	SUID  string = "state"
-	CEUID string = "code_exec"
+	CEUID string = "codeexec"
 )
 
 const (
@@ -135,15 +135,4 @@ type ReadState struct {
 	// Prepared by each node in the state unit
 	KVDict KVDict
 	Sig    protocol.BlsSignature
-}
-
-// Opcode request
-
-type OpcodeRequest struct {
-	Input   interface{}
-	ExecReq ExecutionRequest
-}
-
-type Output struct {
-	O interface{}
 }

@@ -3,7 +3,7 @@ package easyneff
 import (
 	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/easyneff/base"
-	"github.com/dedis/protean/utils"
+	protean "github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/onet/v3"
@@ -31,7 +31,7 @@ func (c *Client) InitUnit() (*InitUnitReply, error) {
 	return reply, nil
 }
 
-func (c *Client) Shuffle(ps utils.ElGamalPairs, H kyber.Point, execReq *core.ExecutionRequest) (*ShuffleReply, error) {
+func (c *Client) Shuffle(ps protean.ElGamalPairs, H kyber.Point, execReq *core.ExecutionRequest) (*ShuffleReply, error) {
 	if len(ps.Pairs) <= 0 {
 		return nil, xerrors.Errorf("No ciphertext to shuffle")
 	}

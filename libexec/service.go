@@ -7,21 +7,22 @@ import (
 	"github.com/dedis/protean/libexec/protocol/inittxn"
 	"go.dedis.ch/kyber/v3/pairing"
 	"go.dedis.ch/kyber/v3/suites"
+	"go.dedis.ch/kyber/v3/util/key"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/network"
 	"go.dedis.ch/protobuf"
 	"golang.org/x/xerrors"
 )
 
+const ServiceName = "libexec_svc"
+
 var execID onet.ServiceID
-
-const ServiceName = "ExecService"
-
 var suite = suites.MustFind("bn256.adapter").(*pairing.SuiteBn256)
 
 func init() {
 	var err error
-	execID, err = onet.RegisterNewServiceWithSuite(ServiceName, suite, newService)
+	execID, err = onet.RegisterNewServiceWithSuite(ServiceName, suite,
+		newService)
 	network.RegisterMessages(&InitUnit{}, &InitUnitReply{},
 		&InitTransaction{}, &InitTransactionReply{}, &Execute{}, &ExecuteReply{})
 	if err != nil {
@@ -53,9 +54,11 @@ func (s *Service) InitTransaction(req *InitTransaction) (*InitTransactionReply, 
 		return nil, xerrors.Errorf("failed to create protocol: %v", err)
 	}
 	proto := pi.(*inittxn.InitTxn)
+	proto.KP = s.getKeyPair()
+	proto.Publics = s.roster.ServicePublics(ServiceName)
 	proto.Threshold = threshold
 	proto.VerificationData = vData
-	proto.Generate = s.generateExecutionPlan
+	proto.GeneratePlan = s.generateExecutionPlan
 	err = proto.Start()
 	if err != nil {
 		return nil, xerrors.Errorf("failed to start the protocol: %v", err)
@@ -63,9 +66,10 @@ func (s *Service) InitTransaction(req *InitTransaction) (*InitTransactionReply, 
 	if !<-proto.Executed {
 		return nil, xerrors.New("couldn't generate the execution plan")
 	}
+	proto.Plan.Sig = proto.FinalSignature
 	return &InitTransactionReply{
-		Plan:      *proto.Plan,
-		Signature: proto.FinalSignature,
+		Plan: *proto.Plan,
+		//Signature: proto.FinalSignature,
 	}, nil
 }
 
@@ -78,8 +82,11 @@ func (s *Service) Execute(req *Execute) (*ExecuteReply, error) {
 		return nil, xerrors.Errorf("failed to create the protocol: %v", err)
 	}
 	proto := pi.(*execute.Execute)
-	proto.Inputs = req.Inputs
-	proto.ExecFn = req.Fn
+	proto.Input = &req.Input
+	proto.FnName = req.FnName
+	//proto.ExecFn = apps.GetFunction(req.FnName)
+	proto.KP = s.getKeyPair()
+	proto.Publics = s.roster.ServicePublics(ServiceName)
 	proto.Threshold = threshold
 	err = proto.Start()
 	if err != nil {
@@ -88,7 +95,14 @@ func (s *Service) Execute(req *Execute) (*ExecuteReply, error) {
 	if !<-proto.Executed {
 		return nil, xerrors.New("couldn't execute application code")
 	}
-	return &ExecuteReply{}, nil
+	return &ExecuteReply{Output: *proto.Output, Receipts: proto.Receipts}, nil
+}
+
+func (s *Service) getKeyPair() *key.Pair {
+	return &key.Pair{
+		Public:  s.ServerIdentity().ServicePublic(ServiceName),
+		Private: s.ServerIdentity().ServicePrivate(ServiceName),
+	}
 }
 
 func (s *Service) generateExecutionPlan(data []byte) (*core.ExecutionPlan, error) {
@@ -195,9 +209,20 @@ func (s *Service) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConfi
 		if err != nil {
 			return nil, xerrors.Errorf("creating protocol instance: %v", err)
 		}
-		p := pi.(*inittxn.InitTxn)
-		p.Generate = s.generateExecutionPlan
-		return p, nil
+		proto := pi.(*inittxn.InitTxn)
+		proto.KP = s.getKeyPair()
+		//proto.Publics = s.roster.ServicePublics(ServiceName)
+		proto.GeneratePlan = s.generateExecutionPlan
+		return proto, nil
+	case execute.ProtoName:
+		pi, err := execute.NewExecute(tn)
+		if err != nil {
+			return nil, xerrors.Errorf("creating protocol instance: %v", err)
+		}
+		proto := pi.(*execute.Execute)
+		proto.KP = s.getKeyPair()
+		//proto.Publics = s.roster.ServicePublics(ServiceName)
+		return proto, nil
 	}
 	return nil, nil
 }

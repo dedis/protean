@@ -8,6 +8,7 @@ import (
 	"go.dedis.ch/kyber/v3/pairing"
 	"go.dedis.ch/kyber/v3/sign"
 	"go.dedis.ch/kyber/v3/sign/bls"
+	"go.dedis.ch/kyber/v3/util/key"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/onet/v3/network"
@@ -23,8 +24,10 @@ func init() {
 type InitTxn struct {
 	*onet.TreeNodeInstance
 
-	Generate         GenerateFn
+	GeneratePlan     GenerateFn
 	VerificationData []byte
+	KP               *key.Pair
+	Publics          []kyber.Point
 
 	Threshold      int
 	Executed       chan bool
@@ -33,7 +36,7 @@ type InitTxn struct {
 
 	suite     *pairing.SuiteBn256
 	failures  int
-	responses []Response
+	responses []*Response
 	mask      *sign.Mask
 	timeout   *time.Timer
 	doneOnce  sync.Once
@@ -57,7 +60,7 @@ func (p *InitTxn) Start() error {
 		p.finish(false)
 		return xerrors.New("protocol did not receive verification data")
 	}
-	if p.Generate == nil {
+	if p.GeneratePlan == nil {
 		p.finish(false)
 		return xerrors.New("verification function cannot be nil")
 	}
@@ -65,25 +68,39 @@ func (p *InitTxn) Start() error {
 		log.Lvl1("protocol timeout")
 		p.finish(false)
 	})
-	plan, err := p.Generate(p.VerificationData)
+	plan, err := p.GeneratePlan(p.VerificationData)
 	if err != nil {
 		p.finish(false)
 		return xerrors.Errorf("generating execution plan: %v", err)
 	}
 	planHash := plan.Hash()
-	var pk kyber.Point
-	own, err := p.makeResponse(planHash)
+	resp, err := p.makeResponse(planHash)
 	if err != nil {
-		p.failures++
-	} else {
-		p.responses = append(p.responses, *own)
-		pk = p.Public()
-	}
-	p.mask, err = sign.NewMask(p.suite, p.Publics(), pk)
-	if err != nil {
+		log.Errorf("%s couldn't generate response: %v", p.Name(), err)
 		p.finish(false)
 		return err
 	}
+	p.responses = append(p.responses, resp)
+	//p.mask, err = sign.NewMask(p.suite, p.Publics(), p.Public())
+	p.mask, err = sign.NewMask(p.suite, p.Publics, p.KP.Public)
+	if err != nil {
+		log.Errorf("couldn't create the mask: %v", err)
+		p.finish(false)
+		return err
+	}
+	//var pk kyber.Point
+	//own, err := p.makeResponse(planHash)
+	//if err != nil {
+	//	p.failures++
+	//} else {
+	//	p.responses = append(p.responses, *own)
+	//	pk = p.Public()
+	//}
+	//p.mask, err = sign.NewMask(p.suite, p.Publics(), pk)
+	//if err != nil {
+	//	p.finish(false)
+	//	return err
+	//}
 	p.Plan = plan
 	req := &Request{
 		Data:             planHash,
@@ -99,7 +116,7 @@ func (p *InitTxn) Start() error {
 
 func (p *InitTxn) execute(r StructRequest) error {
 	defer p.Done()
-	plan, err := p.Generate(r.VerificationData)
+	plan, err := p.GeneratePlan(r.VerificationData)
 	if err != nil {
 		log.Lvl2(p.ServerIdentity(), "refused to return execution plan")
 		return cothority.ErrorOrNil(p.SendToParent(&Response{}),
@@ -114,8 +131,8 @@ func (p *InitTxn) execute(r StructRequest) error {
 	resp, err := p.makeResponse(r.Data)
 	if err != nil {
 		log.Lvlf2("%s failed to prepare response: %v", p.ServerIdentity(), err)
-		return cothority.ErrorOrNil(p.SendToParent(&Response{}),
-			"sending empty Response to parent")
+		//return cothority.ErrorOrNil(p.SendToParent(&Response{}),
+		//	"sending empty Response to parent")
 	}
 	return cothority.ErrorOrNil(p.SendToParent(resp),
 		"sending Response to parent")
@@ -133,9 +150,9 @@ func (p *InitTxn) executeResponse(r StructResponse) error {
 	}
 
 	p.mask.SetBit(index, true)
-	p.responses = append(p.responses, r.Response)
+	p.responses = append(p.responses, &r.Response)
 
-	if len(p.responses) >= p.Threshold {
+	if len(p.responses) == p.Threshold {
 		finalSignature := p.suite.G1().Point()
 		for _, resp := range p.responses {
 			sig, err := resp.Signature.Point(p.suite)
@@ -157,9 +174,10 @@ func (p *InitTxn) executeResponse(r StructResponse) error {
 }
 
 func (p *InitTxn) makeResponse(data []byte) (*Response, error) {
-	sig, err := bls.Sign(p.suite, p.Private(), data)
+	//sig, err := bls.Sign(p.suite, p.Private(), data)
+	sig, err := bls.Sign(p.suite, p.KP.Private, data)
 	if err != nil {
-		return nil, err
+		return &Response{}, err
 	}
 	return &Response{Signature: sig}, nil
 }

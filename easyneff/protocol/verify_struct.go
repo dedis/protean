@@ -16,12 +16,12 @@ func init() {
 	network.RegisterMessages(&VerifyProofs{}, &VerifyProofsResponse{})
 }
 
-type VerificationFn func(*ShuffleProof, kyber.Point, kyber.Point,
+type VerificationFn func(*base.ShuffleProof, kyber.Point, kyber.Point,
 	utils.ElGamalPairs, []kyber.Point) error
 
 type VerifyProofs struct {
 	ShufInput *base.ShuffleInput
-	ShufProof *ShuffleProof
+	ShufProof *base.ShuffleProof
 	ExecReq   *core.ExecutionRequest
 }
 

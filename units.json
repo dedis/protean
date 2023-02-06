@@ -1,69 +1,41 @@
 {
         "registry": {
                 "state": {
-                        "numnodes": 10,
-                        "threshold": 7,
-                        "opcodes": [
-                                "SpawnDarc",
-                                "CreateState",
-                                "UpdateState",
-                                "GetProof"
-                        ]
-                },
-                "ceu": {
                         "num_nodes": 10,
                         "threshold": 7,
                         "opcodes": [
-                                "InitTxn",
-                                "Execute"
+                                "init_contract"
                         ]
                 },
-                "pristore": {
+                "codeexec": {
                         "num_nodes": 10,
                         "threshold": 7,
                         "opcodes": [
-                                "CreateLTS",
-                                "SpawnDarc",
-                                "AddWrite",
-                                "AddRead",
-                                "AddReadBatch",
-                                "GetProof",
-                                "GetProofBatch",
-                                "Decrypt",
-                                "DecryptBatch",
-                                "DecryptNT",
-                                "DecryptNTBatch"
+                                "init_txn",
+                                "exec"
                         ]
                 },
-                "thresh": {
+                "threshold": {
                         "num_nodes": 10,
                         "threshold": 7,
                         "opcodes": [
-                                "InitDKG",
-                                "Decrypt"
-                        ]
-                },
-                "tdh": {
-                        "num_nodes": 10,
-                        "threshold": 7,
-                        "opcodes": [
-                                "InitDKG",
-                                "Decrypt"
+                                "init_dkg",
+                                "decrypt"
                         ]
                 },
                 "easyneff": {
                         "num_nodes": 10,
                         "threshold": 7,
                         "opcodes": [
-                                "Shuffle"
+                                "shuffle"
                         ]
                 },
                 "easyrand": {
                         "num_nodes": 10,
                         "threshold": 7,
                         "opcodes": [
-                                "InitDKG",
-                                "Randomness"
+                                "init_dkg",
+                                "randomness"
                         ]
                 }
         }

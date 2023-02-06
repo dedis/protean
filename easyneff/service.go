@@ -1,6 +1,7 @@
 package easyneff
 
 import (
+	"github.com/dedis/protean/easyneff/base"
 	"github.com/dedis/protean/easyneff/protocol"
 	protean "github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3"
@@ -50,12 +51,12 @@ func (s *EasyNeff) Shuffle(req *ShuffleRequest) (*ShuffleReply, error) {
 	}
 	neff := pi.(*protocol.NeffShuffle)
 	neff.ShufInput = &req.Input
-	neff.ExecReq = &req.ExecReq
-	neff.InputHashes, err = req.Input.PrepareInputHashes()
-	if err != nil {
-		log.Errorf("failed to prepare the input hashes: %v", err)
-		return nil, err
-	}
+	//neff.ExecReq = &req.ExecReq
+	//neff.InputHashes, err = req.Input.PrepareInputHashes()
+	//if err != nil {
+	//	log.Errorf("failed to prepare the input hashes: %v", err)
+	//	return nil, err
+	//}
 	if err := pi.Start(); err != nil {
 		return nil, err
 	}
@@ -72,8 +73,13 @@ func (s *EasyNeff) Shuffle(req *ShuffleRequest) (*ShuffleReply, error) {
 		shufVerify.ShufProof = &shufProof
 		shufVerify.ExecReq = &req.ExecReq
 		shufVerify.KP = protean.GetBLSKeyPair(s.ServerIdentity())
+		shufVerify.InputHashes, err = req.Input.PrepareInputHashes()
+		if err != nil {
+			log.Errorf("failed to prepare the input hashes: %v", err)
+			return nil, err
+		}
 		// Verification function
-		shufVerify.Verify = s.ShuffleVerify
+		shufVerify.ShufVerify = s.ShuffleVerify
 		shufVerify.Threshold = nodeCount - (nodeCount-1)/3
 		err = shufVerify.Start()
 		if err != nil {
@@ -82,14 +88,13 @@ func (s *EasyNeff) Shuffle(req *ShuffleRequest) (*ShuffleReply, error) {
 		if !<-shufVerify.Verified {
 			return nil, xerrors.New("shuffle verify failed")
 		}
-		return &ShuffleReply{Proofs: shufProof.Proofs,
-			Receipts: shufVerify.Receipts}, nil
+		return &ShuffleReply{Proofs: shufProof, Receipts: shufVerify.Receipts}, nil
 	case <-time.After(time.Second * time.Duration(len(s.roster.List))):
 		return nil, xerrors.New("timeout waiting for shuffle")
 	}
 }
 
-func (s *EasyNeff) ShuffleVerify(sp *protocol.ShuffleProof, G, H kyber.Point,
+func (s *EasyNeff) ShuffleVerify(sp *base.ShuffleProof, G, H kyber.Point,
 	initialPairs protean.ElGamalPairs, publics []kyber.Point) error {
 	x, y := splitPairs(initialPairs)
 	for i, proof := range sp.Proofs {
@@ -147,7 +152,7 @@ func (s *EasyNeff) NewProtocol(tn *onet.TreeNodeInstance,
 		}
 		proto := pi.(*protocol.ShuffleVerify)
 		proto.KP = protean.GetBLSKeyPair(s.ServerIdentity())
-		proto.Verify = s.ShuffleVerify
+		proto.ShufVerify = s.ShuffleVerify
 		return proto, nil
 	}
 	return nil, nil

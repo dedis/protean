@@ -1,7 +1,7 @@
 package easyneff
 
 import (
-	"github.com/dedis/protean/easyneff/protocol"
+	"github.com/dedis/protean/easyneff/base"
 	"github.com/stretchr/testify/require"
 	"go.dedis.ch/cothority/v3/blscosi"
 	"go.dedis.ch/kyber/v3/pairing"
@@ -107,7 +107,7 @@ func TestShuffle_EGDecrypt(t *testing.T) {
 
 	// Verify BLS signature
 	//hash, err := protocol.CalculateHash(reply.Proofs)
-	shufProof := protocol.ShuffleProof{Proofs: reply.Proofs}
+	shufProof := base.ShuffleProof{Proofs: reply.Proofs}
 	hash, err := shufProof.Hash()
 	require.NoError(t, err)
 	publics := roster.ServicePublics(blscosi.ServiceName)

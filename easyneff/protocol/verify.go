@@ -1,12 +1,13 @@
 package protocol
 
 import (
+	"sync"
+	"time"
+
 	"github.com/dedis/protean/core"
 	"go.dedis.ch/cothority/v3/blscosi"
 	blsproto "go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/kyber/v3/util/key"
-	"sync"
-	"time"
 
 	"github.com/dedis/protean/easyneff/base"
 	"github.com/dedis/protean/utils"
@@ -30,13 +31,15 @@ func init() {
 type ShuffleVerify struct {
 	*onet.TreeNodeInstance
 
-	ShufInput *base.ShuffleInput
-	ShufProof *ShuffleProof
-	ExecReq   *core.ExecutionRequest
-	KP        *key.Pair
-	Receipts  map[string]*core.OpcodeReceipt
+	ShufInput   *base.ShuffleInput
+	ShufProof   *base.ShuffleProof
+	ExecReq     *core.ExecutionRequest
+	InputHashes map[string][]byte
 
-	Verify VerificationFn
+	KP       *key.Pair
+	Receipts map[string]*core.OpcodeReceipt
+
+	ShufVerify VerificationFn
 
 	Threshold int
 	Failures  int
@@ -63,9 +66,19 @@ func NewShuffleVerify(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
 }
 
 func (s *ShuffleVerify) Start() error {
+	if s.ExecReq == nil {
+		s.finish(false)
+		return xerrors.New("missing execution request")
+	}
 	if len(s.ShufProof.Proofs) == 0 {
 		s.finish(false)
 		return xerrors.New("initialize Proofs first")
+	}
+	err := s.runVerification()
+	if err != nil {
+		log.Errorf("%s couldn't verify the execution request: %v", s.Name(), err)
+		s.finish(false)
+		return err
 	}
 	resp, err := s.generateResponse()
 	if err != nil {
@@ -99,9 +112,18 @@ func (s *ShuffleVerify) Start() error {
 
 func (s *ShuffleVerify) verifyProofs(r structVerifyProofs) error {
 	defer s.Done()
+	var err error
+	s.ShufInput = r.ShufInput
 	s.ShufProof = r.ShufProof
 	s.ExecReq = r.ExecReq
-	err := s.Verify(s.ShufProof, nil, r.ShufInput.H, r.ShufInput.Pairs,
+	s.InputHashes, err = s.ShufInput.PrepareInputHashes()
+	err = s.runVerification()
+	if err != nil {
+		log.Errorf("%s couldn't verify the execution request: %v", s.Name(), err)
+		s.finish(false)
+		return err
+	}
+	err = s.ShufVerify(s.ShufProof, nil, r.ShufInput.H, r.ShufInput.Pairs,
 		s.Roster().Publics())
 	if err != nil {
 		log.Lvl2(s.ServerIdentity(), "failed to verify the proofs")
@@ -187,4 +209,13 @@ func (s *ShuffleVerify) finish(result bool) {
 		// beat us.
 	}
 	s.doneOnce.Do(func() { s.Done() })
+}
+
+func (s *ShuffleVerify) runVerification() error {
+	vData := &core.VerificationData{
+		UID:         base.UID,
+		OpcodeName:  base.SHUFFLE,
+		InputHashes: s.InputHashes,
+	}
+	return s.ExecReq.Verify(vData)
 }

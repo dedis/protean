@@ -3,7 +3,6 @@ package threshold
 import (
 	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/threshold/base"
-	"github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/onet/v3"
 )
@@ -38,9 +37,12 @@ func (c *Client) InitDKG(execReq *core.ExecutionRequest) (*InitDKGReply, error) 
 	return reply, err
 }
 
-func (c *Client) Decrypt(cs []utils.ElGamalPair, execReq *core.ExecutionRequest) (*DecryptReply, error) {
+//func (c *Client) Decrypt(cs []utils.ElGamalPair, execReq *core.ExecutionRequest) (*DecryptReply, error) {
+func (c *Client) Decrypt(input *base.DecryptInput, execReq *core.ExecutionRequest) (
+	*DecryptReply, error) {
 	req := &DecryptRequest{
-		Input:   base.DecryptInput{utils.ElGamalPairs{Pairs: cs}},
+		//Input:   base.DecryptInput{utils.ElGamalPairs{Pairs: cs}},
+		Input:   *input,
 		ExecReq: *execReq,
 	}
 	reply := &DecryptReply{}

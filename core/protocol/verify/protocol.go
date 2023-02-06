@@ -166,7 +166,7 @@ func (p *VP) verifyExecutionRequest() error {
 			if !ok {
 				return xerrors.Errorf("cannot find the input data for %s", inputName)
 			}
-			if !bytes.Equal(inputHash, receipt.Digest) {
+			if !bytes.Equal(inputHash, receipt.Hash) {
 				return xerrors.Errorf("hashes do not match for input %s", inputName)
 			}
 			hash := receipt.Hash()

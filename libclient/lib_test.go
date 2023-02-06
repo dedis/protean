@@ -6,6 +6,11 @@ import (
 	"encoding/base64"
 	"flag"
 	"fmt"
+	"math/rand"
+	"sort"
+	"testing"
+	"time"
+
 	"github.com/dedis/protean/contracts"
 	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/libstate"
@@ -18,10 +23,6 @@ import (
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/protobuf"
-	"math/rand"
-	"sort"
-	"testing"
-	"time"
 )
 
 var baseFile string
@@ -210,8 +211,8 @@ func BenchmarkPBHashing(b *testing.B) {
 func (f *Foo) Hash() {
 	h := sha256.New()
 	for _, kv := range f.Data {
-		h.Sum([]byte(kv.Key))
-		h.Sum(kv.Value)
+		h.Write([]byte(kv.Key))
+		h.Write(kv.Value)
 	}
 	h.Sum(nil)
 }
@@ -243,8 +244,8 @@ func (f *FooMap) Hash() []byte {
 	sort.Strings(sorted)
 	h := sha256.New()
 	for _, k := range sorted {
-		h.Sum([]byte(k))
-		h.Sum(f.Data[k])
+		h.Write([]byte(k))
+		h.Write(f.Data[k])
 	}
 	return h.Sum(nil)
 }
@@ -290,8 +291,8 @@ func (d *Doo) Hash() []byte {
 	sort.Strings(keys)
 	h := sha256.New()
 	for _, k := range keys {
-		h.Sum([]byte(k))
-		h.Sum(d.Data[k])
+		h.Write([]byte(k))
+		h.Write(d.Data[k])
 	}
 	return h.Sum(nil)
 }

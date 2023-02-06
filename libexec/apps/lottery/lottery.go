@@ -15,7 +15,7 @@ import (
 )
 
 func JoinLottery(inputs []core.OpcodeRequest) ([]core.Output, error) {
-	//ticket, ok := inputs[0].Input.(Ticket)
+	//ticket, ok := inputs[0].I.(Ticket)
 	//if !ok {
 	//	return nil, xerrors.Errorf("couldn't find the ticket input")
 	//}
@@ -37,7 +37,7 @@ func JoinLottery(inputs []core.OpcodeRequest) ([]core.Output, error) {
 		return nil, xerrors.Errorf("cannot verify signature: %v", err)
 	}
 
-	//kvData, ok := inputs[1].Input.(KVInputData)
+	//kvData, ok := inputs[1].I.(KVInputData)
 	//if !ok {
 	//	return nil, xerrors.Errorf("couldn't find the kv data input")
 	//}
@@ -101,7 +101,7 @@ func CloseJoin(inputs []core.OpcodeRequest) ([]core.Output, error) {
 }
 
 func RevealWinner(inputs []core.OpcodeRequest) ([]core.Output, error) {
-	//randomness, ok := inputs[0].Input.(RandomnessInput)
+	//randomness, ok := inputs[0].I.(RandomnessInput)
 	input, ok := inputs[0].Input.(RevealWinnerInput)
 	if !ok {
 		return nil, xerrors.Errorf("didn't receive RevealWinner input")
@@ -114,7 +114,7 @@ func RevealWinner(inputs []core.OpcodeRequest) ([]core.Output, error) {
 		return nil, xerrors.Errorf("couldn't verify randomness value: %v", err)
 	}
 
-	//kvData, ok := inputs[1].Input.(KVInputData)
+	//kvData, ok := inputs[1].I.(KVInputData)
 	//if !ok {
 	//	return nil, xerrors.Errorf("couldn't find the kv data input")
 	//}

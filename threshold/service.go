@@ -97,7 +97,9 @@ func (s *Service) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
 			log.Errorf("SharedSecret call error: %v", err)
 			return nil, err
 		}
-		receipts, err := s.verifyDKG(dkgID, shared.X, &req.ExecReq)
+		nodeCount := len(s.roster.List)
+		threshold := nodeCount - (nodeCount-1)/3
+		receipts, err := s.verifyDKG(dkgID, threshold, shared.X, &req.ExecReq)
 		if err != nil {
 			return nil, err
 		}
@@ -175,7 +177,7 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 	return &DecryptReply{Ps: decProto.Ps, Receipts: decProto.Receipts}, nil
 }
 
-func (s *Service) verifyDKG(dkgID DKGID, X kyber.Point,
+func (s *Service) verifyDKG(dkgID DKGID, threshold int, X kyber.Point,
 	req *core.ExecutionRequest) (map[string]*core.OpcodeReceipt, error) {
 	tree := s.roster.GenerateNaryTreeWithRoot(len(s.roster.List)-1, s.ServerIdentity())
 	if tree == nil {
@@ -186,6 +188,7 @@ func (s *Service) verifyDKG(dkgID DKGID, X kyber.Point,
 		return nil, err
 	}
 	vfDKG := pi.(*protocol.VerifyDKG)
+	vfDKG.Threshold = threshold
 	vfDKG.X = X
 	vfDKG.ExecReq = req
 	vfDKG.KP = protean.GetBLSKeyPair(s.ServerIdentity())

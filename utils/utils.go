@@ -2,11 +2,12 @@ package utils
 
 import (
 	"crypto/sha256"
+	"sort"
+	"time"
+
 	"go.dedis.ch/cothority/v3/blscosi"
 	"go.dedis.ch/kyber/v3/util/key"
 	"go.dedis.ch/onet/v3/network"
-	"sort"
-	"time"
 
 	"github.com/dedis/protean/sys"
 	"go.dedis.ch/cothority/v3"

@@ -12,7 +12,6 @@ type DecryptInput struct {
 	utils.ElGamalPairs
 }
 
-//func PrepareInputHashes(decInput *DecryptInput) (map[string][]byte, error) {
 func (decInput *DecryptInput) PrepareInputHashes() (map[string][]byte, error) {
 	inputHashes := make(map[string][]byte)
 	hash, err := decInput.Hash()

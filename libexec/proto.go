@@ -2,8 +2,7 @@ package libexec
 
 import (
 	"github.com/dedis/protean/core"
-	"github.com/dedis/protean/libexec/commons"
-	"go.dedis.ch/cothority/v3/blscosi/protocol"
+	"github.com/dedis/protean/libexec/base"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/onet/v3"
@@ -29,17 +28,19 @@ type InitTransaction struct {
 }
 
 type InitTransactionReply struct {
-	Plan      core.ExecutionPlan
-	Signature protocol.BlsSignature
+	Plan core.ExecutionPlan
+	//Signature protocol.BlsSignature
 }
 
 // Structs for execution request
 
 type Execute struct {
-	Inputs []core.OpcodeRequest
-	Fn     commons.ExecutionFn
+	//Fn    base.ExecutionFn
+	FnName string
+	Input  base.ExecuteInput
 }
 
 type ExecuteReply struct {
-	Outputs []core.Output
+	Output   base.ExecuteOutput
+	Receipts map[string]*core.OpcodeReceipt
 }

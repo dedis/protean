@@ -111,7 +111,7 @@ func (r *ExecutionRequest) Verify(data *VerificationData) error {
 			//	return xerrors.Errorf("cannot verify state unit's signature on keyvalue: %v", err)
 			//}
 		} else {
-			log.Lvl1("CONST input data")
+			log.Lvl3("CONST input data")
 		}
 	}
 	return nil
