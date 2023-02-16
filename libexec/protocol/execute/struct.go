@@ -1,6 +1,7 @@
 package execute
 
 import (
+	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/libexec/base"
 	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/onet/v3"
@@ -14,8 +15,9 @@ func init() {
 }
 
 type Request struct {
-	FnName string
-	Input  *base.ExecuteInput
+	FnName  string
+	Input   *base.ExecuteInput
+	ExecReq *core.ExecutionRequest
 	//ExecFn base.ExecutionFn
 }
 

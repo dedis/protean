@@ -2,7 +2,6 @@ package execute
 
 import (
 	"github.com/dedis/protean/core"
-	"github.com/dedis/protean/libexec/apps"
 	"github.com/dedis/protean/libexec/base"
 	"github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3"
@@ -26,10 +25,10 @@ func init() {
 type Execute struct {
 	*onet.TreeNodeInstance
 
-	execFn   base.ExecutionFn
 	FnName   string
 	Input    *base.ExecuteInput
 	Output   *base.ExecuteOutput
+	ExecReq  *core.ExecutionRequest
 	Receipts map[string]*core.OpcodeReceipt
 
 	KP        *key.Pair
@@ -66,11 +65,27 @@ func (p *Execute) Start() error {
 		p.finish(false)
 		return xerrors.New("missing input")
 	}
-	p.execFn = apps.GetFunction(p.FnName)
-	//p.Output, p.outputHashes, err = p.ExecFn(p.Input)
-	p.Output, p.outputHashes, err = p.execFn(p.Input)
+	execFn, decInput, inputHashes, err := demuxRequest(p.FnName, p.Input)
+	if err != nil {
+		log.Errorf("%s failed to demux request: %v", p.Name(), err)
+		p.finish(false)
+		return err
+	}
+	err = p.runVerification(inputHashes)
+	if err != nil {
+		log.Errorf("%s failed to verify the execution request: %v", p.Name(), err)
+		p.finish(false)
+		return err
+	}
+	genericOut, err := execFn(decInput)
 	if err != nil {
 		log.Errorf("%s failed to execute function: %v", p.Name(), err)
+		p.finish(false)
+		return err
+	}
+	p.Output, p.outputHashes, err = muxRequest(p.FnName, genericOut)
+	if err != nil {
+		log.Errorf("%s failed to prepare output: %v", p.Name(), err)
 		p.finish(false)
 		return err
 	}
@@ -91,8 +106,7 @@ func (p *Execute) Start() error {
 		log.Lvl1("execute protocol timeout")
 		p.finish(false)
 	})
-	//errs := p.Broadcast(&Request{Input: p.Input, ExecFn: p.ExecFn})
-	errs := p.Broadcast(&Request{Input: p.Input, FnName: p.FnName})
+	errs := p.Broadcast(&Request{FnName: p.FnName, Input: p.Input, ExecReq: p.ExecReq})
 	if len(errs) > (len(p.Roster().List) - p.Threshold) {
 		log.Errorf("some nodes failed with error(s) %v", errs)
 		return xerrors.New("too many nodes failed in broadcast")
@@ -102,14 +116,28 @@ func (p *Execute) Start() error {
 
 func (p *Execute) execute(r StructRequest) error {
 	defer p.Done()
-	var err error
-	//p.ExecFn = r.ExecFn
-	p.execFn = apps.GetFunction(r.FnName)
-	p.Input = r.Input
-	//p.Output, p.outputHashes, err = p.ExecFn(p.Input)
-	p.Output, p.outputHashes, err = p.execFn(p.Input)
+	p.ExecReq = r.ExecReq
+	execFn, decInput, inputHashes, err := demuxRequest(r.FnName, r.Input)
 	if err != nil {
-		log.Errorf("%s failed to execute: %v:", p.Name(), err)
+		log.Errorf("%s failed to demux request: %v", p.Name(), err)
+		return cothority.ErrorOrNil(p.SendToParent(&Response{}),
+			"sending Response to parent")
+	}
+	err = p.runVerification(inputHashes)
+	if err != nil {
+		log.Errorf("%s failed to verify the execution request: %v", p.Name(), err)
+		return cothority.ErrorOrNil(p.SendToParent(&Response{}),
+			"sending Response to parent")
+	}
+	genericOut, err := execFn(decInput)
+	if err != nil {
+		log.Errorf("%s failed to execute function: %v", p.Name(), err)
+		p.finish(false)
+		return err
+	}
+	p.Output, p.outputHashes, err = muxRequest(r.FnName, genericOut)
+	if err != nil {
+		log.Errorf("%s failed to prepare output: %v:", p.Name(), err)
 		return cothority.ErrorOrNil(p.SendToParent(&Response{}),
 			"sending Response to parent")
 	}
@@ -163,12 +191,11 @@ func (p *Execute) generateResponse() (*Response, error) {
 	sigs := make(map[string]blsproto.BlsSignature)
 	for outputName, outputHash := range p.outputHashes {
 		r := &core.OpcodeReceipt{
-			EPID:      p.Input.ExecReq.EP.Hash(),
-			OpIdx:     p.Input.ExecReq.Index,
+			EPID:      p.ExecReq.EP.Hash(),
+			OpIdx:     p.ExecReq.Index,
 			Name:      outputName,
 			HashBytes: outputHash,
 		}
-		//sig, err := bls.Sign(p.suite, p.Private(), r.Hash())
 		sig, err := bls.Sign(p.suite, p.KP.Private, r.Hash())
 		if err != nil {
 			return &Response{}, err
@@ -180,6 +207,15 @@ func (p *Execute) generateResponse() (*Response, error) {
 		}
 	}
 	return &Response{Signatures: sigs}, nil
+}
+
+func (p *Execute) runVerification(hashes map[string][]byte) error {
+	vData := &core.VerificationData{
+		UID:         base.UID,
+		OpcodeName:  base.EXEC,
+		InputHashes: hashes,
+	}
+	return p.ExecReq.Verify(vData)
 }
 
 func (p *Execute) finish(result bool) {

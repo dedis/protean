@@ -177,17 +177,15 @@ func Test_ShufDKG(t *testing.T) {
 	// Step 2: Execute code (prepare inputs for shuffling)
 	// Use the DKG key for encryption
 	execReq.Index = 1
-	//cleartext := []byte("Go Badgers!")
 	cleartext := "Go Badgers!"
 	pairs, _ := generateRequest(5, cleartext, dkgReply.X)
 	input := shufdkg.PrepareShufInput{Pairs: pairs}
 	data, err := protobuf.Encode(&input)
 	require.NoError(t, err)
 	execInput := execbase.ExecuteInput{
-		Data:    data,
-		ExecReq: *execReq,
+		Data: data,
 	}
-	execReply, err := execCl.Execute(execInput, "prep_shuf")
+	execReply, err := execCl.Execute("prep_shuf", execInput, execReq)
 	require.NoError(t, err)
 
 	var shInput neffbase.ShuffleInput
@@ -207,8 +205,7 @@ func Test_ShufDKG(t *testing.T) {
 	data, err = protobuf.Encode(&dInput)
 	require.NoError(t, err)
 	execInput.Data = data
-	execInput.ExecReq = *execReq
-	execReply, err = execCl.Execute(execInput, "prep_dec")
+	execReply, err = execCl.Execute("prep_dec", execInput, execReq)
 	require.NoError(t, err)
 
 	var decInput threshbase.DecryptInput

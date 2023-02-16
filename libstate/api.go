@@ -45,7 +45,8 @@ func SetupByzcoin(r *onet.Roster, blockTime time.Duration) (*AdminClient,
 		return nil, nil, err
 	}
 	gMsg.BlockInterval = blockTime * time.Second
-	c, _, err := byzcoin.NewLedger(gMsg, false)
+	//c, _, err := byzcoin.NewLedger(gMsg, false)
+	c, _, err := byzcoin.NewLedger(gMsg, true)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -70,8 +71,9 @@ func (c *Client) InitContract(hdr *core.ContractHeader, gDarc darc.Darc,
 	if err != nil {
 		return nil, xerrors.Errorf("encoding contract header: %v", err)
 	}
-	args := byzcoin.Arguments{{Name: "header", Value: hdrBuf},
-		{Name: "kvstore", Value: []byte{}}}
+	//args := byzcoin.Arguments{{Name: "header", Value: hdrBuf},
+	//	{Name: "kvstore", Value: []byte{}}}
+	args := byzcoin.Arguments{{Name: "header", Value: hdrBuf}}
 	ctx := byzcoin.NewClientTransaction(byzcoin.CurrentVersion,
 		byzcoin.Instruction{
 			InstanceID: byzcoin.NewInstanceID(gDarc.GetBaseID()),
@@ -131,21 +133,42 @@ func (c *Client) GetContractState(cid byzcoin.InstanceID) (*GetContractStateRepl
 	return reply, nil
 }
 
-func (c *Client) ReadState(cid byzcoin.InstanceID, keys []string) (*ReadStateReply, error) {
-	reply := &ReadStateReply{}
-	req := &ReadState{
-		CID:  cid,
-		Keys: keys,
-	}
-	err := c.c.SendProtobuf(c.bcClient.Roster.List[0], req, reply)
-	if err != nil {
-		return nil, xerrors.Errorf("send get contract state message: %v", err)
-	}
-	return reply, nil
-}
+//func (c *Client) ReadState(cid byzcoin.InstanceID, keys []string) (*ReadStateReply, error) {
+//	reply := &ReadStateReply{}
+//	req := &ReadState{
+//		CID:  cid,
+//		Keys: keys,
+//	}
+//	err := c.c.SendProtobuf(c.bcClient.Roster.List[0], req, reply)
+//	if err != nil {
+//		return nil, xerrors.Errorf("send get contract state message: %v", err)
+//	}
+//	return reply, nil
+//}
 
-func (c *Client) UpdateState(cid byzcoin.InstanceID) (*UpdateStateReply, error) {
-	return nil, nil
+func (c *Client) UpdateState(cid byzcoin.InstanceID, args byzcoin.Arguments) (*UpdateStateReply, error) {
+	ctx := byzcoin.NewClientTransaction(byzcoin.CurrentVersion,
+		byzcoin.Instruction{
+			InstanceID: cid,
+			Invoke: &byzcoin.Invoke{
+				ContractID: contracts.ContractKeyValueID,
+				Command:    "update",
+				Args:       args,
+			},
+			SignerCounter: []uint64{c.ctr},
+		})
+	err := ctx.FillSignersAndSignWith(c.signer)
+	if err != nil {
+		return nil, xerrors.Errorf("signing transaction: %v", err)
+	}
+
+	//reply := &UpdateStateReply{CID: cid}
+	//reply.TxResp, err = c.bcClient.AddTransactionAndWait(ctx, wait)
+	_, err = c.bcClient.AddTransaction(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("adding transaction")
+	}
+	return &UpdateStateReply{}, nil
 }
 
 // FetchGenesisBlock requires the hash of the genesis block. To retrieve,

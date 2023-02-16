@@ -1,6 +1,10 @@
 package protocol
 
 import (
+	"github.com/dedis/protean/utils"
+	"sync"
+	"time"
+
 	"github.com/dedis/protean/contracts"
 	"github.com/dedis/protean/core"
 	"go.dedis.ch/cothority/v3"
@@ -10,11 +14,8 @@ import (
 	"go.dedis.ch/kyber/v3/sign/bls"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
-	"go.dedis.ch/onet/v3/network"
 	"go.dedis.ch/protobuf"
 	"golang.org/x/xerrors"
-	"sync"
-	"time"
 )
 
 func init() {
@@ -113,11 +114,11 @@ func (p *ReadState) execute(r StructRSRequest) error {
 }
 
 func (p *ReadState) executeReply(r StructRSResponse) error {
-	index := searchPublicKey(p.TreeNodeInstance, r.ServerIdentity)
+	index := utils.SearchPublicKey(p.TreeNodeInstance, r.ServerIdentity)
 	if len(r.Signature) == 0 || index < 0 {
 		p.failures++
 		if p.failures > len(p.Roster().List)-p.Threshold {
-			log.Lvl2(p.ServerIdentity, "couldn't get enough shares")
+			log.Lvl2(p.ServerIdentity(), "couldn't get enough shares")
 			p.finish(false)
 		}
 		return nil
@@ -200,15 +201,6 @@ func (p *ReadState) makeResponse() (*RSResponse, error) {
 		return nil, xerrors.Errorf("failed to generate the bls signature: %v", err)
 	}
 	return &RSResponse{Signature: sig}, nil
-}
-
-func searchPublicKey(p *onet.TreeNodeInstance, servID *network.ServerIdentity) int {
-	for idx, si := range p.Roster().List {
-		if si.Equal(servID) {
-			return idx
-		}
-	}
-	return -1
 }
 
 func (p *ReadState) finish(result bool) {

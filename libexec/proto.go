@@ -35,9 +35,9 @@ type InitTransactionReply struct {
 // Structs for execution request
 
 type Execute struct {
-	//Fn    base.ExecutionFn
-	FnName string
-	Input  base.ExecuteInput
+	FnName  string
+	Input   base.ExecuteInput
+	ExecReq core.ExecutionRequest
 }
 
 type ExecuteReply struct {

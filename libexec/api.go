@@ -1,6 +1,7 @@
 package libexec
 
 import (
+	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/libexec/base"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/onet/v3"
@@ -44,12 +45,13 @@ func (c *Client) InitTransaction(rdata ByzData, cdata ByzData, wf string,
 	return reply, nil
 }
 
-func (c *Client) Execute(input base.ExecuteInput, fnName string) (*ExecuteReply,
+func (c *Client) Execute(fnName string, input base.ExecuteInput, execReq *core.ExecutionRequest) (*ExecuteReply,
 	error) {
 	reply := &ExecuteReply{}
 	req := &Execute{
-		FnName: fnName,
-		Input:  input,
+		FnName:  fnName,
+		Input:   input,
+		ExecReq: *execReq,
 	}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)
 	if err != nil {

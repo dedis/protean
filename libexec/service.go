@@ -83,8 +83,8 @@ func (s *Service) Execute(req *Execute) (*ExecuteReply, error) {
 	}
 	proto := pi.(*execute.Execute)
 	proto.Input = &req.Input
+	proto.ExecReq = &req.ExecReq
 	proto.FnName = req.FnName
-	//proto.ExecFn = apps.GetFunction(req.FnName)
 	proto.KP = s.getKeyPair()
 	proto.Publics = s.roster.ServicePublics(ServiceName)
 	proto.Threshold = threshold
