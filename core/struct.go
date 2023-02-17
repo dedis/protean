@@ -15,9 +15,10 @@ const (
 )
 
 const (
-	CONST    string = "CONST"
-	KEYVALUE string = "KEYVALUE"
-	OPCODE   string = "OPCODE"
+	OPCODE    string = "OPCODE"
+	KEYVALUE  string = "KEYVALUE"
+	PRECOMMIT string = "PRECOMMIT"
+	CONST     string = "CONST"
 )
 
 type Contract struct {
@@ -26,8 +27,7 @@ type Contract struct {
 }
 
 type Workflow struct {
-	Txns       map[string]*Transaction `json:"txns"`
-	Precommits []string                `json:"precommits"`
+	Txns map[string]*Transaction `json:"txns"`
 }
 
 type Transaction struct {
@@ -61,11 +61,11 @@ type ExecutionPlan struct {
 }
 
 type ExecutionRequest struct {
-	Index        int
-	EP           *ExecutionPlan
-	OpReceipts   map[string]*OpcodeReceipt
-	KVReceipt    map[string]KVDict
-	KVReceiptSig protocol.BlsSignature
+	Index      int
+	EP         *ExecutionPlan
+	OpReceipts map[string]*OpcodeReceipt
+	//KVReceipt    map[string]KVDict
+	//KVReceiptSig protocol.BlsSignature
 }
 
 type OpcodeReceipt struct {
@@ -128,11 +128,4 @@ type StateProof struct {
 
 type KVDict struct {
 	Data map[string][]byte
-}
-
-type ReadState struct {
-	Root []byte
-	// Prepared by each node in the state unit
-	KVDict KVDict
-	Sig    protocol.BlsSignature
 }

@@ -110,12 +110,10 @@ func (cs *Storage) Update(args byzcoin.Arguments) {
 					break
 				}
 				cs.Store[i].Value = kv.Value
-				//cs.Store[i].Version++
 			}
 		}
 		if !updated {
 			cs.Store = append(cs.Store, KV{Key: kv.Name, Value: kv.Value})
-			//cs.Store = append(cs.Store, KV{Key: kv.Name, Value: kv.Value, Version: 0})
 		}
 	}
 }

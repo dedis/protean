@@ -18,7 +18,6 @@ type Request struct {
 	FnName  string
 	Input   *base.ExecuteInput
 	ExecReq *core.ExecutionRequest
-	//ExecFn base.ExecutionFn
 }
 
 type StructRequest struct {

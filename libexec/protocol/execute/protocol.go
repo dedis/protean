@@ -65,19 +65,20 @@ func (p *Execute) Start() error {
 		p.finish(false)
 		return xerrors.New("missing input")
 	}
-	execFn, decInput, inputHashes, err := demuxRequest(p.FnName, p.Input)
+	execFn, genInput, vdata, err := demuxRequest(p.FnName, p.Input)
 	if err != nil {
 		log.Errorf("%s failed to demux request: %v", p.Name(), err)
 		p.finish(false)
 		return err
 	}
-	err = p.runVerification(inputHashes)
+	err = p.ExecReq.Verify(vdata)
 	if err != nil {
 		log.Errorf("%s failed to verify the execution request: %v", p.Name(), err)
 		p.finish(false)
 		return err
 	}
-	genericOut, err := execFn(decInput)
+	genInput.KVDicts, err = core.PrepareKVDicts(p.ExecReq, p.Input.StateProofs)
+	genericOut, err := execFn(genInput)
 	if err != nil {
 		log.Errorf("%s failed to execute function: %v", p.Name(), err)
 		p.finish(false)
@@ -117,19 +118,19 @@ func (p *Execute) Start() error {
 func (p *Execute) execute(r StructRequest) error {
 	defer p.Done()
 	p.ExecReq = r.ExecReq
-	execFn, decInput, inputHashes, err := demuxRequest(r.FnName, r.Input)
+	execFn, genInput, vdata, err := demuxRequest(r.FnName, r.Input)
 	if err != nil {
 		log.Errorf("%s failed to demux request: %v", p.Name(), err)
 		return cothority.ErrorOrNil(p.SendToParent(&Response{}),
 			"sending Response to parent")
 	}
-	err = p.runVerification(inputHashes)
+	err = p.ExecReq.Verify(vdata)
 	if err != nil {
 		log.Errorf("%s failed to verify the execution request: %v", p.Name(), err)
 		return cothority.ErrorOrNil(p.SendToParent(&Response{}),
 			"sending Response to parent")
 	}
-	genericOut, err := execFn(decInput)
+	genericOut, err := execFn(genInput)
 	if err != nil {
 		log.Errorf("%s failed to execute function: %v", p.Name(), err)
 		p.finish(false)
@@ -209,14 +210,15 @@ func (p *Execute) generateResponse() (*Response, error) {
 	return &Response{Signatures: sigs}, nil
 }
 
-func (p *Execute) runVerification(hashes map[string][]byte) error {
-	vData := &core.VerificationData{
-		UID:         base.UID,
-		OpcodeName:  base.EXEC,
-		InputHashes: hashes,
-	}
-	return p.ExecReq.Verify(vData)
-}
+//func (p *Execute) runVerification(hashes map[string][]byte, precmts *core.KVDict) error {
+//	vData := &core.VerificationData{
+//		UID:         base.UID,
+//		OpcodeName:  base.EXEC,
+//		InputHashes: hashes,
+//		Precommits:  precmts,
+//	}
+//	return p.ExecReq.Verify(vData)
+//}
 
 func (p *Execute) finish(result bool) {
 	p.timeout.Stop()

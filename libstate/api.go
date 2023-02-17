@@ -133,19 +133,6 @@ func (c *Client) GetContractState(cid byzcoin.InstanceID) (*GetContractStateRepl
 	return reply, nil
 }
 
-//func (c *Client) ReadState(cid byzcoin.InstanceID, keys []string) (*ReadStateReply, error) {
-//	reply := &ReadStateReply{}
-//	req := &ReadState{
-//		CID:  cid,
-//		Keys: keys,
-//	}
-//	err := c.c.SendProtobuf(c.bcClient.Roster.List[0], req, reply)
-//	if err != nil {
-//		return nil, xerrors.Errorf("send get contract state message: %v", err)
-//	}
-//	return reply, nil
-//}
-
 func (c *Client) UpdateState(cid byzcoin.InstanceID, args byzcoin.Arguments) (*UpdateStateReply, error) {
 	ctx := byzcoin.NewClientTransaction(byzcoin.CurrentVersion,
 		byzcoin.Instruction{

@@ -183,4 +183,7 @@ func Test_AddKV(t *testing.T) {
 			require.True(t, strings.Compare(hdr.CID.String(), cid.String()) == 0)
 		}
 	}
+
+	err = gcs.Proof.VerifyFromBlock(dfuRoster.ServicePublics(skipchain.ServiceName))
+	require.NoError(t, err)
 }

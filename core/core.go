@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
+	"github.com/dedis/protean/contracts"
 	"sort"
 	"strings"
 
@@ -14,7 +15,7 @@ import (
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/pairing"
 	"go.dedis.ch/kyber/v3/sign"
-	"go.dedis.ch/onet/v3/log"
+	"go.dedis.ch/protobuf"
 	"golang.org/x/xerrors"
 )
 
@@ -25,9 +26,8 @@ type VerificationData struct {
 	OpcodeName string
 	// key: input variable, value: H(output) from parent opcode.
 	InputHashes map[string][]byte
-	// Prepared by the client. key: input variable.
-	//KVMap map[string]ReadState
-	KVMap map[string]StateProof
+	StateProofs map[string]*StateProof
+	Precommits  *KVDict
 }
 
 func (r *ExecutionRequest) Verify(data *VerificationData) error {
@@ -54,7 +54,6 @@ func (r *ExecutionRequest) Verify(data *VerificationData) error {
 	// 3) Check dependencies
 	for inputName, dep := range opcode.Dependencies {
 		if dep.Src == OPCODE {
-			//receipt, ok := r.OpReceipts[dep.SrcName]
 			receipt, ok := r.OpReceipts[inputName]
 			if !ok {
 				return xerrors.Errorf("missing opcode receipt from output %s for input %s", dep.SrcName, inputName)
@@ -84,7 +83,7 @@ func (r *ExecutionRequest) Verify(data *VerificationData) error {
 				return xerrors.Errorf("cannot verify signature from %s for on opcode receipt: %v", err)
 			}
 		} else if dep.Src == KEYVALUE {
-			proof, ok := data.KVMap[inputName]
+			proof, ok := data.StateProofs[inputName]
 			if !ok {
 				return xerrors.Errorf("missing keyvalue for input %s", inputName)
 			}
@@ -96,25 +95,76 @@ func (r *ExecutionRequest) Verify(data *VerificationData) error {
 			if err != nil {
 				return xerrors.Errorf("cannot verify keyvalue proof: %v", err)
 			}
-			//rs, ok := data.KVMap[inputName]
-			//if !ok {
-			//	return xerrors.Errorf("missing keyvalue for input %s", inputName)
-			//}
-			//if !bytes.Equal(rs.Root, r.EP.StateRoot) {
-			//	return xerrors.Errorf("merkle roots do not match")
-			//}
-			//hash := rs.Hash()
-			//suData := r.EP.DFUData[data.SUID]
-			//err := rs.Sig.VerifyWithPolicy(data.Suite, hash, suData.Keys,
-			//	sign.NewThresholdPolicy(suData.Threshold))
-			//if err != nil {
-			//	return xerrors.Errorf("cannot verify state unit's signature on keyvalue: %v", err)
-			//}
-		} else {
-			log.Lvl3("CONST input data")
+		} else if dep.Src == PRECOMMIT {
+			keys := strings.Split(dep.Value, ",")
+			if len(keys) != len(data.Precommits.Data) {
+				return xerrors.Errorf("precommit count mismatch: "+
+					"expected %d received %d", len(keys), len(data.Precommits.Data))
+			}
+			for _, key := range keys {
+				if _, ok := data.Precommits.Data[key]; !ok {
+					return xerrors.Errorf("missing precommit key: %s", key)
+				}
+			}
+		} else if dep.Src == CONST {
+			inputHash, ok := data.InputHashes[inputName]
+			if !ok {
+				return xerrors.Errorf("cannot find the input data for %s", inputName)
+			}
+			if !bytes.Equal(getHash(dep.Value), inputHash) {
+				return xerrors.New("received input does not match the CONST value")
+			}
 		}
 	}
 	return nil
+}
+
+func getHash(val string) []byte {
+	h := sha256.New()
+	h.Write([]byte(val))
+	return h.Sum(nil)
+}
+
+func PrepareKVDicts(r *ExecutionRequest, proofs map[string]*StateProof) (map[string]KVDict, error) {
+	idx := r.Index
+	opcode := r.EP.Txn.Opcodes[idx]
+	kvDicts := make(map[string]KVDict)
+	for inputName, dep := range opcode.Dependencies {
+		if dep.Src == KEYVALUE {
+			v, _, _, err := proofs[inputName].Proof.Get(r.EP.CID)
+			if err != nil {
+				return nil, err
+			}
+			storageMap, err := getStorageMap(v)
+			if err != nil {
+				return nil, err
+			}
+			keys := strings.Split(dep.Value, ",")
+			data := make(map[string][]byte)
+			for _, key := range keys {
+				val, ok := storageMap[key]
+				if !ok {
+					return nil, xerrors.Errorf("missing key: %s", key)
+				}
+				data[key] = val
+			}
+			kvDicts[inputName] = KVDict{Data: data}
+		}
+	}
+	return kvDicts, nil
+}
+
+func getStorageMap(v []byte) (map[string][]byte, error) {
+	kvStore := &contracts.Storage{}
+	err := protobuf.Decode(v, kvStore)
+	if err != nil {
+		return nil, err
+	}
+	smap := make(map[string][]byte)
+	for _, kv := range kvStore.Store {
+		smap[kv.Key] = kv.Value
+	}
+	return smap, nil
 }
 
 // VerifyFromBlock takes a skipchain id and the first block of the proof. It
@@ -213,7 +263,8 @@ func (p *ExecutionPlan) Hash() []byte {
 			h.Write([]byte(dep.Src))
 			h.Write([]byte(dep.SrcName))
 			h.Write(b)
-			h.Write([]byte(dep.Value))
+			//h.Write([]byte(dep.Value))
+			h.Write(getValueBytes(dep.Value))
 		}
 	}
 
@@ -235,6 +286,18 @@ func (p *ExecutionPlan) Hash() []byte {
 		}
 	}
 	return h.Sum(nil)
+}
+
+func getValueBytes(i interface{}) []byte {
+	switch v := i.(type) {
+	case int:
+		b := make([]byte, 8)
+		binary.LittleEndian.PutUint64(b, uint64(v))
+		return b
+	case string:
+		return []byte(v)
+	}
+	return nil
 }
 
 func (p *ExecutionPlan) String() string {
@@ -267,24 +330,5 @@ func (r *OpcodeReceipt) Hash() []byte {
 	h.Write([]byte(r.Name))
 	// HashBytes
 	h.Write(r.HashBytes)
-	return h.Sum(nil)
-}
-
-func (rs *ReadState) Hash() []byte {
-	h := sha256.New()
-	// Root
-	h.Write(rs.Root)
-	// Deterministically serialize KVDict
-	sortedKVDict := make([]string, len(rs.KVDict.Data))
-	i := 0
-	for k := range rs.KVDict.Data {
-		sortedKVDict[i] = k
-		i++
-	}
-	sort.Strings(sortedKVDict)
-	for _, key := range sortedKVDict {
-		h.Write([]byte(key))
-		h.Write(rs.KVDict.Data[key])
-	}
 	return h.Sum(nil)
 }

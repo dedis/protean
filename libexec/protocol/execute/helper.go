@@ -1,6 +1,7 @@
 package execute
 
 import (
+	"github.com/dedis/protean/core"
 	easyneff "github.com/dedis/protean/easyneff/base"
 	"github.com/dedis/protean/libexec/apps/shufdkg"
 	"github.com/dedis/protean/libexec/base"
@@ -9,7 +10,9 @@ import (
 	"golang.org/x/xerrors"
 )
 
-func demuxRequest(fnName string, input *base.ExecuteInput) (base.ExecutionFn, *base.GenericInput, map[string][]byte, error) {
+func demuxRequest(fnName string, input *base.ExecuteInput) (base.ExecutionFn,
+	*base.GenericInput, *core.VerificationData, error) {
+	vdata := &core.VerificationData{UID: base.UID, OpcodeName: base.EXEC}
 	switch fnName {
 	case "prep_shuf":
 		var prepShufInput shufdkg.PrepareShufInput
@@ -17,36 +20,25 @@ func demuxRequest(fnName string, input *base.ExecuteInput) (base.ExecutionFn, *b
 		if err != nil {
 			return nil, nil, nil, err
 		}
-		return shufdkg.PrepareShuffle, &base.GenericInput{I: prepShufInput}, nil, nil
+		return shufdkg.PrepareShuffle, &base.GenericInput{I: prepShufInput}, vdata, nil
 	case "prep_dec":
 		var prepDecInput shufdkg.PrepareDecInput
 		err := protobuf.Decode(input.Data, &prepDecInput)
 		if err != nil {
 			return nil, nil, nil, err
 		}
-		shProof := prepDecInput.ShufProof
-		inputHashes, err := getInputHashes(&shProof)
+		inputHashes, err := getInputHashes(&prepDecInput)
 		if err != nil {
 			return nil, nil, nil, xerrors.Errorf("failed to create input hashes: %v", err)
 		}
-		return shufdkg.PrepareDecrypt, &base.GenericInput{I: prepDecInput}, inputHashes, nil
+		vdata.InputHashes = inputHashes
+		return shufdkg.PrepareDecrypt, &base.GenericInput{I: prepDecInput}, vdata, nil
 	default:
 	}
 	return nil, nil, nil, nil
 }
 
-func getInputHashes(shProof *easyneff.ShuffleProof) (map[string][]byte, error) {
-	inputHashes := make(map[string][]byte)
-	hash, err := shProof.Hash()
-	if err != nil {
-		return nil, err
-	}
-	inputHashes["proofs"] = hash
-	return inputHashes, nil
-}
-
-func muxRequest(fnName string, genericOut *base.GenericOutput) (*base.
-	ExecuteOutput, map[string][]byte, error) {
+func muxRequest(fnName string, genericOut *base.GenericOutput) (*base.ExecuteOutput, map[string][]byte, error) {
 	switch fnName {
 	case "prep_shuf":
 		shInput, ok := genericOut.O.(easyneff.ShuffleInput)
@@ -85,4 +77,14 @@ func muxRequest(fnName string, genericOut *base.GenericOutput) (*base.
 	default:
 	}
 	return nil, nil, nil
+}
+
+func getInputHashes(prepDecInput *shufdkg.PrepareDecInput) (map[string][]byte, error) {
+	inputHashes := make(map[string][]byte)
+	hash, err := prepDecInput.ShufProof.Hash()
+	if err != nil {
+		return nil, err
+	}
+	inputHashes["proofs"] = hash
+	return inputHashes, nil
 }

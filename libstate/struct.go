@@ -2,7 +2,6 @@ package libstate
 
 import (
 	"github.com/dedis/protean/core"
-	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/onet/v3"
@@ -30,16 +29,6 @@ type GetContractState struct {
 
 type GetContractStateReply struct {
 	Proof core.StateProof
-}
-
-type ReadState struct {
-	CID  byzcoin.InstanceID
-	Keys []string
-}
-
-type ReadStateReply struct {
-	Data      core.ReadState
-	Signature protocol.BlsSignature
 }
 
 type UpdateState struct {

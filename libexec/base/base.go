@@ -1,5 +1,7 @@
 package base
 
+import "github.com/dedis/protean/core"
+
 const (
 	UID  string = "codeexec"
 	EXEC string = "exec"
@@ -8,7 +10,8 @@ const (
 type ExecutionFn func(input *GenericInput) (*GenericOutput, error)
 
 type ExecuteInput struct {
-	Data []byte
+	Data        []byte
+	StateProofs map[string]*core.StateProof
 }
 
 type ExecuteOutput struct {
@@ -16,7 +19,8 @@ type ExecuteOutput struct {
 }
 
 type GenericInput struct {
-	I interface{}
+	I       interface{}
+	KVDicts map[string]core.KVDict
 }
 
 type GenericOutput struct {

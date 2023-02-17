@@ -29,7 +29,6 @@ type InitTransaction struct {
 
 type InitTransactionReply struct {
 	Plan core.ExecutionPlan
-	//Signature protocol.BlsSignature
 }
 
 // Structs for execution request
