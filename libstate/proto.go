@@ -2,6 +2,7 @@ package libstate
 
 import (
 	"github.com/dedis/protean/core"
+	"github.com/dedis/protean/libstate/base"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/onet/v3"
@@ -23,18 +24,21 @@ type InitContractReply struct {
 	TxResp *byzcoin.AddTxResponse
 }
 
-type GetContractState struct {
+type GetStateRequest struct {
 	CID byzcoin.InstanceID
 }
 
-type GetContractStateReply struct {
+type GetStateReply struct {
 	Proof core.StateProof
 }
 
-type UpdateState struct {
-	CID byzcoin.InstanceID
-	Txn byzcoin.ClientTransaction
+type UpdateStateRequest struct {
+	Input   base.UpdateInput
+	ExecReq core.ExecutionRequest
+	Wait    int
 }
 
 type UpdateStateReply struct {
+	TxResp *byzcoin.AddTxResponse
+	//Receipts map[string]*core.OpcodeReceipt
 }

@@ -2,6 +2,9 @@ package protocol
 
 import (
 	"bytes"
+	"sync"
+	"time"
+
 	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/threshold/base"
 	"github.com/dedis/protean/utils"
@@ -16,8 +19,6 @@ import (
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
 	"golang.org/x/xerrors"
-	"sync"
-	"time"
 )
 
 func init() {
@@ -125,7 +126,7 @@ func (v *VerifyDKG) verifyDKGResponse(r structVerifyResponse) error {
 		log.Lvl2(r.ServerIdentity, "refused to respond")
 		v.Failures++
 		if v.Failures > (len(v.Roster().List) - v.Threshold) {
-			log.Lvl2(r.ServerIdentity, "couldn't get enough responses")
+			log.Lvl2(v.ServerIdentity, "couldn't get enough responses")
 			v.finish(false)
 		}
 		return nil

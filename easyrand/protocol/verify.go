@@ -1,14 +1,15 @@
 package protocol
 
 import (
+	"sync"
+	"time"
+
 	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/easyrand/base"
 	"github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3/blscosi"
 	blsproto "go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/kyber/v3/util/key"
-	"sync"
-	"time"
 
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/kyber/v3/pairing"
@@ -107,7 +108,7 @@ func (rv *RandomnessVerify) verifyResponse(r structVerifyResponse) error {
 		log.Lvl2(r.ServerIdentity, "refused to respond")
 		rv.Failures++
 		if rv.Failures > (len(rv.Roster().List) - rv.Threshold) {
-			log.Lvl2(r.ServerIdentity, "couldn't get enough responses")
+			log.Lvl2(rv.ServerIdentity, "couldn't get enough responses")
 			rv.finish(false)
 		}
 		return nil

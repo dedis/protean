@@ -26,7 +26,6 @@ type ShuffleRequest struct {
 // ShuffleReply is the result of all the proofs of the shuffle. The client is
 // responsible for verifying the result.
 type ShuffleReply struct {
-	//Proofs   []base.Proof
 	Proofs   base.ShuffleProof
 	Receipts map[string]*core.OpcodeReceipt
 }

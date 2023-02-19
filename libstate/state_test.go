@@ -151,6 +151,8 @@ func Test_AddKV(t *testing.T) {
 	require.NoError(t, err)
 	cid := reply.CID
 
+	fmt.Println("Before update:", reply.TxResp.Proof.InclusionProof.GetRoot())
+
 	votes := prepareVotes()
 	buf, err := protobuf.Encode(&votes)
 	require.NoError(t, err)
@@ -158,12 +160,15 @@ func Test_AddKV(t *testing.T) {
 	_, err = stateCl.Cl.UpdateState(reply.CID, args)
 	require.NoError(t, err)
 
-	time.Sleep(5 * time.Second)
+	//time.Sleep(5 * time.Second)
 
-	gcs, err := stateCl.Cl.GetContractState(cid)
+	gcs, err := stateCl.Cl.GetState(cid)
 	require.NoError(t, err)
 	v, _, _, err := gcs.Proof.Proof.Get(cid.Slice())
 	require.NoError(t, err)
+
+	fmt.Println("After gcs:", gcs.Proof.Proof.InclusionProof.GetRoot())
+
 	kvStore := &contracts.Storage{}
 	err = protobuf.Decode(v, kvStore)
 	require.NoError(t, err)
@@ -184,6 +189,14 @@ func Test_AddKV(t *testing.T) {
 		}
 	}
 
+	time.Sleep(5 * time.Second)
+
+	gcs, err = stateCl.Cl.GetState(cid)
+	require.NoError(t, err)
+
+	fmt.Println("After sleep:", gcs.Proof.Proof.InclusionProof.GetRoot())
+
 	err = gcs.Proof.VerifyFromBlock(dfuRoster.ServicePublics(skipchain.ServiceName))
 	require.NoError(t, err)
+
 }

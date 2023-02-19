@@ -148,7 +148,7 @@ func Test_ShufDKG(t *testing.T) {
 		Latest.SkipChainID())
 	require.NoError(t, err)
 	require.NotNil(t, reply.TxResp.Proof)
-	gcs, err := adminCl.Cl.GetContractState(cid)
+	gcs, err := adminCl.Cl.GetState(cid)
 	require.NoError(t, err)
 	rdata := libexec.ByzData{
 		IID:     rid,

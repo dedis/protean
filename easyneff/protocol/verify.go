@@ -144,7 +144,7 @@ func (s *ShuffleVerify) verifyProofsResponse(r structVerifyProofsResponse) error
 		log.Lvl2(r.ServerIdentity, "refused to respond")
 		s.Failures++
 		if s.Failures > (len(s.Roster().List) - s.Threshold) {
-			log.Lvl2(r.ServerIdentity, "couldn't get enough responses")
+			log.Lvl2(s.ServerIdentity, "couldn't get enough responses")
 			s.finish(false)
 		}
 		return nil

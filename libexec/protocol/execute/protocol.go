@@ -156,7 +156,7 @@ func (p *Execute) executeResponse(r StructResponse) error {
 		log.Lvl2(r.ServerIdentity, "refused to respond")
 		p.failures++
 		if p.failures > (len(p.Roster().List) - p.Threshold) {
-			log.Lvl2(r.ServerIdentity, "couldn't get enough responses")
+			log.Lvl2(p.ServerIdentity, "couldn't get enough responses")
 			p.finish(false)
 		}
 		return nil

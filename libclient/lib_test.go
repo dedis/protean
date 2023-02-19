@@ -78,7 +78,7 @@ func Test_InitContract(t *testing.T) {
 	signer := darc.NewSignerEd25519(nil, nil)
 	bc := byzcoin.NewClient(byzID, *roster)
 	cl := libstate.NewClient(bc, signer)
-	resp, err := cl.GetContractState(reply.CID)
+	resp, err := cl.GetState(reply.CID)
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 

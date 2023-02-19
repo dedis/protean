@@ -69,7 +69,6 @@ func (s *Service) InitTransaction(req *InitTransaction) (*InitTransactionReply, 
 	proto.Plan.Sig = proto.FinalSignature
 	return &InitTransactionReply{
 		Plan: *proto.Plan,
-		//Signature: proto.FinalSignature,
 	}, nil
 }
 
@@ -115,7 +114,6 @@ func (s *Service) generateExecutionPlan(data []byte) (*core.ExecutionPlan, error
 	if err != nil {
 		return nil, xerrors.Errorf("verification error -- %v", err)
 	}
-	//root := req.CData.StateProof.Proof.InclusionProof.GetRoot()
 	root := req.CData.Proof.InclusionProof.GetRoot()
 	txn, ok := header.Contract.Workflows[req.WfName].Txns[req.TxnName]
 	if !ok {

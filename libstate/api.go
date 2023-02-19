@@ -3,6 +3,7 @@ package libstate
 import (
 	"github.com/dedis/protean/contracts"
 	"github.com/dedis/protean/core"
+	"github.com/dedis/protean/libstate/base"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/darc"
@@ -71,8 +72,6 @@ func (c *Client) InitContract(hdr *core.ContractHeader, gDarc darc.Darc,
 	if err != nil {
 		return nil, xerrors.Errorf("encoding contract header: %v", err)
 	}
-	//args := byzcoin.Arguments{{Name: "header", Value: hdrBuf},
-	//	{Name: "kvstore", Value: []byte{}}}
 	args := byzcoin.Arguments{{Name: "header", Value: hdrBuf}}
 	ctx := byzcoin.NewClientTransaction(byzcoin.CurrentVersion,
 		byzcoin.Instruction{
@@ -123,20 +122,21 @@ func (c *Client) InitContract(hdr *core.ContractHeader, gDarc darc.Darc,
 	return reply, err
 }
 
-func (c *Client) GetContractState(cid byzcoin.InstanceID) (*GetContractStateReply, error) {
-	reply := &GetContractStateReply{}
-	req := &GetContractState{CID: cid}
+func (c *Client) GetState(cid byzcoin.InstanceID) (*GetStateReply, error) {
+	reply := &GetStateReply{}
+	req := &GetStateRequest{CID: cid}
 	err := c.c.SendProtobuf(c.bcClient.Roster.List[0], req, reply)
 	if err != nil {
-		return nil, xerrors.Errorf("send get contract state message: %v", err)
+		return nil, xerrors.Errorf("sending get contract state message: %v", err)
 	}
 	return reply, nil
 }
 
-func (c *Client) UpdateState(cid byzcoin.InstanceID, args byzcoin.Arguments) (*UpdateStateReply, error) {
+func (c *Client) UpdateState(args byzcoin.Arguments,
+	execReq *core.ExecutionRequest, wait int) (*UpdateStateReply, error) {
 	ctx := byzcoin.NewClientTransaction(byzcoin.CurrentVersion,
 		byzcoin.Instruction{
-			InstanceID: cid,
+			InstanceID: byzcoin.NewInstanceID(execReq.EP.CID),
 			Invoke: &byzcoin.Invoke{
 				ContractID: contracts.ContractKeyValueID,
 				Command:    "update",
@@ -148,14 +148,17 @@ func (c *Client) UpdateState(cid byzcoin.InstanceID, args byzcoin.Arguments) (*U
 	if err != nil {
 		return nil, xerrors.Errorf("signing transaction: %v", err)
 	}
-
-	//reply := &UpdateStateReply{CID: cid}
-	//reply.TxResp, err = c.bcClient.AddTransactionAndWait(ctx, wait)
-	_, err = c.bcClient.AddTransaction(ctx)
-	if err != nil {
-		return nil, xerrors.Errorf("adding transaction")
+	reply := &UpdateStateReply{}
+	req := &UpdateStateRequest{
+		Input:   base.UpdateInput{Txn: ctx},
+		ExecReq: *execReq,
+		Wait:    wait,
 	}
-	return &UpdateStateReply{}, nil
+	err = c.c.SendProtobuf(c.bcClient.Roster.List[0], req, reply)
+	if err != nil {
+		return nil, xerrors.Errorf("sending update state: %v", err)
+	}
+	return reply, nil
 }
 
 // FetchGenesisBlock requires the hash of the genesis block. To retrieve,
