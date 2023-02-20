@@ -7,6 +7,7 @@ import (
 	"github.com/dedis/protean/libstate/base"
 	"github.com/dedis/protean/libstate/protocol/verify"
 	"go.dedis.ch/cothority/v3/byzcoin"
+	"go.dedis.ch/cothority/v3/darc"
 	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/kyber/v3/pairing"
 	"go.dedis.ch/kyber/v3/suites"
@@ -27,7 +28,8 @@ func init() {
 	var err error
 	stateID, err = onet.RegisterNewServiceWithSuite(ServiceName, suite, newService)
 	network.RegisterMessages(&InitUnitRequest{}, &InitUnitReply{},
-		&InitContractReply{}, &GetStateRequest{}, &GetStateReply{})
+		&InitContractRequest{}, &InitContractReply{}, &GetStateRequest{},
+		&GetStateReply{})
 	if err != nil {
 		panic(err)
 	}
@@ -39,13 +41,80 @@ type Service struct {
 	suite  pairing.SuiteBn256
 	bc     *byzcoin.Client
 	byzID  skipchain.SkipBlockID
+	signer darc.Signer
+	darc   *darc.Darc
+	ctr    uint64
 	roster *onet.Roster
 }
 
 func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 	s.byzID = req.ByzID
 	s.roster = req.Roster
+	s.signer = req.Signer
+	s.darc = req.Darc
+	s.ctr = uint64(1)
 	return &InitUnitReply{}, nil
+}
+
+func (s *Service) InitContract(req *InitContractRequest) (*InitContractReply, error) {
+	if s.bc == nil {
+		s.bc = byzcoin.NewClient(s.byzID, *s.roster)
+	}
+	hdrBuf, err := protobuf.Encode(req.Header)
+	if err != nil {
+		return nil, xerrors.Errorf("encoding contract header: %v", err)
+	}
+	args := byzcoin.Arguments{{Name: "header", Value: hdrBuf}}
+	ctx := byzcoin.NewClientTransaction(byzcoin.CurrentVersion,
+		byzcoin.Instruction{
+			InstanceID: byzcoin.NewInstanceID(s.darc.GetBaseID()),
+			Spawn: &byzcoin.Spawn{
+				ContractID: contracts.ContractKeyValueID,
+				Args:       args,
+			},
+			SignerCounter: []uint64{s.ctr},
+		})
+	err = ctx.FillSignersAndSignWith(s.signer)
+	if err != nil {
+		return nil, xerrors.Errorf("signing transaction: %v", err)
+	}
+	cid := ctx.Instructions[0].DeriveID("")
+	_, err = s.bc.AddTransactionAndWait(ctx, req.Wait)
+	if err != nil {
+		return nil, xerrors.Errorf("adding transaction: %v", err)
+	}
+	s.ctr++
+	// Store CID in header
+	req.Header.CID = cid
+	hdrBuf, err = protobuf.Encode(req.Header)
+	if err != nil {
+		return nil, xerrors.Errorf("encoding contract header: %v", err)
+	}
+	args[0].Value = hdrBuf
+	if req.InitArgs != nil {
+		args = append(args, req.InitArgs...)
+	}
+	ctx = byzcoin.NewClientTransaction(byzcoin.CurrentVersion,
+		byzcoin.Instruction{
+			InstanceID: cid,
+			Invoke: &byzcoin.Invoke{
+				ContractID: contracts.ContractKeyValueID,
+				Command:    "update",
+				Args:       args,
+			},
+			SignerCounter: []uint64{s.ctr},
+		})
+	err = ctx.FillSignersAndSignWith(s.signer)
+	if err != nil {
+		return nil, xerrors.Errorf("adding update transaction: %v", err)
+	}
+	reply := &InitContractReply{CID: cid}
+	reply.TxResp, err = s.bc.AddTransactionAndWait(ctx, req.Wait)
+	if err != nil {
+		return nil, xerrors.Errorf("adding transaction: %v", err)
+	}
+	s.ctr++
+	return reply, err
 }
 
 func (s *Service) GetState(req *GetStateRequest) (*GetStateReply, error) {
@@ -63,22 +132,36 @@ func (s *Service) GetState(req *GetStateRequest) (*GetStateReply, error) {
 }
 
 func (s *Service) UpdateState(req *UpdateStateRequest) (*UpdateStateReply, error) {
-	if s.bc == nil {
-		s.bc = byzcoin.NewClient(s.byzID, *s.roster)
-	}
 	// Verify the execution request
-	err := s.runVerifyProtocol(req)
+	err := s.runVerification(req)
 	if err != nil {
 		return nil, err
 	}
-	txResp, err := s.bc.AddTransactionAndWait(req.Input.Txn, req.Wait)
+	if s.bc == nil {
+		s.bc = byzcoin.NewClient(s.byzID, *s.roster)
+	}
+	ctx := byzcoin.NewClientTransaction(byzcoin.CurrentVersion,
+		byzcoin.Instruction{
+			InstanceID: byzcoin.NewInstanceID(req.ExecReq.EP.CID),
+			Invoke: &byzcoin.Invoke{
+				ContractID: contracts.ContractKeyValueID,
+				Command:    "update",
+				Args:       req.Input.Args,
+			},
+			SignerCounter: []uint64{s.ctr},
+		})
+	err = ctx.FillSignersAndSignWith(s.signer)
+	if err != nil {
+		return nil, xerrors.Errorf("signing transaction: %v", err)
+	}
+	txResp, err := s.bc.AddTransactionAndWait(ctx, req.Wait)
 	if err != nil {
 		return nil, err
 	}
 	return &UpdateStateReply{TxResp: txResp}, nil
 }
 
-func (s *Service) runVerifyProtocol(req *UpdateStateRequest) error {
+func (s *Service) runVerification(req *UpdateStateRequest) error {
 	nodeCount := len(s.roster.List)
 	threshold := nodeCount - (nodeCount-1)/3
 	tree := s.roster.GenerateNaryTreeWithRoot(nodeCount-1, s.ServerIdentity())
@@ -115,12 +198,6 @@ func (s *Service) verifyUpdate(input *base.UpdateInput, req *core.ExecutionReque
 		if !bytes.Equal(pr.Proof.InclusionProof.GetRoot(), req.EP.StateRoot) {
 			return xerrors.New("merkle roots do not match")
 		}
-		// 2) Check that the byzcoin transaction contains the correct CID
-		for _, inst := range input.Txn.Instructions {
-			if !bytes.Equal(inst.InstanceID[:], req.EP.CID) {
-				return xerrors.New("CIDs do not match")
-			}
-		}
 		// Get contract header
 		v, _, _, err := pr.Proof.Get(req.EP.CID)
 		if err != nil {
@@ -136,11 +213,11 @@ func (s *Service) verifyUpdate(input *base.UpdateInput, req *core.ExecutionReque
 		if err != nil {
 			return xerrors.Errorf("failed to get contract header: %v", err)
 		}
-		// 3) Check that the CIDs match the value in the contract header
+		// 2) Check that the CIDs match the value in the contract header
 		if !bytes.Equal(req.EP.CID, hdr.CID[:]) {
 			return xerrors.New("inconsistent CID value")
 		}
-		// 4) Check that writeset is generated by the correct code
+		// 3) Check that writeset is generated by the correct code
 		if !bytes.Equal(req.EP.CodeHash, hdr.CodeHash) {
 			return xerrors.New("code hashes do no match")
 		}
@@ -172,7 +249,8 @@ func newService(c *onet.Context) (onet.Service, error) {
 		ServiceProcessor: onet.NewServiceProcessor(c),
 		suite:            *suite,
 	}
-	if err := s.RegisterHandlers(s.InitUnit, s.GetState, s.UpdateState); err != nil {
+	if err := s.RegisterHandlers(s.InitUnit, s.InitContract, s.GetState,
+		s.UpdateState); err != nil {
 		return nil, xerrors.New("couldn't register messages")
 	}
 	return s, nil

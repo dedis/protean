@@ -61,10 +61,16 @@ func (v *Verify) Start() error {
 		v.finish(false)
 		return xerrors.New("missing execution request")
 	}
+	err := v.ExecReq.Verify(&core.VerificationData{UID: base.UID,
+		OpcodeName: base.UPDATE_STATE, InputHashes: v.InputHashes})
+	if err != nil {
+		v.finish(false)
+		return xerrors.Errorf("couldn't verify the execution request: %v", err)
+	}
 	verified := v.VerifyFn(v.Input, v.ExecReq)
 	if !verified {
 		v.finish(false)
-		return xerrors.New("could not verify execution request")
+		return xerrors.New("could not verify update state")
 	}
 	v.timeout = time.AfterFunc(2*time.Minute, func() {
 		log.Lvl1("verify protocol timeout")
@@ -81,9 +87,18 @@ func (v *Verify) Start() error {
 func (v *Verify) verifyRequest(r structRequest) error {
 	defer v.Done()
 	resp := Response{}
+	v.InputHashes = r.Input.PrepareInputHashes()
+	err := r.ExecReq.Verify(&core.VerificationData{UID: base.UID,
+		OpcodeName: base.UPDATE_STATE, InputHashes: v.InputHashes})
+	if err != nil {
+		log.Errorf("%s could not verify the execution request: %v", v.Name(), err)
+		resp.Verified = false
+		return cothority.ErrorOrNil(v.SendToParent(&resp),
+			"sending Response to parent")
+	}
 	resp.Verified = v.VerifyFn(r.Input, r.ExecReq)
 	if !resp.Verified {
-		log.Errorf("%s could not verify the execution request", v.Name())
+		log.Errorf("%s could not verify update request", v.Name())
 	}
 	return cothority.ErrorOrNil(v.SendToParent(&resp),
 		"sending Response to parent")

@@ -51,6 +51,7 @@ func NewRandomnessVerify(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error
 	rv := &RandomnessVerify{
 		TreeNodeInstance: n,
 		Verified:         make(chan bool, 1),
+		Receipts:         make(map[string]*core.OpcodeReceipt),
 		suite:            pairing.NewSuiteBn256(),
 	}
 	err := rv.RegisterHandlers(rv.verifyRandomness, rv.verifyResponse)
@@ -151,7 +152,6 @@ func (rv *RandomnessVerify) generateResponse() (*VerifyResponse, error) {
 		HashBytes: hash,
 	}
 	if rv.IsRoot() {
-		rv.Receipts = make(map[string]*core.OpcodeReceipt)
 		rv.Receipts["randomness"] = r
 	}
 	sig, err := bls.Sign(rv.suite, rv.KP.Private, r.Hash())

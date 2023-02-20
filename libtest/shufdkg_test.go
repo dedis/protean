@@ -63,8 +63,7 @@ func Test_ShufDKG(t *testing.T) {
 	}
 
 	// Initialize contract (state unit)
-	reply, err := adminCl.Cl.InitContract(hdr, nil, adminCl.GMsg.GenesisDarc,
-		10)
+	reply, err := adminCl.Cl.InitContract(hdr, nil, 10)
 	cid := reply.CID
 	require.NoError(t, err)
 	stGenesis, err := adminCl.Cl.FetchGenesisBlock(reply.TxResp.Proof.

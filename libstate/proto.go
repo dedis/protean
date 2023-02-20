@@ -4,6 +4,7 @@ import (
 	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/libstate/base"
 	"go.dedis.ch/cothority/v3/byzcoin"
+	"go.dedis.ch/cothority/v3/darc"
 	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/onet/v3"
 )
@@ -15,9 +16,17 @@ type Request struct {
 type InitUnitRequest struct {
 	ByzID  skipchain.SkipBlockID
 	Roster *onet.Roster
+	Darc   *darc.Darc
+	Signer darc.Signer
 }
 
 type InitUnitReply struct{}
+
+type InitContractRequest struct {
+	Header   *core.ContractHeader
+	InitArgs byzcoin.Arguments
+	Wait     int
+}
 
 type InitContractReply struct {
 	CID    byzcoin.InstanceID

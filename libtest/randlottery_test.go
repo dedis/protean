@@ -62,8 +62,7 @@ func Test_RandLottery(t *testing.T) {
 	buf, err := protobuf.Encode(&tickets)
 	require.NoError(t, err)
 	args := byzcoin.Arguments{{Name: "tickets", Value: buf}}
-	reply, err := adminCl.Cl.InitContract(hdr, args, adminCl.GMsg.GenesisDarc,
-		10)
+	reply, err := adminCl.Cl.InitContract(hdr, args, 10)
 	time.Sleep(5 * time.Second)
 	cid := reply.CID
 	require.NoError(t, err)

@@ -49,7 +49,6 @@ func SetupRegistry(dfuFile *string, regRoster *onet.Roster,
 		} else if k == "codeexec" {
 			dfuReg.Units[k].Keys = dfuRoster.ServicePublics(libexec.ServiceName)
 		} else if k == "state" {
-			//dfuReg.Units[k].Keys = dfuRoster.ServicePublics(libstate.ServiceName)
 			dfuReg.Units[k].Keys = dfuRoster.ServicePublics(skipchain.ServiceName)
 		} else {
 			os.Exit(1)
@@ -79,9 +78,16 @@ func SetupStateUnit(roster *onet.Roster) (*libstate.AdminClient, error) {
 	if err != nil {
 		return nil, err
 	}
+	signer := darc.NewSignerEd25519(nil, nil)
+	spawnDarc, err := adminCl.SpawnDarc(signer, adminCl.GMsg.GenesisDarc, 5)
+	if err != nil {
+		return nil, err
+	}
 	req := &libstate.InitUnitRequest{
 		ByzID:  byzID,
 		Roster: roster,
+		Darc:   spawnDarc,
+		Signer: signer,
 	}
 	_, err = adminCl.Cl.InitUnit(req)
 	if err != nil {

@@ -15,17 +15,15 @@ const (
 type VerifyFn func(*UpdateInput, *core.ExecutionRequest) bool
 
 type UpdateInput struct {
-	Txn byzcoin.ClientTransaction
+	Args byzcoin.Arguments
 }
 
 func (input *UpdateInput) PrepareInputHashes() map[string][]byte {
 	inputHashes := make(map[string][]byte)
 	h := sha256.New()
-	for _, inst := range input.Txn.Instructions {
-		for _, arg := range inst.Invoke.Args {
-			h.Write([]byte(arg.Name))
-			h.Write(arg.Value)
-		}
+	for _, arg := range input.Args {
+		h.Write([]byte(arg.Name))
+		h.Write(arg.Value)
 	}
 	inputHashes["ws"] = h.Sum(nil)
 	return inputHashes

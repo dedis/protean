@@ -7,9 +7,10 @@ import (
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/darc"
+	"go.dedis.ch/cothority/v3/darc/expression"
 	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/onet/v3"
-	"go.dedis.ch/protobuf"
+	"go.dedis.ch/onet/v3/log"
 	"golang.org/x/xerrors"
 	"time"
 )
@@ -46,7 +47,6 @@ func SetupByzcoin(r *onet.Roster, blockTime time.Duration) (*AdminClient,
 		return nil, nil, err
 	}
 	gMsg.BlockInterval = blockTime * time.Second
-	//c, _, err := byzcoin.NewLedger(gMsg, false)
 	c, _, err := byzcoin.NewLedger(gMsg, true)
 	if err != nil {
 		return nil, nil, err
@@ -66,63 +66,18 @@ func (c *Client) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 	return reply, nil
 }
 
-func (c *Client) InitContract(hdr *core.ContractHeader, initArgs byzcoin.Arguments, gDarc darc.Darc,
-	wait int) (*InitContractReply, error) {
-	hdrBuf, err := protobuf.Encode(hdr)
+func (c *Client) InitContract(hdr *core.ContractHeader, initArgs byzcoin.Arguments, wait int) (*InitContractReply, error) {
+	reply := &InitContractReply{}
+	req := &InitContractRequest{
+		Header:   hdr,
+		InitArgs: initArgs,
+		Wait:     wait,
+	}
+	err := c.c.SendProtobuf(c.bcClient.Roster.List[0], req, reply)
 	if err != nil {
-		return nil, xerrors.Errorf("encoding contract header: %v", err)
+		return nil, xerrors.Errorf("initializing contract: %v", err)
 	}
-	args := byzcoin.Arguments{{Name: "header", Value: hdrBuf}}
-	ctx := byzcoin.NewClientTransaction(byzcoin.CurrentVersion,
-		byzcoin.Instruction{
-			InstanceID: byzcoin.NewInstanceID(gDarc.GetBaseID()),
-			Spawn: &byzcoin.Spawn{
-				ContractID: contracts.ContractKeyValueID,
-				Args:       args,
-			},
-			SignerCounter: []uint64{c.ctr},
-		})
-	err = ctx.FillSignersAndSignWith(c.signer)
-	if err != nil {
-		return nil, xerrors.Errorf("signing transaction: %v", err)
-	}
-	cid := ctx.Instructions[0].DeriveID("")
-	_, err = c.bcClient.AddTransactionAndWait(ctx, wait)
-	if err != nil {
-		return nil, xerrors.Errorf("adding transaction: %v", err)
-	}
-	c.ctr++
-	// Store CID in header
-	hdr.CID = cid
-	hdrBuf, err = protobuf.Encode(hdr)
-	if err != nil {
-		return nil, xerrors.Errorf("encoding contract header: %v", err)
-	}
-	args[0].Value = hdrBuf
-	if initArgs != nil {
-		args = append(args, initArgs...)
-	}
-	ctx = byzcoin.NewClientTransaction(byzcoin.CurrentVersion,
-		byzcoin.Instruction{
-			InstanceID: cid,
-			Invoke: &byzcoin.Invoke{
-				ContractID: contracts.ContractKeyValueID,
-				Command:    "update",
-				Args:       args,
-			},
-			SignerCounter: []uint64{c.ctr},
-		})
-	err = ctx.FillSignersAndSignWith(c.signer)
-	if err != nil {
-		return nil, xerrors.Errorf("adding update transaction: %v", err)
-	}
-	reply := &InitContractReply{CID: cid}
-	reply.TxResp, err = c.bcClient.AddTransactionAndWait(ctx, wait)
-	if err != nil {
-		return nil, xerrors.Errorf("adding transaction: %v", err)
-	}
-	c.ctr++
-	return reply, err
+	return reply, nil
 }
 
 func (c *Client) GetState(cid byzcoin.InstanceID) (*GetStateReply, error) {
@@ -137,38 +92,16 @@ func (c *Client) GetState(cid byzcoin.InstanceID) (*GetStateReply, error) {
 
 func (c *Client) UpdateState(args byzcoin.Arguments,
 	execReq *core.ExecutionRequest, wait int) (*UpdateStateReply, error) {
-	ctx := byzcoin.NewClientTransaction(byzcoin.CurrentVersion,
-		byzcoin.Instruction{
-			InstanceID: byzcoin.NewInstanceID(execReq.EP.CID),
-			Invoke: &byzcoin.Invoke{
-				ContractID: contracts.ContractKeyValueID,
-				Command:    "update",
-				Args:       args,
-			},
-			SignerCounter: []uint64{c.ctr},
-		})
-	err := ctx.FillSignersAndSignWith(c.signer)
-	if err != nil {
-		return nil, xerrors.Errorf("signing transaction: %v", err)
-	}
-
 	reply := &UpdateStateReply{}
 	req := &UpdateStateRequest{
-		Input:   base.UpdateInput{Txn: ctx},
+		Input:   base.UpdateInput{Args: args},
 		ExecReq: *execReq,
 		Wait:    wait,
 	}
-	err = c.c.SendProtobuf(c.bcClient.Roster.List[0], req, reply)
+	err := c.c.SendProtobuf(c.bcClient.Roster.List[0], req, reply)
 	if err != nil {
-		return nil, xerrors.Errorf("sending update state: %v", err)
+		return nil, xerrors.Errorf("update state: %v", err)
 	}
-
-	//_, err = c.bcClient.AddTransactionAndWait(ctx, wait)
-	//if err != nil {
-	//	return nil, xerrors.Errorf("adding transaction: %v", err)
-	//}
-
-	c.ctr++
 	return reply, nil
 }
 
@@ -182,4 +115,38 @@ func (c *Client) FetchGenesisBlock(scID skipchain.SkipBlockID) (*skipchain.
 		return nil, xerrors.Errorf("getting genesis block: %v", err)
 	}
 	return sb, nil
+}
+
+func (c *AdminClient) SpawnDarc(newSigner darc.Signer, gDarc darc.Darc, wait int) (*darc.Darc, error) {
+	d := darc.NewDarc(darc.InitRules([]darc.Identity{newSigner.Identity()},
+		[]darc.Identity{newSigner.Identity()}), []byte("stateroot"))
+	d.Rules.AddRule(darc.Action("spawn:"+contracts.ContractKeyValueID),
+		expression.InitOrExpr(newSigner.Identity().String()))
+	d.Rules.AddRule(darc.Action("invoke:"+contracts.ContractKeyValueID+"."+
+		"update"), expression.InitOrExpr(newSigner.Identity().String()))
+	darcBuf, err := d.ToProto()
+	if err != nil {
+		log.Errorf("serializing darc to protobuf: %v", err)
+		return nil, err
+	}
+	ctx := byzcoin.NewClientTransaction(byzcoin.CurrentVersion,
+		byzcoin.Instruction{
+			InstanceID: byzcoin.NewInstanceID(gDarc.GetBaseID()),
+			Spawn: &byzcoin.Spawn{
+				ContractID: byzcoin.ContractDarcID,
+				Args: []byzcoin.Argument{{
+					Name:  "darc",
+					Value: darcBuf,
+				}},
+			},
+			SignerCounter: []uint64{c.Cl.ctr},
+		},
+	)
+	err = ctx.FillSignersAndSignWith(c.Cl.signer)
+	if err != nil {
+		return nil, xerrors.Errorf("signing txn: %v", err)
+	}
+	_, err = c.Cl.bcClient.AddTransactionAndWait(ctx, wait)
+	c.Cl.ctr++
+	return d, cothority.ErrorOrNil(err, "adding txn")
 }
