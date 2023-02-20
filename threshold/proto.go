@@ -25,7 +25,8 @@ type InitDKGRequest struct {
 }
 
 type InitDKGReply struct {
-	X        kyber.Point
+	//X        kyber.Point
+	Output   base.DKGOutput
 	Receipts map[string]*core.OpcodeReceipt
 }
 
@@ -35,7 +36,7 @@ type DecryptRequest struct {
 }
 
 type DecryptReply struct {
-	Ps       []kyber.Point
+	Output   base.DecryptOutput
 	Receipts map[string]*core.OpcodeReceipt
 }
 

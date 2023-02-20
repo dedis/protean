@@ -1,6 +1,9 @@
 package base
 
-import "github.com/dedis/protean/utils"
+import (
+	"github.com/dedis/protean/utils"
+	"go.dedis.ch/kyber/v3"
+)
 
 const (
 	UID string = "threshold"
@@ -8,8 +11,16 @@ const (
 	DEC string = "decrypt"
 )
 
+type DKGOutput struct {
+	X kyber.Point
+}
+
 type DecryptInput struct {
 	utils.ElGamalPairs
+}
+
+type DecryptOutput struct {
+	Ps []kyber.Point
 }
 
 func (decInput *DecryptInput) PrepareInputHashes() (map[string][]byte, error) {

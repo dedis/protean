@@ -30,3 +30,12 @@ func (input *UpdateInput) PrepareInputHashes() map[string][]byte {
 	inputHashes["ws"] = h.Sum(nil)
 	return inputHashes
 }
+
+func Hash(args byzcoin.Arguments) []byte {
+	h := sha256.New()
+	for _, arg := range args {
+		h.Write([]byte(arg.Name))
+		h.Write(arg.Value)
+	}
+	return h.Sum(nil)
+}

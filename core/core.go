@@ -142,10 +142,12 @@ func PrepareKVDicts(r *ExecutionRequest, proofs map[string]*StateProof) (map[str
 			keys := strings.Split(dep.Value, ",")
 			data := make(map[string][]byte)
 			for _, key := range keys {
+				//fmt.Println("Key:", key)
 				val, ok := storageMap[key]
 				if !ok {
 					return nil, xerrors.Errorf("missing key: %s", key)
 				}
+				//fmt.Println("Value:", val)
 				data[key] = val
 			}
 			kvDicts[inputName] = KVDict{Data: data}
@@ -155,8 +157,8 @@ func PrepareKVDicts(r *ExecutionRequest, proofs map[string]*StateProof) (map[str
 }
 
 func getStorageMap(v []byte) (map[string][]byte, error) {
-	kvStore := &contracts.Storage{}
-	err := protobuf.Decode(v, kvStore)
+	kvStore := contracts.Storage{}
+	err := protobuf.Decode(v, &kvStore)
 	if err != nil {
 		return nil, err
 	}

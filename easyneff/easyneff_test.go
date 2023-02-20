@@ -107,7 +107,7 @@ func TestShuffle_EGDecrypt(t *testing.T) {
 
 	// Verify BLS signature
 	//hash, err := protocol.CalculateHash(reply.Proofs)
-	shufProof := base.ShuffleProof{Proofs: reply.Proofs}
+	shufProof := base.ShuffleOutput{Proofs: reply.Proofs}
 	hash, err := shufProof.Hash()
 	require.NoError(t, err)
 	publics := roster.ServicePublics(blscosi.ServiceName)

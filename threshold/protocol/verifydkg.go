@@ -53,6 +53,7 @@ func NewVerifyDKG(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
 	v := &VerifyDKG{
 		TreeNodeInstance: n,
 		Verified:         make(chan bool, 1),
+		Receipts:         make(map[string]*core.OpcodeReceipt),
 		suite:            pairing.NewSuiteBn256(),
 	}
 	err := v.RegisterHandlers(v.verifyDKG, v.verifyDKGResponse)
@@ -171,7 +172,6 @@ func (v *VerifyDKG) generateResponse() (*VerifyResponse, error) {
 		HashBytes: hash,
 	}
 	if v.IsRoot() {
-		v.Receipts = make(map[string]*core.OpcodeReceipt)
 		v.Receipts["X"] = r
 	}
 	sig, err := bls.Sign(v.suite, v.KP.Private, r.Hash())

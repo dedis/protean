@@ -7,21 +7,21 @@ import (
 	"golang.org/x/xerrors"
 )
 
-func PrepareShuffle(input *base.GenericInput) (*base.GenericOutput, error) {
-	prepShufInput, ok := input.I.(PrepareShufInput)
+func PrepareShuffle(genInput *base.GenericInput) (*base.GenericOutput, error) {
+	input, ok := genInput.I.(PrepareShufInput)
 	if !ok {
 		return nil, xerrors.New("missing input")
 	}
-	shInput := easyneff.ShuffleInput{Pairs: prepShufInput.Pairs}
+	shInput := easyneff.ShuffleInput{Pairs: input.Pairs, H: input.H}
 	return &base.GenericOutput{O: shInput}, nil
 }
 
-func PrepareDecrypt(input *base.GenericInput) (*base.GenericOutput, error) {
-	prepDecInput, ok := input.I.(PrepareDecInput)
+func PrepareDecrypt(genInput *base.GenericInput) (*base.GenericOutput, error) {
+	input, ok := genInput.I.(PrepareDecInput)
 	if !ok {
 		return nil, xerrors.New("missing input")
 	}
-	shProof := prepDecInput.ShufProof
+	shProof := input.ShufProof
 	sz := len(shProof.Proofs)
 	pairs := shProof.Proofs[sz-1].Pairs
 	decInput := threshold.DecryptInput{ElGamalPairs: pairs}

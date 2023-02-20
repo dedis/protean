@@ -21,9 +21,10 @@
 									"src_name": "pairs",
 									"idx":1
 								},
-								"H": {
-									"src": "CONST",
-									"value": "1"
+								"h": {
+									"src": "OPCODE",
+									"src_name": "h",
+									"idx": 1
 								}
 							}
 						},

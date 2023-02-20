@@ -4,7 +4,8 @@
                         "num_nodes": 10,
                         "threshold": 7,
                         "opcodes": [
-                                "init_contract"
+                                "init_contract",
+                                "update_state"
                         ]
                 },
                 "codeexec": {

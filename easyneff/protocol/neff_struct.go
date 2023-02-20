@@ -13,5 +13,4 @@ func init() {
 
 type Request struct {
 	ShuffleInput *base.ShuffleInput
-	//ExecReq      *core.ExecutionRequest
 }

@@ -1,31 +1,93 @@
 package libtest
 
 import (
-	"github.com/dedis/protean/compiler"
-	"github.com/dedis/protean/sys"
+	"flag"
+	"github.com/dedis/protean/libclient"
+	"github.com/dedis/protean/libexec"
+	"github.com/dedis/protean/libstate"
+	"github.com/dedis/protean/registry"
+	"go.dedis.ch/cothority/v3/blscosi"
+	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/darc"
+	"go.dedis.ch/cothority/v3/skipchain"
+	"go.dedis.ch/kyber/v3/pairing"
 	"go.dedis.ch/onet/v3"
+	"go.dedis.ch/onet/v3/log"
+	"os"
+	"testing"
+	"time"
 )
 
-func InitCompilerUnit(local *onet.LocalTest, total int, roster *onet.Roster, hosts []*onet.Server, units []*sys.FunctionalUnit) error {
-	compServices := local.GetServices(hosts[:total], compiler.GetServiceID())
-	compNodes := make([]*compiler.Service, len(compServices))
-	for i := 0; i < len(compServices); i++ {
-		compNodes[i] = compServices[i].(*compiler.Service)
-	}
-	root := compNodes[0]
-	initReply, err := root.InitUnit(&compiler.InitUnitRequest{Roster: roster, ScCfg: &sys.ScConfig{MHeight: 2, BHeight: 2}})
+var contractFile string
+var fsmFile string
+var dfuFile string
+
+var testSuite = pairing.NewSuiteBn256()
+
+func init() {
+	flag.StringVar(&contractFile, "contract", "", "JSON file")
+	flag.StringVar(&fsmFile, "fsm", "", "JSON file")
+	flag.StringVar(&dfuFile, "dfu", "", "JSON file")
+}
+
+func TestMain(m *testing.M) {
+	log.MainTest(m)
+}
+
+func SetupRegistry(dfuFile *string, regRoster *onet.Roster,
+	dfuRoster *onet.Roster) (*registry.Client, byzcoin.InstanceID,
+	*byzcoin.Proof, error) {
+	var id byzcoin.InstanceID
+	dfuReg, err := libclient.ReadDFUJSON(dfuFile)
 	if err != nil {
-		return err
+		return nil, id, nil, err
 	}
-	for _, n := range compNodes {
-		_, err = n.StoreGenesis(&compiler.StoreGenesisRequest{Genesis: initReply.Genesis})
-		if err != nil {
-			return err
+	for k := range dfuReg.Units {
+		//dfuReg.Units[k].Keys = roster.Publics()
+		if k == "easyneff" || k == "threshold" || k == "easyrand" {
+			dfuReg.Units[k].Keys = dfuRoster.ServicePublics(blscosi.ServiceName)
+		} else if k == "codeexec" {
+			dfuReg.Units[k].Keys = dfuRoster.ServicePublics(libexec.ServiceName)
+		} else if k == "state" {
+			//dfuReg.Units[k].Keys = dfuRoster.ServicePublics(libstate.ServiceName)
+			dfuReg.Units[k].Keys = dfuRoster.ServicePublics(skipchain.ServiceName)
+		} else {
+			os.Exit(1)
 		}
 	}
-	_, err = root.CreateUnits(&compiler.CreateUnitsRequest{Units: units})
-	return err
+
+	adminCl, byzID, err := registry.SetupByzcoin(regRoster, 1)
+	if err != nil {
+		return nil, id, nil, err
+	}
+	reply, err := adminCl.InitRegistry(dfuReg, 3)
+	if err != nil {
+		return nil, id, nil, err
+	}
+	pr, err := adminCl.Cl.WaitProof(reply.IID, 2*time.Second, nil)
+	if err != nil {
+		return nil, id, nil, err
+	}
+
+	bc := byzcoin.NewClient(byzID, *regRoster)
+	cl := registry.NewClient(bc)
+	return cl, reply.IID, pr, nil
+}
+
+func SetupStateUnit(roster *onet.Roster) (*libstate.AdminClient, error) {
+	adminCl, byzID, err := libstate.SetupByzcoin(roster, 5)
+	if err != nil {
+		return nil, err
+	}
+	req := &libstate.InitUnitRequest{
+		ByzID:  byzID,
+		Roster: roster,
+	}
+	_, err = adminCl.Cl.InitUnit(req)
+	if err != nil {
+		return nil, err
+	}
+	return adminCl, nil
 }
 
 func GenerateWriters(count int) []darc.Signer {

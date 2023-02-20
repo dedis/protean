@@ -50,7 +50,8 @@ func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 
 func (s *Service) GetState(req *GetStateRequest) (*GetStateReply, error) {
 	if s.bc == nil {
-		s.bc = byzcoin.NewClientKeep(s.byzID, *s.roster)
+		//s.bc = byzcoin.NewClientKeep(s.byzID, *s.roster)
+		s.bc = byzcoin.NewClient(s.byzID, *s.roster)
 	}
 	pr, err := s.bc.GetProof(req.CID.Slice())
 	if err != nil {
@@ -63,7 +64,7 @@ func (s *Service) GetState(req *GetStateRequest) (*GetStateReply, error) {
 
 func (s *Service) UpdateState(req *UpdateStateRequest) (*UpdateStateReply, error) {
 	if s.bc == nil {
-		s.bc = byzcoin.NewClientKeep(s.byzID, *s.roster)
+		s.bc = byzcoin.NewClient(s.byzID, *s.roster)
 	}
 	// Verify the execution request
 	err := s.runVerifyProtocol(req)
@@ -104,7 +105,7 @@ func (s *Service) runVerifyProtocol(req *UpdateStateRequest) error {
 func (s *Service) verifyUpdate(input *base.UpdateInput, req *core.ExecutionRequest) bool {
 	err := func() error {
 		if s.bc == nil {
-			s.bc = byzcoin.NewClientKeep(s.byzID, *s.roster)
+			s.bc = byzcoin.NewClient(s.byzID, *s.roster)
 		}
 		pr, err := s.bc.GetProof(req.EP.CID)
 		if err != nil {

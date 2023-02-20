@@ -32,7 +32,7 @@ type ShuffleVerify struct {
 	*onet.TreeNodeInstance
 
 	ShufInput   *base.ShuffleInput
-	ShufProof   *base.ShuffleProof
+	ShufOutput  *base.ShuffleOutput
 	ExecReq     *core.ExecutionRequest
 	InputHashes map[string][]byte
 
@@ -56,6 +56,7 @@ func NewShuffleVerify(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
 	s := &ShuffleVerify{
 		TreeNodeInstance: n,
 		Verified:         make(chan bool, 1),
+		Receipts:         make(map[string]*core.OpcodeReceipt),
 		suite:            pairing.NewSuiteBn256(),
 	}
 	err := s.RegisterHandlers(s.verifyProofs, s.verifyProofsResponse)
@@ -70,7 +71,7 @@ func (s *ShuffleVerify) Start() error {
 		s.finish(false)
 		return xerrors.New("missing execution request")
 	}
-	if len(s.ShufProof.Proofs) == 0 {
+	if len(s.ShufOutput.Proofs) == 0 {
 		s.finish(false)
 		return xerrors.New("initialize Proofs first")
 	}
@@ -94,9 +95,9 @@ func (s *ShuffleVerify) Start() error {
 		return err
 	}
 	vp := &VerifyProofs{
-		ShufInput: s.ShufInput,
-		ShufProof: s.ShufProof,
-		ExecReq:   s.ExecReq,
+		ShufInput:  s.ShufInput,
+		ShufOutput: s.ShufOutput,
+		ExecReq:    s.ExecReq,
 	}
 	s.timeout = time.AfterFunc(2*time.Minute, func() {
 		log.Lvl1("ShuffleVerify protocol timeout")
@@ -114,7 +115,7 @@ func (s *ShuffleVerify) verifyProofs(r structVerifyProofs) error {
 	defer s.Done()
 	var err error
 	s.ShufInput = r.ShufInput
-	s.ShufProof = r.ShufProof
+	s.ShufOutput = r.ShufOutput
 	s.ExecReq = r.ExecReq
 	s.InputHashes, err = s.ShufInput.PrepareInputHashes()
 	err = s.runVerification()
@@ -123,7 +124,7 @@ func (s *ShuffleVerify) verifyProofs(r structVerifyProofs) error {
 		s.finish(false)
 		return err
 	}
-	err = s.ShufVerify(s.ShufProof, nil, r.ShufInput.H, r.ShufInput.Pairs,
+	err = s.ShufVerify(s.ShufOutput, nil, r.ShufInput.H, r.ShufInput.Pairs,
 		s.Roster().Publics())
 	if err != nil {
 		log.Lvl2(s.ServerIdentity(), "failed to verify the proofs")
@@ -176,7 +177,7 @@ func (s *ShuffleVerify) verifyProofsResponse(r structVerifyProofsResponse) error
 }
 
 func (s *ShuffleVerify) generateResponse() (*VerifyProofsResponse, error) {
-	hash, err := s.ShufProof.Hash()
+	hash, err := s.ShufOutput.Hash()
 	if err != nil {
 		return &VerifyProofsResponse{}, err
 	}
@@ -187,7 +188,6 @@ func (s *ShuffleVerify) generateResponse() (*VerifyProofsResponse, error) {
 		HashBytes: hash,
 	}
 	if s.IsRoot() {
-		s.Receipts = make(map[string]*core.OpcodeReceipt)
 		s.Receipts["proofs"] = r
 	}
 	sig, err := bls.Sign(s.suite, s.KP.Private, r.Hash())

@@ -1,6 +1,7 @@
 package libexec
 
 import (
+	"fmt"
 	"github.com/dedis/protean/contracts"
 	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/libexec/protocol/execute"
@@ -185,6 +186,7 @@ func verifyInitTxn(req *InitTransaction) (*core.DFURegistry, *core.ContractHeade
 	}
 	// Check if CIDs match
 	if !header.CID.Equal(req.CData.IID) {
+		fmt.Println(header.CID, req.CData.IID)
 		return nil, nil, xerrors.New("contract IDs do not match")
 	}
 	// Check that this txn can be executed in the curr_state

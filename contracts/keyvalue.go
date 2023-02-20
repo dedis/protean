@@ -47,7 +47,6 @@ func (c *ContractKeyValue) Spawn(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.Ins
 	cs := &c.Storage
 	for _, kv := range inst.Spawn.Args {
 		cs.Store = append(cs.Store, KV{kv.Name, kv.Value})
-		//cs.Store = append(cs.Store, KV{Key: kv.Name, Value: kv.Value, Version: 0})
 	}
 	csBuf, err := protobuf.Encode(&c.Storage)
 	if err != nil {

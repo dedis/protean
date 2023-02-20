@@ -50,6 +50,7 @@ func NewExecute(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
 	p := &Execute{
 		TreeNodeInstance: n,
 		Executed:         make(chan bool, 1),
+		Receipts:         make(map[string]*core.OpcodeReceipt),
 		suite:            pairing.NewSuiteBn256(),
 	}
 	err := p.RegisterHandlers(p.execute, p.executeResponse)
@@ -117,8 +118,9 @@ func (p *Execute) Start() error {
 
 func (p *Execute) execute(r StructRequest) error {
 	defer p.Done()
+	p.Input = r.Input
 	p.ExecReq = r.ExecReq
-	execFn, genInput, vdata, err := demuxRequest(r.FnName, r.Input)
+	execFn, genInput, vdata, err := demuxRequest(r.FnName, p.Input)
 	if err != nil {
 		log.Errorf("%s failed to demux request: %v", p.Name(), err)
 		return cothority.ErrorOrNil(p.SendToParent(&Response{}),
@@ -130,6 +132,7 @@ func (p *Execute) execute(r StructRequest) error {
 		return cothority.ErrorOrNil(p.SendToParent(&Response{}),
 			"sending Response to parent")
 	}
+	genInput.KVDicts, err = core.PrepareKVDicts(p.ExecReq, p.Input.StateProofs)
 	genericOut, err := execFn(genInput)
 	if err != nil {
 		log.Errorf("%s failed to execute function: %v", p.Name(), err)
@@ -191,7 +194,7 @@ func (p *Execute) executeResponse(r StructResponse) error {
 func (p *Execute) generateResponse() (*Response, error) {
 	sigs := make(map[string]blsproto.BlsSignature)
 	for outputName, outputHash := range p.outputHashes {
-		r := &core.OpcodeReceipt{
+		r := core.OpcodeReceipt{
 			EPID:      p.ExecReq.EP.Hash(),
 			OpIdx:     p.ExecReq.Index,
 			Name:      outputName,
@@ -203,8 +206,7 @@ func (p *Execute) generateResponse() (*Response, error) {
 		}
 		sigs[outputName] = sig
 		if p.IsRoot() {
-			p.Receipts = make(map[string]*core.OpcodeReceipt)
-			p.Receipts[outputName] = r
+			p.Receipts[outputName] = &r
 		}
 	}
 	return &Response{Signatures: sigs}, nil

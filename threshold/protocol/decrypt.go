@@ -66,6 +66,7 @@ func NewThreshDecrypt(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
 	d := &ThreshDecrypt{
 		TreeNodeInstance: n,
 		Decrypted:        make(chan bool, 1),
+		Receipts:         make(map[string]*core.OpcodeReceipt),
 		suite:            pairing.NewSuiteBn256(),
 	}
 	err := d.RegisterHandlers(d.decryptShare, d.decryptShareResponse,
@@ -316,7 +317,6 @@ func (d *ThreshDecrypt) generateResponse() (*ReconstructResponse, error) {
 		HashBytes: hash,
 	}
 	if d.IsRoot() {
-		d.Receipts = make(map[string]*core.OpcodeReceipt)
 		d.Receipts["plaintexts"] = r
 	}
 	sig, err := bls.Sign(d.suite, d.KP.Private, r.Hash())

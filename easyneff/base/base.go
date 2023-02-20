@@ -2,6 +2,7 @@ package base
 
 import (
 	"crypto/sha256"
+
 	"github.com/dedis/protean/utils"
 	"go.dedis.ch/kyber/v3"
 )
@@ -16,7 +17,7 @@ type ShuffleInput struct {
 	H     kyber.Point
 }
 
-type ShuffleProof struct {
+type ShuffleOutput struct {
 	Proofs []Proof
 }
 
@@ -27,9 +28,9 @@ type Proof struct {
 	Signature []byte // on the Proof
 }
 
-func (shProof *ShuffleProof) Hash() ([]byte, error) {
+func (shOut *ShuffleOutput) Hash() ([]byte, error) {
 	h := sha256.New()
-	for _, pr := range shProof.Proofs {
+	for _, pr := range shOut.Proofs {
 		for _, pair := range pr.Pairs.Pairs {
 			kbuf, err := pair.K.MarshalBinary()
 			if err != nil {
@@ -59,6 +60,6 @@ func (shInput *ShuffleInput) PrepareInputHashes() (map[string][]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	inputHashes["H"] = hash
+	inputHashes["h"] = hash
 	return inputHashes, nil
 }

@@ -51,12 +51,6 @@ func (s *EasyNeff) Shuffle(req *ShuffleRequest) (*ShuffleReply, error) {
 	}
 	neff := pi.(*protocol.NeffShuffle)
 	neff.ShufInput = &req.Input
-	//neff.ExecReq = &req.ExecReq
-	//neff.InputHashes, err = req.Input.PrepareInputHashes()
-	//if err != nil {
-	//	log.Errorf("failed to prepare the input hashes: %v", err)
-	//	return nil, err
-	//}
 	if err := pi.Start(); err != nil {
 		return nil, err
 	}
@@ -70,7 +64,7 @@ func (s *EasyNeff) Shuffle(req *ShuffleRequest) (*ShuffleReply, error) {
 		}
 		shufVerify := pi.(*protocol.ShuffleVerify)
 		shufVerify.ShufInput = &req.Input
-		shufVerify.ShufProof = &shufProof
+		shufVerify.ShufOutput = &shufProof
 		shufVerify.ExecReq = &req.ExecReq
 		shufVerify.KP = protean.GetBLSKeyPair(s.ServerIdentity())
 		shufVerify.InputHashes, err = req.Input.PrepareInputHashes()
@@ -94,7 +88,7 @@ func (s *EasyNeff) Shuffle(req *ShuffleRequest) (*ShuffleReply, error) {
 	}
 }
 
-func (s *EasyNeff) ShuffleVerify(sp *base.ShuffleProof, G, H kyber.Point,
+func (s *EasyNeff) ShuffleVerify(sp *base.ShuffleOutput, G, H kyber.Point,
 	initialPairs protean.ElGamalPairs, publics []kyber.Point) error {
 	x, y := splitPairs(initialPairs)
 	for i, proof := range sp.Proofs {

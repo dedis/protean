@@ -66,7 +66,7 @@ func (c *Client) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 	return reply, nil
 }
 
-func (c *Client) InitContract(hdr *core.ContractHeader, gDarc darc.Darc,
+func (c *Client) InitContract(hdr *core.ContractHeader, initArgs byzcoin.Arguments, gDarc darc.Darc,
 	wait int) (*InitContractReply, error) {
 	hdrBuf, err := protobuf.Encode(hdr)
 	if err != nil {
@@ -99,6 +99,9 @@ func (c *Client) InitContract(hdr *core.ContractHeader, gDarc darc.Darc,
 		return nil, xerrors.Errorf("encoding contract header: %v", err)
 	}
 	args[0].Value = hdrBuf
+	if initArgs != nil {
+		args = append(args, initArgs...)
+	}
 	ctx = byzcoin.NewClientTransaction(byzcoin.CurrentVersion,
 		byzcoin.Instruction{
 			InstanceID: cid,
@@ -148,6 +151,7 @@ func (c *Client) UpdateState(args byzcoin.Arguments,
 	if err != nil {
 		return nil, xerrors.Errorf("signing transaction: %v", err)
 	}
+
 	reply := &UpdateStateReply{}
 	req := &UpdateStateRequest{
 		Input:   base.UpdateInput{Txn: ctx},
@@ -158,6 +162,13 @@ func (c *Client) UpdateState(args byzcoin.Arguments,
 	if err != nil {
 		return nil, xerrors.Errorf("sending update state: %v", err)
 	}
+
+	//_, err = c.bcClient.AddTransactionAndWait(ctx, wait)
+	//if err != nil {
+	//	return nil, xerrors.Errorf("adding transaction: %v", err)
+	//}
+
+	c.ctr++
 	return reply, nil
 }
 

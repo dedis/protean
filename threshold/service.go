@@ -3,6 +3,7 @@ package threshold
 import (
 	"fmt"
 	"github.com/dedis/protean/core"
+	"github.com/dedis/protean/threshold/base"
 	"github.com/dedis/protean/threshold/protocol"
 	protean "github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3/blscosi"
@@ -104,7 +105,8 @@ func (s *Service) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
 			return nil, err
 		}
 		reply = &InitDKGReply{
-			X:        shared.X,
+			//X:        shared.X,
+			Output:   base.DKGOutput{X: shared.X},
 			Receipts: receipts,
 		}
 		s.storage.Lock()
@@ -174,7 +176,8 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 	if !<-decProto.Decrypted {
 		return nil, xerrors.New("decryption got refused")
 	}
-	return &DecryptReply{Ps: decProto.Ps, Receipts: decProto.Receipts}, nil
+	reply := &DecryptReply{Output: base.DecryptOutput{Ps: decProto.Ps}, Receipts: decProto.Receipts}
+	return reply, nil
 }
 
 func (s *Service) verifyDKG(dkgID DKGID, threshold int, X kyber.Point,

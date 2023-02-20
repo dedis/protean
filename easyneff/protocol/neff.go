@@ -19,11 +19,8 @@ import (
 type NeffShuffle struct {
 	*onet.TreeNodeInstance
 
-	ShufInput *base.ShuffleInput
-	//ExecReq   *core.ExecutionRequest
-	//InputHashes map[string][]byte
-
-	FinalProof chan base.ShuffleProof
+	ShufInput  *base.ShuffleInput
+	FinalProof chan base.ShuffleOutput
 
 	suite     proof.Suite
 	reqChan   chan reqChan
@@ -45,7 +42,7 @@ type proofChan struct {
 func NewShuffleProtocol(n *onet.TreeNodeInstance, suite proof.Suite) (onet.ProtocolInstance, error) {
 	p := &NeffShuffle{
 		TreeNodeInstance: n,
-		FinalProof:       make(chan base.ShuffleProof, 1),
+		FinalProof:       make(chan base.ShuffleOutput, 1),
 		suite:            suite,
 	}
 	if err := p.RegisterChannels(&p.reqChan, &p.proofChan); err != nil {
@@ -69,32 +66,16 @@ func (p *NeffShuffle) Start() error {
 	if !treeIsChain(p.Root(), len(p.List())) {
 		return xerrors.New("tree must be a line")
 	}
-	//if p.ExecReq == nil {
-	//	return xerrors.New("missing execution request")
-	//}
 	// start the shuffle
-	//return p.SendTo(p.Root(), &Request{ShuffleInput: p.ShufInput, ExecReq: p.ExecReq})
 	return p.SendTo(p.Root(), &Request{ShuffleInput: p.ShufInput})
 }
 
 // Dispatch implements the onet.ProtocolInstance interface.
 func (p *NeffShuffle) Dispatch() error {
 	defer p.Done()
-	//var err error
 	// handle the first request
 	req := <-p.reqChan
 	p.ShufInput = req.ShuffleInput
-	//p.ExecReq = req.ExecReq
-	//p.InputHashes, err = p.ShufInput.PrepareInputHashes()
-	//if err != nil {
-	//	log.Errorf("%s couldn't generate the input hashes: %v", p.Name(), err)
-	//	return err
-	//}
-	//err = p.runVerification()
-	//if err != nil {
-	//	log.Errorf("%s couldn't verify the execution request: %v", p.Name(), err)
-	//	return err
-	//}
 	X, Y := splitPairs(p.ShufInput.Pairs)
 	Xbar, Ybar, prover := shuffle.Shuffle(p.suite, nil, p.ShufInput.H, X, Y,
 		p.suite.RandomStream())
@@ -126,7 +107,6 @@ func (p *NeffShuffle) Dispatch() error {
 			Pairs: signedPrf.Pairs,
 			H:     p.ShufInput.H,
 		},
-		//ExecReq: p.ExecReq,
 	}
 	if err := p.SendTo(p.Children()[0], &newReq); err != nil {
 		return err
@@ -145,7 +125,7 @@ func (p *NeffShuffle) Dispatch() error {
 		}
 	}
 	// Sort the proofs in order and use that as our final result.
-	p.FinalProof <- base.ShuffleProof{Proofs: sortProofs(proofMap, p.Root())}
+	p.FinalProof <- base.ShuffleOutput{Proofs: sortProofs(proofMap, p.Root())}
 	return nil
 }
 
@@ -204,12 +184,3 @@ func treeIsChain(start *onet.TreeNode, n int) bool {
 	}
 	return false
 }
-
-//func (p *NeffShuffle) runVerification() error {
-//	vData := &core.VerificationData{
-//		UID:         base.UID,
-//		OpcodeName:  base.SHUFFLE,
-//		InputHashes: p.InputHashes,
-//	}
-//	return p.ExecReq.Verify(vData)
-//}
