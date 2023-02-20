@@ -54,7 +54,8 @@ func (r *ExecutionRequest) Verify(data *VerificationData) error {
 	// 3) Check dependencies
 	for inputName, dep := range opcode.Dependencies {
 		if dep.Src == OPCODE {
-			receipt, ok := r.OpReceipts[inputName]
+			//receipt, ok := r.OpReceipts[inputName]
+			receipt, ok := r.OpReceipts[dep.SrcName]
 			if !ok {
 				return xerrors.Errorf("missing opcode receipt from output %s for input %s", dep.SrcName, inputName)
 			}
@@ -142,12 +143,10 @@ func PrepareKVDicts(r *ExecutionRequest, proofs map[string]*StateProof) (map[str
 			keys := strings.Split(dep.Value, ",")
 			data := make(map[string][]byte)
 			for _, key := range keys {
-				//fmt.Println("Key:", key)
 				val, ok := storageMap[key]
 				if !ok {
 					return nil, xerrors.Errorf("missing key: %s", key)
 				}
-				//fmt.Println("Value:", val)
 				data[key] = val
 			}
 			kvDicts[inputName] = KVDict{Data: data}
