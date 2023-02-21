@@ -3,8 +3,6 @@ package libexec
 import (
 	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/libexec/base"
-	"go.dedis.ch/cothority/v3/byzcoin"
-	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/onet/v3"
 )
 
@@ -14,17 +12,8 @@ type InitUnit struct {
 
 type InitUnitReply struct{}
 
-type ByzData struct {
-	IID     byzcoin.InstanceID
-	Proof   byzcoin.Proof
-	Genesis skipchain.SkipBlock
-}
-
 type InitTransaction struct {
-	RData   ByzData
-	CData   ByzData
-	WfName  string
-	TxnName string
+	Input base.InitTxnInput
 }
 
 type InitTransactionReply struct {
@@ -34,7 +23,6 @@ type InitTransactionReply struct {
 // Structs for execution request
 
 type Execute struct {
-	FnName  string
 	Input   base.ExecuteInput
 	ExecReq core.ExecutionRequest
 }

@@ -3,6 +3,8 @@ package inittxn
 import (
 	"bytes"
 	"github.com/dedis/protean/core"
+	"github.com/dedis/protean/libexec/base"
+	"github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/pairing"
@@ -11,7 +13,6 @@ import (
 	"go.dedis.ch/kyber/v3/util/key"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
-	"go.dedis.ch/onet/v3/network"
 	"golang.org/x/xerrors"
 	"sync"
 	"time"
@@ -24,10 +25,10 @@ func init() {
 type InitTxn struct {
 	*onet.TreeNodeInstance
 
-	GeneratePlan     GenerateFn
-	VerificationData []byte
-	KP               *key.Pair
-	Publics          []kyber.Point
+	Input        *base.InitTxnInput
+	GeneratePlan GenerateFn
+	KP           *key.Pair
+	Publics      []kyber.Point
 
 	Threshold      int
 	Executed       chan bool
@@ -56,7 +57,8 @@ func NewInitTxn(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
 }
 
 func (p *InitTxn) Start() error {
-	if p.VerificationData == nil {
+	var err error
+	if p.Input == nil {
 		p.finish(false)
 		return xerrors.New("protocol did not receive verification data")
 	}
@@ -68,12 +70,12 @@ func (p *InitTxn) Start() error {
 		log.Lvl1("protocol timeout")
 		p.finish(false)
 	})
-	plan, err := p.GeneratePlan(p.VerificationData)
+	p.Plan, err = p.GeneratePlan(p.Input)
 	if err != nil {
 		p.finish(false)
 		return xerrors.Errorf("generating execution plan: %v", err)
 	}
-	planHash := plan.Hash()
+	planHash := p.Plan.Hash()
 	resp, err := p.makeResponse(planHash)
 	if err != nil {
 		log.Errorf("%s couldn't generate response: %v", p.Name(), err)
@@ -81,30 +83,15 @@ func (p *InitTxn) Start() error {
 		return err
 	}
 	p.responses = append(p.responses, resp)
-	//p.mask, err = sign.NewMask(p.suite, p.Publics(), p.Public())
 	p.mask, err = sign.NewMask(p.suite, p.Publics, p.KP.Public)
 	if err != nil {
 		log.Errorf("couldn't create the mask: %v", err)
 		p.finish(false)
 		return err
 	}
-	//var pk kyber.Point
-	//own, err := p.makeResponse(planHash)
-	//if err != nil {
-	//	p.failures++
-	//} else {
-	//	p.responses = append(p.responses, *own)
-	//	pk = p.Public()
-	//}
-	//p.mask, err = sign.NewMask(p.suite, p.Publics(), pk)
-	//if err != nil {
-	//	p.finish(false)
-	//	return err
-	//}
-	p.Plan = plan
 	req := &Request{
-		Data:             planHash,
-		VerificationData: p.VerificationData,
+		Input: p.Input,
+		Data:  planHash,
 	}
 	errs := p.Broadcast(req)
 	if len(errs) > (len(p.Roster().List) - p.Threshold) {
@@ -116,7 +103,7 @@ func (p *InitTxn) Start() error {
 
 func (p *InitTxn) execute(r StructRequest) error {
 	defer p.Done()
-	plan, err := p.GeneratePlan(r.VerificationData)
+	plan, err := p.GeneratePlan(r.Input)
 	if err != nil {
 		log.Lvl2(p.ServerIdentity(), "refused to return execution plan")
 		return cothority.ErrorOrNil(p.SendToParent(&Response{}),
@@ -131,15 +118,13 @@ func (p *InitTxn) execute(r StructRequest) error {
 	resp, err := p.makeResponse(r.Data)
 	if err != nil {
 		log.Lvlf2("%s failed to prepare response: %v", p.ServerIdentity(), err)
-		//return cothority.ErrorOrNil(p.SendToParent(&Response{}),
-		//	"sending empty Response to parent")
 	}
 	return cothority.ErrorOrNil(p.SendToParent(resp),
 		"sending Response to parent")
 }
 
 func (p *InitTxn) executeResponse(r StructResponse) error {
-	index := searchPublicKey(p.TreeNodeInstance, r.ServerIdentity)
+	index := utils.SearchPublicKey(p.TreeNodeInstance, r.ServerIdentity)
 	if len(r.Signature) == 0 || index < 0 {
 		p.failures++
 		if p.failures > len(p.Roster().List)-p.Threshold {
@@ -151,7 +136,6 @@ func (p *InitTxn) executeResponse(r StructResponse) error {
 
 	p.mask.SetBit(index, true)
 	p.responses = append(p.responses, &r.Response)
-
 	if len(p.responses) == p.Threshold {
 		finalSignature := p.suite.G1().Point()
 		for _, resp := range p.responses {
@@ -174,85 +158,12 @@ func (p *InitTxn) executeResponse(r StructResponse) error {
 }
 
 func (p *InitTxn) makeResponse(data []byte) (*Response, error) {
-	//sig, err := bls.Sign(p.suite, p.Private(), data)
 	sig, err := bls.Sign(p.suite, p.KP.Private, data)
 	if err != nil {
 		return &Response{}, err
 	}
 	return &Response{Signature: sig}, nil
 }
-
-func searchPublicKey(p *onet.TreeNodeInstance,
-	servID *network.ServerIdentity) int {
-	for idx, si := range p.Roster().List {
-		if si.Equal(servID) {
-			return idx
-		}
-	}
-	return -1
-}
-
-//func verifyInitTxn(data []byte) (*core.DFURegistry, *core.ContractHeader, error) {
-//	var vData VerificationData
-//	err := protobuf.Decode(data, &vData)
-//	if err != nil {
-//		return nil, nil, xerrors.Errorf("cannot decode verification data: %v", err)
-//	}
-//	// Verify Byzcoin proofs
-//	err = vData.RegistryProof.VerifyFromBlock(&vData.RegistryGenesis)
-//	if err != nil {
-//		return nil, nil, xerrors.Errorf("cannot verify byzcoin proof (registry): %v", err)
-//	}
-//	err = vData.StateProof.Proof.VerifyFromBlock(&vData.StateGenesis)
-//	if err != nil {
-//		return nil, nil, xerrors.Errorf("cannot verify byzcoin proof (registry): %v", err)
-//	}
-//	// Get registry data
-//	v, _, _, err := vData.RegistryProof.Get(vData.RID.Slice())
-//	if err != nil {
-//		return nil, nil, xerrors.Errorf("cannot get data from registry proof: %v", err)
-//	}
-//	store := contracts.Storage{}
-//	err = protobuf.Decode(v, store)
-//	if err != nil {
-//		return nil, nil, xerrors.Errorf("cannot decode registry contract storage: %v", err)
-//	}
-//	registry := &core.DFURegistry{}
-//	err = protobuf.Decode(store.Store[0].Value, registry)
-//	if err != nil {
-//		return nil, nil, xerrors.Errorf("cannot decode registry data: %v", err)
-//	}
-//	// Get contract header
-//	v, _, _, err = vData.StateProof.Proof.Get(vData.CID.Slice())
-//	if err != nil {
-//		return nil, nil, xerrors.Errorf("cannot get data from state proof: %v", err)
-//	}
-//	store = contracts.Storage{}
-//	err = protobuf.Decode(v, store)
-//	if err != nil {
-//		return nil, nil, xerrors.Errorf("cannot decode state contract storage: %v", err)
-//	}
-//	header := &core.ContractHeader{}
-//	err = protobuf.Decode(store.Store[0].Value, header)
-//	if err != nil {
-//		return nil, nil, xerrors.Errorf("cannot decode contract header: %v", err)
-//	}
-//	// Check if CIDs match
-//	if !header.CID.Equal(vData.CID) {
-//		return nil, nil, xerrors.New("contract IDs do not match")
-//	}
-//	// Check that this txn can be executed in the curr_state
-//	transition, ok := header.FSM.Transitions[vData.TxnName]
-//	if !ok {
-//		return nil, nil, xerrors.New("invalid txn name")
-//	}
-//	if transition.From != header.CurrState {
-//		return nil, nil, xerrors.Errorf("cannot execute txn %s in curr_state %s",
-//			vData.TxnName, header.CurrState)
-//	}
-//	// TODO: Check H(code)
-//	return registry, header, nil
-//}
 
 func (p *InitTxn) finish(result bool) {
 	p.timeout.Stop()

@@ -15,7 +15,6 @@ func init() {
 }
 
 type Request struct {
-	FnName  string
 	Input   *base.ExecuteInput
 	ExecReq *core.ExecutionRequest
 }

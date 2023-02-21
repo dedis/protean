@@ -10,7 +10,13 @@
 						},
 						{
 							"name": "exec",
-							"dfu_id": "codeexec"
+							"dfu_id": "codeexec",
+							"inputs": {
+								"fnname": {
+									"src": "CONST",
+									"value": "prep_shuf"
+								}
+							}
 						},
 						{
 							"name": "shuffle",
@@ -32,6 +38,12 @@
 							"name": "exec",
 							"dfu_id": "codeexec",
 							"inputs": {
+								"inputs": {
+									"fnname": {
+										"src": "CONST",
+										"value": "prep_dec"
+									}
+								},
 								"proofs": {
 									"src": "OPCODE",
 									"src_name": "proofs",

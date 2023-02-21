@@ -10,15 +10,18 @@ import (
 	"golang.org/x/xerrors"
 )
 
-func DemuxRequest(fnName string, input *base.ExecuteInput, vdata *core.VerificationData) (base.ExecutionFn,
+func DemuxRequest(input *base.ExecuteInput, vdata *core.VerificationData) (base.ExecutionFn,
 	*base.GenericInput, *core.VerificationData, error) {
-	switch fnName {
+	switch input.FnName {
 	case "prep_shuf":
 		var prepShufInput PrepareShufInput
 		err := protobuf.Decode(input.Data, &prepShufInput)
 		if err != nil {
 			return nil, nil, nil, err
 		}
+		inputHashes := make(map[string][]byte)
+		inputHashes["fnname"] = base.GetFnHash(input.FnName)
+		vdata.InputHashes = inputHashes
 		return PrepareShuffle, &base.GenericInput{I: prepShufInput}, vdata, nil
 	case "prep_dec":
 		var prepDecInput PrepareDecInput
@@ -26,10 +29,14 @@ func DemuxRequest(fnName string, input *base.ExecuteInput, vdata *core.Verificat
 		if err != nil {
 			return nil, nil, nil, err
 		}
-		inputHashes, err := getInputHashes(&prepDecInput)
+		inputHashes := make(map[string][]byte)
+		inputHashes["fnname"] = base.GetFnHash(input.FnName)
+		hash, err := prepDecInput.ShufProof.Hash()
 		if err != nil {
-			return nil, nil, nil, xerrors.Errorf("failed to create input hashes: %v", err)
+			return nil, nil, nil, xerrors.Errorf("calculating the hash: %v",
+				err)
 		}
+		inputHashes["proofs"] = hash
 		vdata.InputHashes = inputHashes
 		return PrepareDecrypt, &base.GenericInput{I: prepDecInput}, vdata, nil
 	default:
@@ -82,14 +89,4 @@ func MuxRequest(fnName string, genericOut *base.GenericOutput) (*base.
 	default:
 	}
 	return nil, nil, nil
-}
-
-func getInputHashes(prepDecInput *PrepareDecInput) (map[string][]byte, error) {
-	inputHashes := make(map[string][]byte)
-	hash, err := prepDecInput.ShufProof.Hash()
-	if err != nil {
-		return nil, err
-	}
-	inputHashes["proofs"] = hash
-	return inputHashes, nil
 }

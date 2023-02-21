@@ -1,6 +1,7 @@
 package randlottery
 
 import (
+	"github.com/dedis/protean/easyrand/base"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/kyber/v3"
 )
@@ -14,55 +15,33 @@ type Ticket struct {
 	Sig []byte
 }
 
-type JoinLotteryInput struct {
+type JoinInput struct {
 	Ticket Ticket
 }
 
-type JoinLotteryOutput struct {
+type JoinOutput struct {
 	WS byzcoin.Arguments
 }
 
-//type JoinLotteryInput struct {
-//	Ticket Ticket
-//	KVData KVInputData
-//}
-//
-//// Ticket is an input of JoinLottery
-//type Ticket struct {
-//	Key kyber.Point
-//	Sig []byte
-//}
-//
-//// KVInputData is an input of JoinLottery
-//type KVInputData struct {
-//	StateProof core.StateProof
-//	Genesis    skipchain.SkipBlock
-//}
-//
-//type CloseJoinInput struct {
-//	KVData KVInputData
-//	// needs to match the CONST value in the workflow
-//	BlockNum int
-//}
-//
-//type RevealWinnerInput struct {
-//	KVData     KVInputData
-//	Randomness RandomnessData
-//	// needs to match the CONST value in the workflow
-//	Round int
-//}
-//
-//// RandomnessData is an input
-//type RandomnessData struct {
-//	Public kyber.Point
-//	Round  uint64
-//	Prev   []byte
-//	// Value is the collective signature. Use the hash of it!
-//	Value []byte
-//}
-//
-//// KVOutputData is an output of JoinLottery
-//type KVOutputData struct {
-//	Args byzcoin.Arguments
-//}
-//
+type CloseInput struct {
+	Barrier   int
+	BlkHeight int
+}
+
+type CloseOutput struct {
+	WS byzcoin.Arguments
+}
+
+type FinalizeInput struct {
+	Round      uint64
+	Randomness base.RandomnessOutput
+}
+
+type FinalizeOutput struct {
+	WS byzcoin.Arguments
+}
+
+type Winner struct {
+	Index int
+	Key   kyber.Point
+}

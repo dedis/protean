@@ -158,6 +158,7 @@ func (s *Service) UpdateState(req *UpdateStateRequest) (*UpdateStateReply, error
 	if err != nil {
 		return nil, err
 	}
+	s.ctr++
 	return &UpdateStateReply{TxResp: txResp}, nil
 }
 

@@ -25,7 +25,6 @@ func init() {
 type Execute struct {
 	*onet.TreeNodeInstance
 
-	FnName   string
 	Input    *base.ExecuteInput
 	Output   *base.ExecuteOutput
 	ExecReq  *core.ExecutionRequest
@@ -66,7 +65,7 @@ func (p *Execute) Start() error {
 		p.finish(false)
 		return xerrors.New("missing input")
 	}
-	execFn, genInput, vdata, err := demuxRequest(p.FnName, p.Input)
+	execFn, genInput, vdata, err := demuxRequest(p.Input)
 	if err != nil {
 		log.Errorf("%s failed to demux request: %v", p.Name(), err)
 		p.finish(false)
@@ -85,7 +84,7 @@ func (p *Execute) Start() error {
 		p.finish(false)
 		return err
 	}
-	p.Output, p.outputHashes, err = muxRequest(p.FnName, genericOut)
+	p.Output, p.outputHashes, err = muxRequest(p.Input.FnName, genericOut)
 	if err != nil {
 		log.Errorf("%s failed to prepare output: %v", p.Name(), err)
 		p.finish(false)
@@ -108,7 +107,7 @@ func (p *Execute) Start() error {
 		log.Lvl1("execute protocol timeout")
 		p.finish(false)
 	})
-	errs := p.Broadcast(&Request{FnName: p.FnName, Input: p.Input, ExecReq: p.ExecReq})
+	errs := p.Broadcast(&Request{Input: p.Input, ExecReq: p.ExecReq})
 	if len(errs) > (len(p.Roster().List) - p.Threshold) {
 		log.Errorf("some nodes failed with error(s) %v", errs)
 		return xerrors.New("too many nodes failed in broadcast")
@@ -120,7 +119,7 @@ func (p *Execute) execute(r StructRequest) error {
 	defer p.Done()
 	p.Input = r.Input
 	p.ExecReq = r.ExecReq
-	execFn, genInput, vdata, err := demuxRequest(r.FnName, p.Input)
+	execFn, genInput, vdata, err := demuxRequest(p.Input)
 	if err != nil {
 		log.Errorf("%s failed to demux request: %v", p.Name(), err)
 		return cothority.ErrorOrNil(p.SendToParent(&Response{}),
@@ -139,7 +138,7 @@ func (p *Execute) execute(r StructRequest) error {
 		p.finish(false)
 		return err
 	}
-	p.Output, p.outputHashes, err = muxRequest(r.FnName, genericOut)
+	p.Output, p.outputHashes, err = muxRequest(p.Input.FnName, genericOut)
 	if err != nil {
 		log.Errorf("%s failed to prepare output: %v:", p.Name(), err)
 		return cothority.ErrorOrNil(p.SendToParent(&Response{}),
@@ -211,16 +210,6 @@ func (p *Execute) generateResponse() (*Response, error) {
 	}
 	return &Response{Signatures: sigs}, nil
 }
-
-//func (p *Execute) runVerification(hashes map[string][]byte, precmts *core.KVDict) error {
-//	vData := &core.VerificationData{
-//		UID:         base.UID,
-//		OpcodeName:  base.EXEC,
-//		InputHashes: hashes,
-//		Precommits:  precmts,
-//	}
-//	return p.ExecReq.Verify(vData)
-//}
 
 func (p *Execute) finish(result bool) {
 	p.timeout.Stop()

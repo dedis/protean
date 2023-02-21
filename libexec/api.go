@@ -29,14 +29,16 @@ func (c *Client) InitUnit() (*InitUnitReply, error) {
 	return reply, nil
 }
 
-func (c *Client) InitTransaction(rdata ByzData, cdata ByzData, wf string,
+func (c *Client) InitTransaction(rdata base.ByzData, cdata base.ByzData, wf string,
 	txn string) (*InitTransactionReply, error) {
 	reply := &InitTransactionReply{}
 	req := &InitTransaction{
-		RData:   rdata,
-		CData:   cdata,
-		WfName:  wf,
-		TxnName: txn,
+		Input: base.InitTxnInput{
+			RData:   rdata,
+			CData:   cdata,
+			WfName:  wf,
+			TxnName: txn,
+		},
 	}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)
 	if err != nil {
@@ -45,11 +47,10 @@ func (c *Client) InitTransaction(rdata ByzData, cdata ByzData, wf string,
 	return reply, nil
 }
 
-func (c *Client) Execute(fnName string, input base.ExecuteInput, execReq *core.ExecutionRequest) (*ExecuteReply,
+func (c *Client) Execute(input base.ExecuteInput, execReq *core.ExecutionRequest) (*ExecuteReply,
 	error) {
 	reply := &ExecuteReply{}
 	req := &Execute{
-		FnName:  fnName,
 		Input:   input,
 		ExecReq: *execReq,
 	}

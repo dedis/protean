@@ -72,12 +72,12 @@ func Test_ShufDKG(t *testing.T) {
 	require.NotNil(t, reply.TxResp.Proof)
 	gcs, err := adminCl.Cl.GetState(cid)
 	require.NoError(t, err)
-	rdata := libexec.ByzData{
+	rdata := execbase.ByzData{
 		IID:     rid,
 		Proof:   *regPr,
 		Genesis: *regGenesis,
 	}
-	cdata := libexec.ByzData{
+	cdata := execbase.ByzData{
 		IID:     cid,
 		Proof:   gcs.Proof.Proof,
 		Genesis: *stGenesis,
@@ -105,9 +105,10 @@ func Test_ShufDKG(t *testing.T) {
 	data, err := protobuf.Encode(&input)
 	require.NoError(t, err)
 	execInput := execbase.ExecuteInput{
-		Data: data,
+		FnName: "prep_shuf",
+		Data:   data,
 	}
-	execReply, err := execCl.Execute("prep_shuf", execInput, execReq)
+	execReply, err := execCl.Execute(execInput, execReq)
 	require.NoError(t, err)
 
 	var shInput neffbase.ShuffleInput
@@ -117,7 +118,6 @@ func Test_ShufDKG(t *testing.T) {
 	// Step 3: Shuffle ciphertexts
 	execReq.Index = 2
 	execReq.OpReceipts = execReply.Receipts
-	//shufReply, err := neffCl.Shuffle(shInput.Pairs, dkgReply.Output.X, execReq)
 	shufReply, err := neffCl.Shuffle(shInput.Pairs, shInput.H, execReq)
 	require.NoError(t, err)
 
@@ -127,8 +127,9 @@ func Test_ShufDKG(t *testing.T) {
 	dInput := shufdkg.PrepareDecInput{ShufProof: shufReply.Proofs}
 	data, err = protobuf.Encode(&dInput)
 	require.NoError(t, err)
+	execInput.FnName = "prep_dec"
 	execInput.Data = data
-	execReply, err = execCl.Execute("prep_dec", execInput, execReq)
+	execReply, err = execCl.Execute(execInput, execReq)
 	require.NoError(t, err)
 
 	var decInput threshbase.DecryptInput

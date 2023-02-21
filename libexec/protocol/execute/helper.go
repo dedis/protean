@@ -7,14 +7,14 @@ import (
 	"github.com/dedis/protean/libexec/base"
 )
 
-func demuxRequest(fnName string, input *base.ExecuteInput) (base.ExecutionFn,
+func demuxRequest(input *base.ExecuteInput) (base.ExecutionFn,
 	*base.GenericInput, *core.VerificationData, error) {
 	vdata := &core.VerificationData{UID: base.UID, OpcodeName: base.EXEC}
-	switch fnName {
+	switch input.FnName {
 	case "prep_shuf", "prep_dec":
-		return shufdkg.DemuxRequest(fnName, input, vdata)
-	case "join_lottery":
-		return randlottery.DemuxRequest(fnName, input, vdata)
+		return shufdkg.DemuxRequest(input, vdata)
+	case "join_lottery", "close_lottery", "finalize_lottery":
+		return randlottery.DemuxRequest(input, vdata)
 	default:
 	}
 	return nil, nil, nil, nil
@@ -24,7 +24,7 @@ func muxRequest(fnName string, genericOut *base.GenericOutput) (*base.ExecuteOut
 	switch fnName {
 	case "prep_shuf", "prep_dec":
 		return shufdkg.MuxRequest(fnName, genericOut)
-	case "join_lottery":
+	case "join_lottery", "close_lottery", "finalize_lottery":
 		return randlottery.MuxRequest(fnName, genericOut)
 	default:
 	}

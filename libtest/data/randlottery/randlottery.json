@@ -8,6 +8,10 @@
 							"name": "exec",
 							"dfu_id": "codeexec",
 							"inputs": {
+								"fnname": {
+									"src": "CONST",
+									"value": "join_lottery"
+								},
 								"readset": {
 									"src": "KEYVALUE",
 									"value": "tickets,header"
@@ -37,6 +41,10 @@
 							"name": "exec",
 							"dfu_id": "codeexec",
 							"inputs": {
+								"fnname": {
+									"src": "CONST",
+									"value": "close_lottery"
+								},
 								"barrier": {
 									"src": "CONST",
 									"value": "0"
@@ -62,9 +70,9 @@
 				}
 			}
 		},
-		"revealwf": {
+		"finalizewf": {
 			"txns": {
-				"reveal": {
+				"finalize": {
 					"opcodes": [
 						{
 							"name": "randomness",
@@ -80,6 +88,10 @@
 							"name": "exec",
 							"dfu_id": "codeexec",
 							"inputs": {
+								"fnname": {
+									"src": "CONST",
+									"value": "finalize_lottery"
+								},
 								"readset": {
 									"src": "KEYVALUE",
 									"value": "tickets,header"

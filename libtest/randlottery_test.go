@@ -1,6 +1,8 @@
 package libtest
 
 import (
+	"fmt"
+	"github.com/dedis/protean/contracts"
 	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/easyrand"
 	"github.com/dedis/protean/libclient"
@@ -72,12 +74,12 @@ func Test_RandLottery(t *testing.T) {
 	require.NotNil(t, reply.TxResp.Proof)
 	gcs, err := adminCl.Cl.GetState(cid)
 	require.NoError(t, err)
-	rdata := libexec.ByzData{
+	rdata := execbase.ByzData{
 		IID:     rid,
 		Proof:   *regPr,
 		Genesis: *regGenesis,
 	}
-	cdata := libexec.ByzData{
+	cdata := execbase.ByzData{
 		IID:     cid,
 		Proof:   gcs.Proof.Proof,
 		Genesis: *stGenesis,
@@ -93,7 +95,7 @@ func Test_RandLottery(t *testing.T) {
 	require.NoError(t, err)
 	sig, err := p.Ed25519.Sign(pkHash)
 	require.NoError(t, err)
-	input := randlottery.JoinLotteryInput{Ticket: randlottery.Ticket{
+	input := randlottery.JoinInput{Ticket: randlottery.Ticket{
 		Key: p.Ed25519.Point,
 		Sig: sig,
 	}}
@@ -102,6 +104,7 @@ func Test_RandLottery(t *testing.T) {
 	sp := make(map[string]*core.StateProof)
 	sp["readset"] = &gcs.Proof
 	execInput := execbase.ExecuteInput{
+		FnName:      "join_lottery",
 		Data:        data,
 		StateProofs: sp,
 	}
@@ -109,10 +112,10 @@ func Test_RandLottery(t *testing.T) {
 		Index: 0,
 		EP:    &itReply.Plan,
 	}
-	execReply, err := execCl.Execute("join_lottery", execInput, execReq)
+	execReply, err := execCl.Execute(execInput, execReq)
 	require.NoError(t, err)
 
-	var joinOut randlottery.JoinLotteryOutput
+	var joinOut randlottery.JoinOutput
 	err = protobuf.Decode(execReply.Output.Data, &joinOut)
 	require.NoError(t, err)
 
@@ -120,4 +123,70 @@ func Test_RandLottery(t *testing.T) {
 	execReq.OpReceipts = execReply.Receipts
 	_, err = adminCl.Cl.UpdateState(joinOut.WS, execReq, 5)
 	require.NoError(t, err)
+
+	time.Sleep(2 * time.Second)
+
+	// 2nd participant
+	gcs, err = adminCl.Cl.GetState(cid)
+	require.NoError(t, err)
+
+	cdata.Proof = gcs.Proof.Proof
+	itReply, err = execCl.InitTransaction(rdata, cdata, "joinwf", "join")
+	require.NoError(t, err)
+	require.NotNil(t, itReply)
+
+	// Step 1: execute
+	p = participants[1]
+	pkHash, err = utils.Hash(p.Ed25519.Point)
+	require.NoError(t, err)
+	sig, err = p.Ed25519.Sign(pkHash)
+	require.NoError(t, err)
+	input = randlottery.JoinInput{Ticket: randlottery.Ticket{
+		Key: p.Ed25519.Point,
+		Sig: sig,
+	}}
+	data, err = protobuf.Encode(&input)
+	require.NoError(t, err)
+	sp = make(map[string]*core.StateProof)
+	sp["readset"] = &gcs.Proof
+	execInput = execbase.ExecuteInput{
+		FnName:      "join_lottery",
+		Data:        data,
+		StateProofs: sp,
+	}
+	execReq = &core.ExecutionRequest{
+		Index: 0,
+		EP:    &itReply.Plan,
+	}
+	execReply, err = execCl.Execute(execInput, execReq)
+	require.NoError(t, err)
+
+	err = protobuf.Decode(execReply.Output.Data, &joinOut)
+	require.NoError(t, err)
+
+	execReq.Index = 1
+	execReq.OpReceipts = execReply.Receipts
+	_, err = adminCl.Cl.UpdateState(joinOut.WS, execReq, 5)
+	require.NoError(t, err)
+
+	//
+	gcs, err = adminCl.Cl.GetState(cid)
+	v, _, _, err := gcs.Proof.Proof.Get(cid.Slice())
+	require.NoError(t, err)
+	kvStore := &contracts.Storage{}
+	err = protobuf.Decode(v, kvStore)
+	require.NoError(t, err)
+
+	for _, kv := range kvStore.Store {
+		fmt.Println(kv.Key)
+		if kv.Key == "tickets" {
+			tickets := &randlottery.Tickets{}
+			err = protobuf.Decode(kv.Value, tickets)
+			require.NoError(t, err)
+			for _, t := range tickets.Data {
+				fmt.Println(t.Key.String())
+			}
+		}
+	}
+
 }

@@ -54,7 +54,6 @@ func (r *ExecutionRequest) Verify(data *VerificationData) error {
 	// 3) Check dependencies
 	for inputName, dep := range opcode.Dependencies {
 		if dep.Src == OPCODE {
-			//receipt, ok := r.OpReceipts[inputName]
 			receipt, ok := r.OpReceipts[dep.SrcName]
 			if !ok {
 				return xerrors.Errorf("missing opcode receipt from output %s for input %s", dep.SrcName, inputName)

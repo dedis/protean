@@ -1,15 +1,35 @@
 package base
 
-import "github.com/dedis/protean/core"
+import (
+	"crypto/sha256"
+	"github.com/dedis/protean/core"
+	"go.dedis.ch/cothority/v3/byzcoin"
+	"go.dedis.ch/cothority/v3/skipchain"
+)
 
 const (
 	UID  string = "codeexec"
 	EXEC string = "exec"
 )
 
+type ByzData struct {
+	IID     byzcoin.InstanceID
+	Proof   byzcoin.Proof
+	Genesis skipchain.SkipBlock
+}
+
+type InitTxnInput struct {
+	RData  ByzData
+	CData  ByzData
+	WfName string
+
+	TxnName string
+}
+
 type ExecutionFn func(input *GenericInput) (*GenericOutput, error)
 
 type ExecuteInput struct {
+	FnName      string
 	Data        []byte
 	StateProofs map[string]*core.StateProof
 }
@@ -25,4 +45,10 @@ type GenericInput struct {
 
 type GenericOutput struct {
 	O interface{}
+}
+
+func GetFnHash(fnName string) []byte {
+	h := sha256.New()
+	h.Write([]byte(fnName))
+	return h.Sum(nil)
 }

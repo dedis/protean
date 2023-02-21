@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/dedis/protean/contracts"
 	"github.com/dedis/protean/core"
+	"github.com/dedis/protean/libexec/base"
 	"github.com/dedis/protean/libexec/protocol/execute"
 	"github.com/dedis/protean/libexec/protocol/inittxn"
 	"go.dedis.ch/kyber/v3/pairing"
@@ -43,10 +44,6 @@ func (s *Service) InitUnit(req *InitUnit) (*InitUnitReply, error) {
 }
 
 func (s *Service) InitTransaction(req *InitTransaction) (*InitTransactionReply, error) {
-	vData, err := protobuf.Encode(req)
-	if err != nil {
-		return nil, xerrors.Errorf("cannot encode request: %v", err)
-	}
 	nodeCount := len(s.roster.List)
 	threshold := nodeCount - (nodeCount-1)/3
 	tree := s.roster.GenerateNaryTreeWithRoot(nodeCount-1, s.ServerIdentity())
@@ -58,7 +55,7 @@ func (s *Service) InitTransaction(req *InitTransaction) (*InitTransactionReply, 
 	proto.KP = s.getKeyPair()
 	proto.Publics = s.roster.ServicePublics(ServiceName)
 	proto.Threshold = threshold
-	proto.VerificationData = vData
+	proto.Input = &req.Input
 	proto.GeneratePlan = s.generateExecutionPlan
 	err = proto.Start()
 	if err != nil {
@@ -84,7 +81,6 @@ func (s *Service) Execute(req *Execute) (*ExecuteReply, error) {
 	proto := pi.(*execute.Execute)
 	proto.Input = &req.Input
 	proto.ExecReq = &req.ExecReq
-	proto.FnName = req.FnName
 	proto.KP = s.getKeyPair()
 	proto.Publics = s.roster.ServicePublics(ServiceName)
 	proto.Threshold = threshold
@@ -105,20 +101,15 @@ func (s *Service) getKeyPair() *key.Pair {
 	}
 }
 
-func (s *Service) generateExecutionPlan(data []byte) (*core.ExecutionPlan, error) {
-	var req InitTransaction
-	err := protobuf.Decode(data, &req)
-	if err != nil {
-		return nil, xerrors.Errorf("cannot decode request: %v", err)
-	}
-	registry, header, err := verifyInitTxn(&req)
+func (s *Service) generateExecutionPlan(input *base.InitTxnInput) (*core.ExecutionPlan, error) {
+	registry, header, err := verifyInitTxn(input)
 	if err != nil {
 		return nil, xerrors.Errorf("verification error -- %v", err)
 	}
-	root := req.CData.Proof.InclusionProof.GetRoot()
-	txn, ok := header.Contract.Workflows[req.WfName].Txns[req.TxnName]
+	root := input.CData.Proof.InclusionProof.GetRoot()
+	txn, ok := header.Contract.Workflows[input.WfName].Txns[input.TxnName]
 	if !ok {
-		return nil, xerrors.Errorf("cannot find txn %s in workflow %s", req.TxnName, req.WfName)
+		return nil, xerrors.Errorf("cannot find txn %s in workflow %s", input.TxnName, input.WfName)
 	}
 	dfuData := make(map[string]*core.DFUIdentity)
 	for _, opcode := range txn.Opcodes {
@@ -136,26 +127,26 @@ func (s *Service) generateExecutionPlan(data []byte) (*core.ExecutionPlan, error
 		CID:       header.CID.Slice(),
 		StateRoot: root,
 		CodeHash:  header.CodeHash,
-		WfName:    req.WfName,
-		TxnName:   req.TxnName,
+		WfName:    input.WfName,
+		TxnName:   input.TxnName,
 		Txn:       txn,
 		DFUData:   dfuData,
 	}
 	return plan, nil
 }
 
-func verifyInitTxn(req *InitTransaction) (*core.DFURegistry, *core.ContractHeader, error) {
+func verifyInitTxn(input *base.InitTxnInput) (*core.DFURegistry, *core.ContractHeader, error) {
 	// Verify Byzcoin proofs
-	err := req.RData.Proof.VerifyFromBlock(&req.RData.Genesis)
+	err := input.RData.Proof.VerifyFromBlock(&input.RData.Genesis)
 	if err != nil {
 		return nil, nil, xerrors.Errorf("cannot verify byzcoin proof (registry): %v", err)
 	}
-	err = req.CData.Proof.VerifyFromBlock(&req.CData.Genesis)
+	err = input.CData.Proof.VerifyFromBlock(&input.CData.Genesis)
 	if err != nil {
 		return nil, nil, xerrors.Errorf("cannot verify byzcoin proof (contract): %v", err)
 	}
 	// Get registry data
-	v, _, _, err := req.RData.Proof.Get(req.RData.IID.Slice())
+	v, _, _, err := input.RData.Proof.Get(input.RData.IID.Slice())
 	if err != nil {
 		return nil, nil, xerrors.Errorf("cannot get data from registry proof: %v", err)
 	}
@@ -170,7 +161,7 @@ func verifyInitTxn(req *InitTransaction) (*core.DFURegistry, *core.ContractHeade
 		return nil, nil, xerrors.Errorf("cannot decode registry data: %v", err)
 	}
 	// Get contract header
-	v, _, _, err = req.CData.Proof.Get(req.CData.IID.Slice())
+	v, _, _, err = input.CData.Proof.Get(input.CData.IID.Slice())
 	if err != nil {
 		return nil, nil, xerrors.Errorf("cannot get data from state proof: %v", err)
 	}
@@ -185,18 +176,18 @@ func verifyInitTxn(req *InitTransaction) (*core.DFURegistry, *core.ContractHeade
 		return nil, nil, xerrors.Errorf("cannot decode contract header: %v", err)
 	}
 	// Check if CIDs match
-	if !header.CID.Equal(req.CData.IID) {
-		fmt.Println(header.CID, req.CData.IID)
+	if !header.CID.Equal(input.CData.IID) {
+		fmt.Println(header.CID, input.CData.IID)
 		return nil, nil, xerrors.New("contract IDs do not match")
 	}
 	// Check that this txn can be executed in the curr_state
-	transition, ok := header.FSM.Transitions[req.TxnName]
+	transition, ok := header.FSM.Transitions[input.TxnName]
 	if !ok {
 		return nil, nil, xerrors.New("invalid txn name")
 	}
 	if transition.From != header.CurrState {
 		return nil, nil, xerrors.Errorf("cannot execute txn %s in curr_state %s",
-			req.TxnName, header.CurrState)
+			input.TxnName, header.CurrState)
 	}
 	//TODO: Check H(code)
 	return &registry, &header, nil
@@ -211,7 +202,6 @@ func (s *Service) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConfi
 		}
 		proto := pi.(*inittxn.InitTxn)
 		proto.KP = s.getKeyPair()
-		//proto.Publics = s.roster.ServicePublics(ServiceName)
 		proto.GeneratePlan = s.generateExecutionPlan
 		return proto, nil
 	case execute.ProtoName:
@@ -221,7 +211,6 @@ func (s *Service) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConfi
 		}
 		proto := pi.(*execute.Execute)
 		proto.KP = s.getKeyPair()
-		//proto.Publics = s.roster.ServicePublics(ServiceName)
 		return proto, nil
 	}
 	return nil, nil

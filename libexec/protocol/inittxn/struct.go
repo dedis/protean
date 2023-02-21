@@ -2,6 +2,7 @@ package inittxn
 
 import (
 	"github.com/dedis/protean/core"
+	"github.com/dedis/protean/libexec/base"
 	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/network"
@@ -13,11 +14,11 @@ func init() {
 	network.RegisterMessages(&Request{}, &Response{})
 }
 
-type GenerateFn func(data []byte) (*core.ExecutionPlan, error)
+type GenerateFn func(input *base.InitTxnInput) (*core.ExecutionPlan, error)
 
 type Request struct {
-	Data             []byte
-	VerificationData []byte
+	Input *base.InitTxnInput
+	Data  []byte
 }
 
 type StructRequest struct {
