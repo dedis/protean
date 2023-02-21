@@ -64,8 +64,9 @@ func (v *Verify) Start() error {
 	err := v.ExecReq.Verify(&core.VerificationData{UID: base.UID,
 		OpcodeName: base.UPDATE_STATE, InputHashes: v.InputHashes})
 	if err != nil {
+		log.Errorf("couldn't verify the execution request: %v", err)
 		v.finish(false)
-		return xerrors.Errorf("couldn't verify the execution request: %v", err)
+		return err
 	}
 	verified := v.VerifyFn(v.Input, v.ExecReq)
 	if !verified {

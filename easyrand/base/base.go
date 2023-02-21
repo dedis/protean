@@ -3,6 +3,7 @@ package base
 import (
 	"crypto/sha256"
 	"encoding/binary"
+	"github.com/dedis/protean/utils"
 	"go.dedis.ch/kyber/v3"
 )
 
@@ -25,11 +26,12 @@ type RandomnessOutput struct {
 
 func (randInput *RandomnessInput) PrepareInputHashes() (map[string][]byte, error) {
 	inputHashes := make(map[string][]byte)
-	h := sha256.New()
-	buf := make([]byte, 8)
-	binary.LittleEndian.PutUint64(buf, randInput.Round)
-	h.Write(buf)
-	inputHashes["round"] = h.Sum(nil)
+	inputHashes["round"] = utils.HashUint64(randInput.Round)
+	//h := sha256.New()
+	//buf := make([]byte, 8)
+	//binary.LittleEndian.PutUint64(buf, randInput.Round)
+	//h.Write(buf)
+	//inputHashes["round"] = h.Sum(nil)
 	return inputHashes, nil
 }
 

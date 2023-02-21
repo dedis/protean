@@ -56,7 +56,7 @@ func (shInput *ShuffleInput) PrepareInputHashes() (map[string][]byte, error) {
 		return nil, err
 	}
 	inputHashes["pairs"] = hash
-	hash, err = utils.Hash(shInput.H)
+	hash, err = utils.HashPoint(shInput.H)
 	if err != nil {
 		return nil, err
 	}

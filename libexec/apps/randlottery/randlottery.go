@@ -22,7 +22,7 @@ func JoinLottery(genInput *base.GenericInput) (*base.GenericOutput, error) {
 		return nil, xerrors.New("missing input")
 	}
 	ticket := input.Ticket
-	pkHash, err := utils.Hash(ticket.Key)
+	pkHash, err := utils.HashPoint(ticket.Key)
 	if err != nil {
 		return nil, xerrors.Errorf("couldn't calculate the hash of pk: %v",
 			err)

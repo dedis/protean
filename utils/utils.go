@@ -2,6 +2,7 @@ package utils
 
 import (
 	"crypto/sha256"
+	"encoding/binary"
 	"sort"
 	"time"
 
@@ -72,7 +73,7 @@ func (ps *ElGamalPairs) Hash() ([]byte, error) {
 	return h.Sum(nil), nil
 }
 
-func Hash(p kyber.Point) ([]byte, error) {
+func HashPoint(p kyber.Point) ([]byte, error) {
 	buf, err := p.MarshalBinary()
 	if err != nil {
 		return nil, err
@@ -80,6 +81,14 @@ func Hash(p kyber.Point) ([]byte, error) {
 	h := sha256.New()
 	h.Write(buf)
 	return h.Sum(nil), nil
+}
+
+func HashUint64(val uint64) []byte {
+	h := sha256.New()
+	buf := make([]byte, 8)
+	binary.LittleEndian.PutUint64(buf, val)
+	h.Write(buf)
+	return h.Sum(nil)
 }
 
 // Utility functions for BLS

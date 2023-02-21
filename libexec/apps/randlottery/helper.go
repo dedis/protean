@@ -5,6 +5,7 @@ import (
 	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/libexec/base"
 	libstate "github.com/dedis/protean/libstate/base"
+	"github.com/dedis/protean/utils"
 	"go.dedis.ch/protobuf"
 	"golang.org/x/xerrors"
 	"strconv"
@@ -115,9 +116,6 @@ func getCloseHashes(fnName string, input *CloseInput) map[string][]byte {
 func getFinalizeHashes(fnName string, input *FinalizeInput) map[string][]byte {
 	inputHashes := make(map[string][]byte)
 	inputHashes["fnname"] = base.GetFnHash(fnName)
-	//h := sha256.New()
-	//val := strconv.Itoa(input.Barrier)
-	//h.Write([]byte(val))
-	//inputHashes["barrier"] = h.Sum(nil)
+	inputHashes["round"] = utils.HashUint64(input.Round)
 	return inputHashes
 }

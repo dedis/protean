@@ -63,7 +63,7 @@ func MuxRequest(fnName string, genericOut *base.GenericOutput) (*base.
 		}
 		outputHashes := make(map[string][]byte)
 		outputHashes["pairs"] = pairsHash
-		ptHash, err := utils.Hash(shInput.H)
+		ptHash, err := utils.HashPoint(shInput.H)
 		if err != nil {
 			return nil, nil, err
 		}

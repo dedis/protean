@@ -161,7 +161,7 @@ func (v *VerifyDKG) verifyDKGResponse(r structVerifyResponse) error {
 }
 
 func (v *VerifyDKG) generateResponse() (*VerifyResponse, error) {
-	hash, err := utils.Hash(v.X)
+	hash, err := utils.HashPoint(v.X)
 	if err != nil {
 		return &VerifyResponse{}, err
 	}
