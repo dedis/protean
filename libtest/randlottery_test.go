@@ -2,7 +2,6 @@ package libtest
 
 import (
 	"fmt"
-	"github.com/dedis/protean/contracts"
 	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/easyrand"
 	"github.com/dedis/protean/libclient"
@@ -51,9 +50,11 @@ func Test_RandLottery(t *testing.T) {
 	fsm, err := libclient.ReadFSMJSON(&fsmFile)
 	require.NoError(t, err)
 
+	raw := &core.ContractRaw{
+		Contract: contract,
+		FSM:      fsm,
+	}
 	hdr := &core.ContractHeader{
-		Contract:  contract,
-		FSM:       fsm,
 		CodeHash:  []byte("codehash"),
 		Lock:      nil,
 		CurrState: fsm.InitialState,
@@ -64,7 +65,7 @@ func Test_RandLottery(t *testing.T) {
 	buf, err := protobuf.Encode(&tickets)
 	require.NoError(t, err)
 	args := byzcoin.Arguments{{Name: "tickets", Value: buf}}
-	reply, err := adminCl.Cl.InitContract(hdr, args, 10)
+	reply, err := adminCl.Cl.InitContract(raw, hdr, args, 10)
 	time.Sleep(5 * time.Second)
 	cid := reply.CID
 	require.NoError(t, err)
@@ -85,13 +86,15 @@ func Test_RandLottery(t *testing.T) {
 		Genesis: *stGenesis,
 	}
 
+	// Participant 1
 	itReply, err := execCl.InitTransaction(rdata, cdata, "joinwf", "join")
 	require.NoError(t, err)
 	require.NotNil(t, itReply)
 
+	// join_txn
 	// Step 1: execute
 	p := participants[0]
-	pkHash, err := utils.Hash(p.Ed25519.Point)
+	pkHash, err := utils.HashPoint(p.Ed25519.Point)
 	require.NoError(t, err)
 	sig, err := p.Ed25519.Sign(pkHash)
 	require.NoError(t, err)
@@ -115,6 +118,7 @@ func Test_RandLottery(t *testing.T) {
 	execReply, err := execCl.Execute(execInput, execReq)
 	require.NoError(t, err)
 
+	// Step 2: update_state
 	var joinOut randlottery.JoinOutput
 	err = protobuf.Decode(execReply.Output.Data, &joinOut)
 	require.NoError(t, err)
@@ -126,7 +130,7 @@ func Test_RandLottery(t *testing.T) {
 
 	time.Sleep(2 * time.Second)
 
-	// 2nd participant
+	// 3rd participant
 	gcs, err = adminCl.Cl.GetState(cid)
 	require.NoError(t, err)
 
@@ -136,8 +140,8 @@ func Test_RandLottery(t *testing.T) {
 	require.NotNil(t, itReply)
 
 	// Step 1: execute
-	p = participants[1]
-	pkHash, err = utils.Hash(p.Ed25519.Point)
+	p = participants[2]
+	pkHash, err = utils.HashPoint(p.Ed25519.Point)
 	require.NoError(t, err)
 	sig, err = p.Ed25519.Sign(pkHash)
 	require.NoError(t, err)
@@ -161,6 +165,7 @@ func Test_RandLottery(t *testing.T) {
 	execReply, err = execCl.Execute(execInput, execReq)
 	require.NoError(t, err)
 
+	// Step 2: update_state
 	err = protobuf.Decode(execReply.Output.Data, &joinOut)
 	require.NoError(t, err)
 
@@ -169,24 +174,130 @@ func Test_RandLottery(t *testing.T) {
 	_, err = adminCl.Cl.UpdateState(joinOut.WS, execReq, 5)
 	require.NoError(t, err)
 
-	//
+	time.Sleep(5 * time.Second)
+
 	gcs, err = adminCl.Cl.GetState(cid)
-	v, _, _, err := gcs.Proof.Proof.Get(cid.Slice())
-	require.NoError(t, err)
-	kvStore := &contracts.Storage{}
-	err = protobuf.Decode(v, kvStore)
 	require.NoError(t, err)
 
-	for _, kv := range kvStore.Store {
-		fmt.Println(kv.Key)
-		if kv.Key == "tickets" {
-			tickets := &randlottery.Tickets{}
-			err = protobuf.Decode(kv.Value, tickets)
-			require.NoError(t, err)
-			for _, t := range tickets.Data {
-				fmt.Println(t.Key.String())
-			}
-		}
+	cdata.Proof = gcs.Proof.Proof
+	itReply, err = execCl.InitTransaction(rdata, cdata, "joinwf", "join")
+	require.NoError(t, err)
+	require.NotNil(t, itReply)
+
+	// Step 1: execute
+	p = participants[1]
+	pkHash, err = utils.HashPoint(p.Ed25519.Point)
+	require.NoError(t, err)
+	sig, err = p.Ed25519.Sign(pkHash)
+	require.NoError(t, err)
+	input = randlottery.JoinInput{Ticket: randlottery.Ticket{
+		Key: p.Ed25519.Point,
+		Sig: sig,
+	}}
+	data, err = protobuf.Encode(&input)
+	require.NoError(t, err)
+	sp = make(map[string]*core.StateProof)
+	sp["readset"] = &gcs.Proof
+	execInput = execbase.ExecuteInput{
+		FnName:      "join_lottery",
+		Data:        data,
+		StateProofs: sp,
 	}
+	execReq = &core.ExecutionRequest{
+		Index: 0,
+		EP:    &itReply.Plan,
+	}
+	execReply, err = execCl.Execute(execInput, execReq)
+	require.NoError(t, err)
+
+	// Step 2: update_state
+	err = protobuf.Decode(execReply.Output.Data, &joinOut)
+	require.NoError(t, err)
+
+	execReq.Index = 1
+	execReq.OpReceipts = execReply.Receipts
+	_, err = adminCl.Cl.UpdateState(joinOut.WS, execReq, 5)
+	require.NoError(t, err)
+
+	time.Sleep(5 * time.Second)
+
+	// close_txn
+	gcs, err = adminCl.Cl.GetState(cid)
+	require.NoError(t, err)
+	cdata.Proof = gcs.Proof.Proof
+
+	itReply, err = execCl.InitTransaction(rdata, cdata, "closewf", "close")
+	require.NoError(t, err)
+	require.NotNil(t, itReply)
+
+	// Step 1: exec
+	closeInput := randlottery.CloseInput{
+		Barrier: 0,
+	}
+	data, err = protobuf.Encode(&closeInput)
+	require.NoError(t, err)
+	sp = make(map[string]*core.StateProof)
+	sp["readset"] = &gcs.Proof
+	execInput = execbase.ExecuteInput{
+		FnName:      "close_lottery",
+		Data:        data,
+		StateProofs: sp,
+	}
+	execReq = &core.ExecutionRequest{
+		Index: 0,
+		EP:    &itReply.Plan,
+	}
+	execReply, err = execCl.Execute(execInput, execReq)
+	require.NoError(t, err)
+
+	var closeOut randlottery.CloseOutput
+	err = protobuf.Decode(execReply.Output.Data, &closeOut)
+	require.NoError(t, err)
+
+	execReq.Index = 1
+	execReq.OpReceipts = execReply.Receipts
+	_, err = adminCl.Cl.UpdateState(closeOut.WS, execReq, 5)
+	require.NoError(t, err)
+
+	time.Sleep(4 * time.Second)
+
+	//finalize_txn
+	gcs, err = adminCl.Cl.GetState(cid)
+	require.NoError(t, err)
+	cdata.Proof = gcs.Proof.Proof
+
+	itReply, err = execCl.InitTransaction(rdata, cdata, "finalizewf", "finalize")
+	require.NoError(t, err)
+	require.NotNil(t, itReply)
+	execReq = &core.ExecutionRequest{
+		Index: 0,
+		EP:    &itReply.Plan,
+	}
+
+	// Step 1: get randomness
+	randReply, err := randCl.Randomness(0, execReq)
+	require.NoError(t, err)
+
+	fmt.Println("Randomness retrieved")
+
+	finalizeInput := randlottery.FinalizeInput{
+		Round:      0,
+		Randomness: randReply.Output,
+	}
+	data, err = protobuf.Encode(&finalizeInput)
+	require.NoError(t, err)
+	sp = make(map[string]*core.StateProof)
+	sp["readset"] = &gcs.Proof
+	execInput = execbase.ExecuteInput{
+		FnName:      "finalize_lottery",
+		Data:        data,
+		StateProofs: sp,
+	}
+	execReq.Index = 1
+	execReq.OpReceipts = randReply.Receipts
+
+	// Step 2: code exec
+	execReply, err = execCl.Execute(execInput, execReq)
+	require.NoError(t, err)
 
 }

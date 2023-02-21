@@ -74,6 +74,7 @@ func ReadContractJSON(file *string) (*core.Contract, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("Cannot unmarshal json value: %v", err)
 	}
+	muxDependencyValue(&contract)
 	return &contract, nil
 }
 
@@ -137,32 +138,21 @@ func StoreDependencyValue(c *core.Contract, wf string, txn string, input string,
 	return err
 }
 
-//func GetKeyDependencies(file string) ([]byte, error) {
-//	fd, err := os.Open(file)
-//	if err != nil {
-//		return nil, err
-//	}
-//	keys := make(map[string]bool)
-//	scanner := bufio.NewScanner(fd)
-//	for scanner.Scan() {
-//		key := scanner.Text()
-//		key = strings.TrimSuffix(key, "\n")
-//		keys[key] = true
-//	}
-//	val := KVDepValue{Keys: keys}
-//	return protobuf.Encode(&val)
-//}
-//
-//func getKVDependency(kvDep *KVDependency, value string) error {
-//	data, err := base64.StdEncoding.DecodeString(value)
-//	if err != nil {
-//		return err
-//	}
-//	var tmp *KVDepValue
-//	err = protobuf.Decode(data, tmp)
-//	if err != nil {
-//		return err
-//	}
-//	kvDep.Keys = tmp.Keys
-//	return nil
-//}
+func muxDependencyValue(contract *core.Contract) {
+	for _, wf := range contract.Workflows {
+		for _, txn := range wf.Txns {
+			for _, opcode := range txn.Opcodes {
+				for _, dep := range opcode.Dependencies {
+					switch v := dep.Value.(type) {
+					case int:
+						dep.UintValue = uint64(v)
+					case string:
+						dep.StringValue = v
+					default:
+					}
+					dep.Value = nil
+				}
+			}
+		}
+	}
+}

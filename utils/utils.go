@@ -73,6 +73,12 @@ func (ps *ElGamalPairs) Hash() ([]byte, error) {
 	return h.Sum(nil), nil
 }
 
+func HashString(val string) []byte {
+	h := sha256.New()
+	h.Write([]byte(val))
+	return h.Sum(nil)
+}
+
 func HashPoint(p kyber.Point) ([]byte, error) {
 	buf, err := p.MarshalBinary()
 	if err != nil {

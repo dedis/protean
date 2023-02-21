@@ -1,14 +1,13 @@
 package randlottery
 
 import (
-	"crypto/sha256"
 	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/libexec/base"
 	libstate "github.com/dedis/protean/libstate/base"
 	"github.com/dedis/protean/utils"
+	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/protobuf"
 	"golang.org/x/xerrors"
-	"strconv"
 )
 
 func DemuxRequest(input *base.ExecuteInput,
@@ -46,7 +45,10 @@ func DemuxRequest(input *base.ExecuteInput,
 		if err != nil {
 			return nil, nil, nil, err
 		}
-		vdata.InputHashes = getFinalizeHashes(input.FnName, &finalizeIn)
+		vdata.InputHashes, err = getFinalizeHashes(input.FnName, &finalizeIn)
+		if err != nil {
+			return nil, nil, nil, err
+		}
 		vdata.StateProofs = input.StateProofs
 		return FinalizeLottery, &base.GenericInput{I: finalizeIn}, vdata, nil
 	default:
@@ -106,16 +108,19 @@ func MuxRequest(fnName string, genericOut *base.GenericOutput) (*base.ExecuteOut
 func getCloseHashes(fnName string, input *CloseInput) map[string][]byte {
 	inputHashes := make(map[string][]byte)
 	inputHashes["fnname"] = base.GetFnHash(fnName)
-	h := sha256.New()
-	val := strconv.Itoa(input.Barrier)
-	h.Write([]byte(val))
-	inputHashes["barrier"] = h.Sum(nil)
+	inputHashes["barrier"] = utils.HashUint64(uint64(input.Barrier))
 	return inputHashes
 }
 
-func getFinalizeHashes(fnName string, input *FinalizeInput) map[string][]byte {
+func getFinalizeHashes(fnName string, input *FinalizeInput) (map[string][]byte, error) {
 	inputHashes := make(map[string][]byte)
 	inputHashes["fnname"] = base.GetFnHash(fnName)
 	inputHashes["round"] = utils.HashUint64(input.Round)
-	return inputHashes
+	buf, err := input.Randomness.Hash()
+	if err != nil {
+		log.Errorf("calculating the randomness hash: %v", err)
+		return nil, err
+	}
+	inputHashes["randomness"] = buf
+	return inputHashes, nil
 }

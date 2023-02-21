@@ -80,7 +80,7 @@ func (r *ExecutionRequest) Verify(data *VerificationData) error {
 			err := receipt.Sig.VerifyWithPolicy(suite, hash, dfuData.Keys,
 				sign.NewThresholdPolicy(dfuData.Threshold))
 			if err != nil {
-				return xerrors.Errorf("cannot verify signature from %s for on opcode receipt: %v", err)
+				return xerrors.Errorf("cannot verify signature for on opcode receipt: %v", err)
 			}
 		} else if dep.Src == KEYVALUE {
 			proof, ok := data.StateProofs[inputName]
@@ -96,7 +96,7 @@ func (r *ExecutionRequest) Verify(data *VerificationData) error {
 				return xerrors.Errorf("cannot verify keyvalue proof: %v", err)
 			}
 		} else if dep.Src == PRECOMMIT {
-			keys := strings.Split(dep.Value, ",")
+			keys := strings.Split(dep.StringValue, ",")
 			if len(keys) != len(data.Precommits.Data) {
 				return xerrors.Errorf("precommit count mismatch: "+
 					"expected %d received %d", len(keys), len(data.Precommits.Data))
@@ -111,18 +111,12 @@ func (r *ExecutionRequest) Verify(data *VerificationData) error {
 			if !ok {
 				return xerrors.Errorf("cannot find the input data for %s", inputName)
 			}
-			if !bytes.Equal(getHash(dep.Value), inputHash) {
+			if !bytes.Equal(getValueHash(dep), inputHash) {
 				return xerrors.New("received input does not match the CONST value")
 			}
 		}
 	}
 	return nil
-}
-
-func getHash(val string) []byte {
-	h := sha256.New()
-	h.Write([]byte(val))
-	return h.Sum(nil)
 }
 
 func PrepareKVDicts(r *ExecutionRequest, proofs map[string]*StateProof) (map[string]KVDict, error) {
@@ -139,7 +133,7 @@ func PrepareKVDicts(r *ExecutionRequest, proofs map[string]*StateProof) (map[str
 			if err != nil {
 				return nil, err
 			}
-			keys := strings.Split(dep.Value, ",")
+			keys := strings.Split(dep.StringValue, ",")
 			data := make(map[string][]byte)
 			for _, key := range keys {
 				val, ok := storageMap[key]
@@ -226,7 +220,6 @@ func (p StateProof) verify(sbID skipchain.SkipBlockID, publics []kyber.Point) er
 	if !p.Proof.Latest.CalculateHash().Equal(sbID) {
 		return cothority.WrapError(byzcoin.ErrorVerifyHash)
 	}
-
 	return nil
 }
 
@@ -263,8 +256,7 @@ func (p *ExecutionPlan) Hash() []byte {
 			h.Write([]byte(dep.Src))
 			h.Write([]byte(dep.SrcName))
 			h.Write(b)
-			//h.Write([]byte(dep.Value))
-			h.Write(getValueBytes(dep.Value))
+			h.Write(getValueBytes(dep))
 		}
 	}
 
@@ -286,18 +278,6 @@ func (p *ExecutionPlan) Hash() []byte {
 		}
 	}
 	return h.Sum(nil)
-}
-
-func getValueBytes(i interface{}) []byte {
-	switch v := i.(type) {
-	case int:
-		b := make([]byte, 8)
-		binary.LittleEndian.PutUint64(b, uint64(v))
-		return b
-	case string:
-		return []byte(v)
-	}
-	return nil
 }
 
 func (p *ExecutionPlan) String() string {
@@ -331,4 +311,21 @@ func (r *OpcodeReceipt) Hash() []byte {
 	// HashBytes
 	h.Write(r.HashBytes)
 	return h.Sum(nil)
+}
+
+func getValueHash(dep *DataDependency) []byte {
+	buf := getValueBytes(dep)
+	h := sha256.New()
+	h.Write(buf)
+	return h.Sum(nil)
+}
+
+func getValueBytes(dep *DataDependency) []byte {
+	if len(dep.StringValue) > 0 {
+		return []byte(dep.StringValue)
+	} else {
+		b := make([]byte, 8)
+		binary.LittleEndian.PutUint64(b, dep.UintValue)
+		return b
+	}
 }

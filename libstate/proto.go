@@ -23,6 +23,7 @@ type InitUnitRequest struct {
 type InitUnitReply struct{}
 
 type InitContractRequest struct {
+	Raw      *core.ContractRaw
 	Header   *core.ContractHeader
 	InitArgs byzcoin.Arguments
 	Wait     int

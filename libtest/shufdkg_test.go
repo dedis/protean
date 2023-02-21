@@ -54,16 +54,20 @@ func Test_ShufDKG(t *testing.T) {
 	fsm, err := libclient.ReadFSMJSON(&fsmFile)
 	require.NoError(t, err)
 
+	raw := &core.ContractRaw{
+		Contract: contract,
+		FSM:      fsm,
+	}
 	hdr := &core.ContractHeader{
-		Contract:  contract,
-		FSM:       fsm,
+		//Contract:  contract,
+		//FSM:       fsm,
 		CodeHash:  []byte("codehash"),
 		Lock:      nil,
 		CurrState: fsm.InitialState,
 	}
 
 	// Initialize contract (state unit)
-	reply, err := adminCl.Cl.InitContract(hdr, nil, 10)
+	reply, err := adminCl.Cl.InitContract(raw, hdr, nil, 10)
 	cid := reply.CID
 	require.NoError(t, err)
 	stGenesis, err := adminCl.Cl.FetchGenesisBlock(reply.TxResp.Proof.

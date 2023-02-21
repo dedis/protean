@@ -41,10 +41,20 @@ type Opcode struct {
 }
 
 type DataDependency struct {
-	Src     string `json:"src"`
-	SrcName string `json:"src_name,omitempty"`
-	Idx     int    `json:"idx,omitempty"`
-	Value   string `json:"value,omitempty"`
+	Src     string      `json:"src"`
+	SrcName string      `json:"src_name,omitempty"`
+	Idx     int         `json:"idx,omitempty"`
+	Value   interface{} `json:"value,omitempty"`
+	// This is a terrible hack but the only quick way I could think of to
+	//make it work with protobuf.
+	//DataDependency is serialized as part of sending the contract
+	//data to the state unit. However,
+	//protobuf does not like the interface{} type. Therefore,
+	//after reading in the JSON files,
+	//we check the type of Value; assign its value to one of the following
+	//variables; and set Value to nil.
+	StringValue string
+	UintValue   uint64
 }
 
 // Execution data
@@ -64,8 +74,6 @@ type ExecutionRequest struct {
 	Index      int
 	EP         *ExecutionPlan
 	OpReceipts map[string]*OpcodeReceipt
-	//KVReceipt    map[string]KVDict
-	//KVReceiptSig protocol.BlsSignature
 }
 
 type OpcodeReceipt struct {
@@ -112,10 +120,14 @@ type DFU struct {
 
 // State
 
+type ContractRaw struct {
+	CID      byzcoin.InstanceID
+	Contract *Contract
+	FSM      *FSM
+}
+
 type ContractHeader struct {
 	CID       byzcoin.InstanceID
-	Contract  *Contract
-	FSM       *FSM
 	CodeHash  []byte
 	Lock      []byte
 	CurrState string

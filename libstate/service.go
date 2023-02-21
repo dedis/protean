@@ -60,11 +60,16 @@ func (s *Service) InitContract(req *InitContractRequest) (*InitContractReply, er
 	if s.bc == nil {
 		s.bc = byzcoin.NewClient(s.byzID, *s.roster)
 	}
+	rawBuf, err := protobuf.Encode(req.Raw)
+	if err != nil {
+		return nil, xerrors.Errorf("encoding raw contract: %v", err)
+	}
 	hdrBuf, err := protobuf.Encode(req.Header)
 	if err != nil {
 		return nil, xerrors.Errorf("encoding contract header: %v", err)
 	}
-	args := byzcoin.Arguments{{Name: "header", Value: hdrBuf}}
+	args := byzcoin.Arguments{{Name: "raw", Value: rawBuf},
+		{Name: "header", Value: hdrBuf}}
 	ctx := byzcoin.NewClientTransaction(byzcoin.CurrentVersion,
 		byzcoin.Instruction{
 			InstanceID: byzcoin.NewInstanceID(s.darc.GetBaseID()),
@@ -85,12 +90,19 @@ func (s *Service) InitContract(req *InitContractRequest) (*InitContractReply, er
 	}
 	s.ctr++
 	// Store CID in header
+	req.Raw.CID = cid
 	req.Header.CID = cid
+	rawBuf, err = protobuf.Encode(req.Raw)
+	if err != nil {
+		return nil, xerrors.Errorf("encoding raw contract: %v", err)
+	}
 	hdrBuf, err = protobuf.Encode(req.Header)
 	if err != nil {
 		return nil, xerrors.Errorf("encoding contract header: %v", err)
 	}
-	args[0].Value = hdrBuf
+	//args[0].Value = hdrBuf
+	args[0].Value = rawBuf
+	args[1].Value = hdrBuf
 	if req.InitArgs != nil {
 		args = append(args, req.InitArgs...)
 	}
@@ -210,7 +222,7 @@ func (s *Service) verifyUpdate(input *base.UpdateInput, req *core.ExecutionReque
 			return xerrors.Errorf("failed to get contract storage: %v", err)
 		}
 		hdr := &core.ContractHeader{}
-		err = protobuf.Decode(kvStore.Store[0].Value, hdr)
+		err = protobuf.Decode(kvStore.Store[1].Value, hdr)
 		if err != nil {
 			return xerrors.Errorf("failed to get contract header: %v", err)
 		}

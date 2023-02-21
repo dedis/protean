@@ -66,9 +66,11 @@ func (c *Client) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 	return reply, nil
 }
 
-func (c *Client) InitContract(hdr *core.ContractHeader, initArgs byzcoin.Arguments, wait int) (*InitContractReply, error) {
+func (c *Client) InitContract(raw *core.ContractRaw, hdr *core.ContractHeader,
+	initArgs byzcoin.Arguments, wait int) (*InitContractReply, error) {
 	reply := &InitContractReply{}
 	req := &InitContractRequest{
+		Raw:      raw,
 		Header:   hdr,
 		InitArgs: initArgs,
 		Wait:     wait,

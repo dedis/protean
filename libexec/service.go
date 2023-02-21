@@ -1,7 +1,6 @@
 package libexec
 
 import (
-	"fmt"
 	"github.com/dedis/protean/contracts"
 	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/libexec/base"
@@ -102,12 +101,12 @@ func (s *Service) getKeyPair() *key.Pair {
 }
 
 func (s *Service) generateExecutionPlan(input *base.InitTxnInput) (*core.ExecutionPlan, error) {
-	registry, header, err := verifyInitTxn(input)
+	registry, raw, header, err := verifyInitTxn(input)
 	if err != nil {
 		return nil, xerrors.Errorf("verification error -- %v", err)
 	}
 	root := input.CData.Proof.InclusionProof.GetRoot()
-	txn, ok := header.Contract.Workflows[input.WfName].Txns[input.TxnName]
+	txn, ok := raw.Contract.Workflows[input.WfName].Txns[input.TxnName]
 	if !ok {
 		return nil, xerrors.Errorf("cannot find txn %s in workflow %s", input.TxnName, input.WfName)
 	}
@@ -135,62 +134,67 @@ func (s *Service) generateExecutionPlan(input *base.InitTxnInput) (*core.Executi
 	return plan, nil
 }
 
-func verifyInitTxn(input *base.InitTxnInput) (*core.DFURegistry, *core.ContractHeader, error) {
+func verifyInitTxn(input *base.InitTxnInput) (*core.DFURegistry, *core.ContractRaw, *core.ContractHeader, error) {
 	// Verify Byzcoin proofs
 	err := input.RData.Proof.VerifyFromBlock(&input.RData.Genesis)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("cannot verify byzcoin proof (registry): %v", err)
+		return nil, nil, nil, xerrors.Errorf("cannot verify byzcoin proof ("+
+			"registry): %v", err)
 	}
 	err = input.CData.Proof.VerifyFromBlock(&input.CData.Genesis)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("cannot verify byzcoin proof (contract): %v", err)
+		return nil, nil, nil, xerrors.Errorf("cannot verify byzcoin proof (contract): %v", err)
 	}
 	// Get registry data
 	v, _, _, err := input.RData.Proof.Get(input.RData.IID.Slice())
 	if err != nil {
-		return nil, nil, xerrors.Errorf("cannot get data from registry proof: %v", err)
+		return nil, nil, nil, xerrors.Errorf("cannot get data from registry proof: %v", err)
 	}
 	store := contracts.Storage{}
 	err = protobuf.Decode(v, &store)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("cannot decode registry contract storage: %v", err)
+		return nil, nil, nil, xerrors.Errorf("cannot decode registry contract storage: %v", err)
 	}
 	registry := core.DFURegistry{}
 	err = protobuf.Decode(store.Store[0].Value, &registry)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("cannot decode registry data: %v", err)
+		return nil, nil, nil, xerrors.Errorf("cannot decode registry data: %v", err)
 	}
 	// Get contract header
 	v, _, _, err = input.CData.Proof.Get(input.CData.IID.Slice())
 	if err != nil {
-		return nil, nil, xerrors.Errorf("cannot get data from state proof: %v", err)
+		return nil, nil, nil, xerrors.Errorf("cannot get data from state proof: %v", err)
 	}
 	store = contracts.Storage{}
 	err = protobuf.Decode(v, &store)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("cannot decode state contract storage: %v", err)
+		return nil, nil, nil, xerrors.Errorf("cannot decode state contract storage: %v", err)
+	}
+	raw := core.ContractRaw{}
+	err = protobuf.Decode(store.Store[0].Value, &raw)
+	if err != nil {
+		return nil, nil, nil, xerrors.Errorf("cannot decode raw contract: %v", err)
 	}
 	header := core.ContractHeader{}
-	err = protobuf.Decode(store.Store[0].Value, &header)
+	err = protobuf.Decode(store.Store[1].Value, &header)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("cannot decode contract header: %v", err)
+		return nil, nil, nil, xerrors.Errorf("cannot decode contract header: %v", err)
 	}
 	// Check if CIDs match
-	if !header.CID.Equal(input.CData.IID) {
-		fmt.Println(header.CID, input.CData.IID)
-		return nil, nil, xerrors.New("contract IDs do not match")
+	if !(raw.CID.Equal(input.CData.IID) && header.CID.Equal(input.CData.IID)) {
+		return nil, nil, nil, xerrors.New("contract IDs do not match")
 	}
 	// Check that this txn can be executed in the curr_state
-	transition, ok := header.FSM.Transitions[input.TxnName]
+	transition, ok := raw.FSM.Transitions[input.TxnName]
 	if !ok {
-		return nil, nil, xerrors.New("invalid txn name")
+		return nil, nil, nil, xerrors.New("invalid txn name")
 	}
 	if transition.From != header.CurrState {
-		return nil, nil, xerrors.Errorf("cannot execute txn %s in curr_state %s",
+		return nil, nil, nil, xerrors.Errorf("cannot execute txn %s in curr_state %s",
 			input.TxnName, header.CurrState)
 	}
 	//TODO: Check H(code)
-	return &registry, &header, nil
+	return &registry, &raw, &header, nil
 }
 
 func (s *Service) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConfig) (onet.ProtocolInstance, error) {

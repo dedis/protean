@@ -10,7 +10,7 @@
       "from": "lottery_open",
       "to": "lottery_closed"
     },
-    "reveal": {
+    "finalize": {
       "from": "lottery_closed",
       "to": "lottery_finalized"
     }

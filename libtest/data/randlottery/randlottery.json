@@ -47,7 +47,7 @@
 								},
 								"barrier": {
 									"src": "CONST",
-									"value": "0"
+									"value": 0
 								},
 								"readset": {
 									"src": "KEYVALUE",
@@ -80,7 +80,7 @@
 							"inputs": {
 								"round": {
 									"src": "CONST",
-									"value": "1"
+									"value": 0
 								}
 							}
 						},
@@ -91,6 +91,10 @@
 								"fnname": {
 									"src": "CONST",
 									"value": "finalize_lottery"
+								},
+								"round": {
+									"src": "CONST",
+									"value": 0
 								},
 								"readset": {
 									"src": "KEYVALUE",
