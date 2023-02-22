@@ -20,12 +20,7 @@ type UpdateInput struct {
 
 func (input *UpdateInput) PrepareInputHashes() map[string][]byte {
 	inputHashes := make(map[string][]byte)
-	h := sha256.New()
-	for _, arg := range input.Args {
-		h.Write([]byte(arg.Name))
-		h.Write(arg.Value)
-	}
-	inputHashes["ws"] = h.Sum(nil)
+	inputHashes["ws"] = Hash(input.Args)
 	return inputHashes
 }
 

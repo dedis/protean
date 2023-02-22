@@ -1,7 +1,6 @@
 package base
 
 import (
-	"crypto/sha256"
 	"github.com/dedis/protean/core"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/skipchain"
@@ -45,10 +44,4 @@ type GenericInput struct {
 
 type GenericOutput struct {
 	O interface{}
-}
-
-func GetFnHash(fnName string) []byte {
-	h := sha256.New()
-	h.Write([]byte(fnName))
-	return h.Sum(nil)
 }

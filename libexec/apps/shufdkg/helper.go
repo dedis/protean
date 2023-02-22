@@ -20,7 +20,7 @@ func DemuxRequest(input *base.ExecuteInput, vdata *core.VerificationData) (base.
 			return nil, nil, nil, err
 		}
 		inputHashes := make(map[string][]byte)
-		inputHashes["fnname"] = base.GetFnHash(input.FnName)
+		inputHashes["fnname"] = utils.HashString(input.FnName)
 		vdata.InputHashes = inputHashes
 		return PrepareShuffle, &base.GenericInput{I: prepShufInput}, vdata, nil
 	case "prep_dec":
@@ -30,7 +30,7 @@ func DemuxRequest(input *base.ExecuteInput, vdata *core.VerificationData) (base.
 			return nil, nil, nil, err
 		}
 		inputHashes := make(map[string][]byte)
-		inputHashes["fnname"] = base.GetFnHash(input.FnName)
+		inputHashes["fnname"] = utils.HashString(input.FnName)
 		hash, err := prepDecInput.ShufProof.Hash()
 		if err != nil {
 			return nil, nil, nil, xerrors.Errorf("calculating the hash: %v",

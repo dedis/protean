@@ -22,7 +22,7 @@ func DemuxRequest(input *base.ExecuteInput,
 		}
 		vdata.StateProofs = input.StateProofs
 		inputHashes := make(map[string][]byte)
-		inputHashes["fnname"] = base.GetFnHash(input.FnName)
+		inputHashes["fnname"] = utils.HashString(input.FnName)
 		vdata.InputHashes = inputHashes
 		return JoinLottery, &base.GenericInput{I: joinIn}, vdata, nil
 	case "close_randlot":
@@ -107,14 +107,14 @@ func MuxRequest(fnName string, genericOut *base.GenericOutput) (*base.ExecuteOut
 
 func getCloseHashes(fnName string, input *CloseInput) map[string][]byte {
 	inputHashes := make(map[string][]byte)
-	inputHashes["fnname"] = base.GetFnHash(fnName)
+	inputHashes["fnname"] = utils.HashString(fnName)
 	inputHashes["barrier"] = utils.HashUint64(uint64(input.Barrier))
 	return inputHashes
 }
 
 func getFinalizeHashes(fnName string, input *FinalizeInput) (map[string][]byte, error) {
 	inputHashes := make(map[string][]byte)
-	inputHashes["fnname"] = base.GetFnHash(fnName)
+	inputHashes["fnname"] = utils.HashString(fnName)
 	inputHashes["round"] = utils.HashUint64(input.Round)
 	buf, err := input.Randomness.Hash()
 	if err != nil {
