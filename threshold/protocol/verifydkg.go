@@ -136,7 +136,6 @@ func (v *VerifyDKG) verifyDKGResponse(r structVerifyResponse) error {
 	v.mask.SetBit(index, true)
 	v.responses = append(v.responses, &r.VerifyResponse)
 	if len(v.responses) == v.Threshold {
-		log.Lvl1("Received enough")
 		for name, receipt := range v.Receipts {
 			aggSignature := v.suite.G1().Point()
 			for _, resp := range v.responses {
@@ -193,7 +192,6 @@ func (v *VerifyDKG) runVerification() error {
 
 func (v *VerifyDKG) finish(result bool) {
 	v.timeout.Stop()
-	log.Lvl1("Finished")
 	select {
 	case v.Verified <- result:
 		// succeeded

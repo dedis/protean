@@ -3,22 +3,24 @@ package dkglottery
 import (
 	"flag"
 	"github.com/dedis/protean/core"
-	"github.com/dedis/protean/easyrand"
 	"github.com/dedis/protean/libclient"
 	"github.com/dedis/protean/libexec"
+	"github.com/dedis/protean/libexec/apps/dkglottery"
 	"github.com/dedis/protean/libexec/apps/randlottery"
 	execbase "github.com/dedis/protean/libexec/base"
 	"github.com/dedis/protean/libstate"
 	"github.com/dedis/protean/libtest"
+	"github.com/dedis/protean/threshold"
 	"github.com/dedis/protean/utils"
 	"github.com/stretchr/testify/require"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/byzcoin"
-	"go.dedis.ch/cothority/v3/darc"
+	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/pairing"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/protobuf"
+	"math/rand"
 	"testing"
 	"time"
 )
@@ -65,10 +67,8 @@ func Test_DKGLottery(t *testing.T) {
 	execCl := libexec.NewClient(dfuRoster)
 	_, err = execCl.InitUnit()
 	require.NoError(t, err)
-	randCl := easyrand.NewClient(dfuRoster)
-	randCl.InitUnit()
-	_, err = randCl.InitDKG()
-	require.NoError(t, err)
+	thCl := threshold.NewClient(dfuRoster)
+	thCl.InitUnit()
 
 	// Client-side operations: read JSON files
 	contract, err := libclient.ReadContractJSON(&contractFile)
@@ -87,138 +87,180 @@ func Test_DKGLottery(t *testing.T) {
 	}
 
 	// Initialize contract (state unit)
-	//tickets := randlottery.Tickets{}
-	//buf, err := protobuf.Encode(&tickets)
-	//require.NoError(t, err)
-	//args := byzcoin.Arguments{{Name: "tickets", Value: buf}}
-	//reply, err := adminCl.Cl.InitContract(raw, hdr, args, 10)
-	//time.Sleep(5 * time.Second)
-	//cid := reply.CID
-	//require.NoError(t, err)
-	//stGenesis, err := adminCl.Cl.FetchGenesisBlock(reply.TxResp.Proof.
-	//	Latest.SkipChainID())
-	//require.NoError(t, err)
-	//require.NotNil(t, reply.TxResp.Proof)
-	//gcs, err := adminCl.Cl.GetState(cid)
-	//require.NoError(t, err)
-	//rdata := execbase.ByzData{
-	//	IID:     rid,
-	//	Proof:   *regPr,
-	//	Genesis: *regGenesis,
-	//}
-	//cdata := execbase.ByzData{
-	//	IID:     cid,
-	//	Proof:   gcs.Proof.Proof,
-	//	Genesis: *stGenesis,
-	//}
+	encTickets := dkglottery.EncTickets{}
+	buf, err := protobuf.Encode(&encTickets)
+	require.NoError(t, err)
+	args := byzcoin.Arguments{{Name: "enc_tickets", Value: buf}}
+	reply, err := adminCl.Cl.InitContract(raw, hdr, args, 10)
+	time.Sleep(5 * time.Second)
+	cid := reply.CID
+	require.NoError(t, err)
+	stGenesis, err := adminCl.Cl.FetchGenesisBlock(reply.TxResp.Proof.
+		Latest.SkipChainID())
+	require.NoError(t, err)
+	require.NotNil(t, reply.TxResp.Proof)
+	gcs, err := adminCl.Cl.GetState(cid)
+	require.NoError(t, err)
+	rdata := execbase.ByzData{
+		IID:     rid,
+		Proof:   *regPr,
+		Genesis: *regGenesis,
+	}
+	cdata := execbase.ByzData{
+		IID:     cid,
+		Proof:   gcs.Proof.Proof,
+		Genesis: *stGenesis,
+	}
 
-	//d := JoinData{
-	//	adminCl: adminCl,
-	//	execCl:  execCl,
-	//	rdata:   &rdata,
-	//	cdata:   &cdata,
-	//	cid:     cid,
-	//}
-	//
-	//// execute join txns
-	//executeJoin(t, &d, participants[0])
-	//executeJoin(t, &d, participants[1])
-	//executeJoin(t, &d, participants[2])
-	//executeJoin(t, &d, participants[3])
-	//executeJoin(t, &d, participants[4])
-	//
-	//// execute close txn
-	//gcs, err = adminCl.Cl.GetState(cid)
-	//require.NoError(t, err)
-	//cdata.Proof = gcs.Proof.Proof
-	//
-	//itReply, err := execCl.InitTransaction(rdata, cdata, "closewf", "close")
-	//require.NoError(t, err)
-	//require.NotNil(t, itReply)
-	//
-	//// Step 1: exec
-	//closeInput := randlottery.CloseInput{
-	//	Barrier: 0,
-	//}
-	//data, err := protobuf.Encode(&closeInput)
-	//require.NoError(t, err)
-	//sp := make(map[string]*core.StateProof)
-	//sp["readset"] = &gcs.Proof
-	//execInput := execbase.ExecuteInput{
-	//	FnName:      "close_randlot",
-	//	Data:        data,
-	//	StateProofs: sp,
-	//}
-	//execReq := &core.ExecutionRequest{
-	//	Index: 0,
-	//	EP:    &itReply.Plan,
-	//}
-	//execReply, err := execCl.Execute(execInput, execReq)
-	//require.NoError(t, err)
-	//
-	//// Step 2: update_state
-	//var closeOut randlottery.CloseOutput
-	//err = protobuf.Decode(execReply.Output.Data, &closeOut)
-	//require.NoError(t, err)
-	//
-	//execReq.Index = 1
-	//execReq.OpReceipts = execReply.Receipts
-	//_, err = adminCl.Cl.UpdateState(closeOut.WS, execReq, 5)
-	//require.NoError(t, err)
-	//
-	//time.Sleep(3 * time.Second)
-	//
-	////finalize txn
-	//gcs, err = adminCl.Cl.GetState(cid)
-	//require.NoError(t, err)
-	//cdata.Proof = gcs.Proof.Proof
-	//
-	//itReply, err = execCl.InitTransaction(rdata, cdata, "finalizewf", "finalize")
-	//require.NoError(t, err)
-	//require.NotNil(t, itReply)
-	//execReq = &core.ExecutionRequest{
-	//	Index: 0,
-	//	EP:    &itReply.Plan,
-	//}
-	//
-	//// Step 1: randomness
-	//randReply, err := randCl.Randomness(0, execReq)
-	//require.NoError(t, err)
-	//
-	//// Step 2: exec
-	//finalizeInput := randlottery.FinalizeInput{
-	//	Round:      0,
-	//	Randomness: randReply.Output,
-	//}
-	//data, err = protobuf.Encode(&finalizeInput)
-	//require.NoError(t, err)
-	//sp = make(map[string]*core.StateProof)
-	//sp["readset"] = &gcs.Proof
-	//execInput = execbase.ExecuteInput{
-	//	FnName:      "finalize_randlot",
-	//	Data:        data,
-	//	StateProofs: sp,
-	//}
-	//execReq.Index = 1
-	//execReq.OpReceipts = randReply.Receipts
-	//
-	//execReply, err = execCl.Execute(execInput, execReq)
-	//require.NoError(t, err)
-	//
-	//// Step 3: update_state
-	//var finalOut randlottery.FinalizeOutput
-	//err = protobuf.Decode(execReply.Output.Data, &finalOut)
-	//require.NoError(t, err)
-	//
-	//execReq.Index = 2
-	//execReq.OpReceipts = execReply.Receipts
-	//_, err = adminCl.Cl.UpdateState(finalOut.WS, execReq, 5)
-	//require.NoError(t, err)
-	//
+	// Execute setup txn
+	itReply, err := execCl.InitTransaction(rdata, cdata, "setupwf", "setup")
+	require.NoError(t, err)
+	require.NotNil(t, itReply)
+	execReq := &core.ExecutionRequest{
+		Index: 0,
+		EP:    &itReply.Plan,
+	}
+	// Step 1: init_dkg
+	dkgReply, err := thCl.InitDKG(execReq)
+	require.NoError(t, err)
+	// Step 2: exec
+	setupInput := dkglottery.SetupInput{Pk: dkgReply.Output.X}
+	data, err := protobuf.Encode(&setupInput)
+	require.NoError(t, err)
+	sp := make(map[string]*core.StateProof)
+	sp["readset"] = &gcs.Proof
+	execInput := execbase.ExecuteInput{
+		FnName:      "setup",
+		Data:        data,
+		StateProofs: sp,
+	}
+	execReq.Index = 1
+	execReq.OpReceipts = dkgReply.Receipts
+	execReply, err := execCl.Execute(execInput, execReq)
+	require.NoError(t, err)
+	// Step 3: update_state
+	var setupOut dkglottery.SetupOutput
+	err = protobuf.Decode(execReply.Output.Data, &setupOut)
+	require.NoError(t, err)
+
+	execReq.Index = 2
+	execReq.OpReceipts = execReply.Receipts
+	_, err = adminCl.Cl.UpdateState(setupOut.WS, execReq, 5)
+	require.NoError(t, err)
+	time.Sleep(3 * time.Second)
+
+	// execute join txns
+	d := JoinData{
+		adminCl: adminCl,
+		execCl:  execCl,
+		rdata:   &rdata,
+		cdata:   &cdata,
+		cid:     cid,
+	}
+	tickets := generateTickets(dkgReply.Output.X, 10)
+	executeJoin(t, &d, tickets[0])
+	executeJoin(t, &d, tickets[1])
+	executeJoin(t, &d, tickets[2])
+	executeJoin(t, &d, tickets[3])
+
+	// execute close txn
+	gcs, err = adminCl.Cl.GetState(cid)
+	require.NoError(t, err)
+	cdata.Proof = gcs.Proof.Proof
+
+	itReply, err = execCl.InitTransaction(rdata, cdata, "closewf", "close")
+	require.NoError(t, err)
+	require.NotNil(t, itReply)
+
+	// Step 1: exec
+	closeInput := dkglottery.CloseInput{
+		Barrier: 0,
+	}
+	data, err = protobuf.Encode(&closeInput)
+	require.NoError(t, err)
+	sp = make(map[string]*core.StateProof)
+	sp["readset"] = &gcs.Proof
+	execInput = execbase.ExecuteInput{
+		FnName:      "close_dkglot",
+		Data:        data,
+		StateProofs: sp,
+	}
+	execReq = &core.ExecutionRequest{
+		Index: 0,
+		EP:    &itReply.Plan,
+	}
+	execReply, err = execCl.Execute(execInput, execReq)
+	require.NoError(t, err)
+
+	// Step 2: update_state
+	var closeOut dkglottery.CloseOutput
+	err = protobuf.Decode(execReply.Output.Data, &closeOut)
+	require.NoError(t, err)
+
+	execReq.Index = 1
+	execReq.OpReceipts = execReply.Receipts
+	_, err = adminCl.Cl.UpdateState(closeOut.WS, execReq, 5)
+	require.NoError(t, err)
+
+	time.Sleep(3 * time.Second)
+
+	// execute finalize txn
+	gcs, err = adminCl.Cl.GetState(cid)
+	require.NoError(t, err)
+	cdata.Proof = gcs.Proof.Proof
+
+	itReply, err = execCl.InitTransaction(rdata, cdata, "finalizewf", "finalize")
+	require.NoError(t, err)
+	require.NotNil(t, itReply)
+	execReq = &core.ExecutionRequest{
+		Index: 0,
+		EP:    &itReply.Plan,
+	}
+
+	// Step 1: exec
+	sp = make(map[string]*core.StateProof)
+	sp["readset"] = &gcs.Proof
+	execInput = execbase.ExecuteInput{
+		FnName:      "prepare_decrypt",
+		StateProofs: sp,
+	}
+	execReply, err = execCl.Execute(execInput, execReq)
+	require.NoError(t, err)
+	// Step 2: decrypt
+	var prepOut dkglottery.PrepDecOutput
+	err = protobuf.Decode(execReply.Output.Data, &prepOut)
+	require.NoError(t, err)
+	execReq.Index = 1
+	execReq.OpReceipts = execReply.Receipts
+	decReply, err := thCl.Decrypt(&prepOut.Input, execReq)
+	require.NoError(t, err)
+	// Step 3: exec
+	finalInput := dkglottery.FinalizeInput{Ps: decReply.Output.Ps}
+	data, err = protobuf.Encode(&finalInput)
+	require.NoError(t, err)
+	execInput = execbase.ExecuteInput{
+		FnName:      "finalize_dkglot",
+		Data:        data,
+		StateProofs: sp,
+	}
+	execReq.Index = 2
+	execReq.OpReceipts = decReply.Receipts
+	execReply, err = execCl.Execute(execInput, execReq)
+	require.NoError(t, err)
+	// Step 4: update_state
+	var finalOut randlottery.FinalizeOutput
+	err = protobuf.Decode(execReply.Output.Data, &finalOut)
+	require.NoError(t, err)
+
+	execReq.Index = 3
+	execReq.OpReceipts = execReply.Receipts
+	_, err = adminCl.Cl.UpdateState(finalOut.WS, execReq, 5)
+	require.NoError(t, err)
+
 	//time.Sleep(3 * time.Second)
 }
 
-func executeJoin(t *testing.T, d *JoinData, p darc.Signer) {
+func executeJoin(t *testing.T, d *JoinData, ticket utils.ElGamalPair) {
 	gcs, err := d.adminCl.Cl.GetState(d.cid)
 	require.NoError(t, err)
 
@@ -228,20 +270,18 @@ func executeJoin(t *testing.T, d *JoinData, p darc.Signer) {
 	require.NotNil(t, itReply)
 
 	// Step 1: execute
-	pkHash, err := utils.HashPoint(p.Ed25519.Point)
-	require.NoError(t, err)
-	sig, err := p.Ed25519.Sign(pkHash)
-	require.NoError(t, err)
-	input := randlottery.JoinInput{Ticket: randlottery.Ticket{
-		Key: p.Ed25519.Point,
-		Sig: sig,
-	}}
+
+	input := dkglottery.JoinInput{
+		Ticket: dkglottery.Ticket{
+			Data: ticket,
+		},
+	}
 	data, err := protobuf.Encode(&input)
 	require.NoError(t, err)
 	sp := make(map[string]*core.StateProof)
 	sp["readset"] = &gcs.Proof
 	execInput := execbase.ExecuteInput{
-		FnName:      "join_randlot",
+		FnName:      "join_dkglot",
 		Data:        data,
 		StateProofs: sp,
 	}
@@ -265,6 +305,12 @@ func executeJoin(t *testing.T, d *JoinData, p darc.Signer) {
 	time.Sleep(3 * time.Second)
 }
 
-func generateTickets() {
-
+func generateTickets(X kyber.Point, count int) []utils.ElGamalPair {
+	tickets := make([]utils.ElGamalPair, count)
+	for i := 0; i < count; i++ {
+		randBytes := make([]byte, 24)
+		rand.Read(randBytes)
+		tickets[i] = utils.ElGamalEncrypt(X, randBytes)
+	}
+	return tickets
 }

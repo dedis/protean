@@ -6,6 +6,7 @@ import (
 	"github.com/dedis/protean/libexec/base"
 	threshold "github.com/dedis/protean/threshold/base"
 	"go.dedis.ch/cothority/v3/byzcoin"
+	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/protobuf"
 	"golang.org/x/xerrors"
 )
@@ -125,6 +126,7 @@ func FinalizeLottery(genInput *base.GenericInput) (*base.GenericOutput, error) {
 		Index:  int(winnerIdx),
 		Ticket: pdata[winnerIdx],
 	}
+	log.Info("Winner is:", winner.Index, winner.Ticket)
 	// Prepare write set
 	hdr, err := getHeader(&kvDict)
 	if err != nil {

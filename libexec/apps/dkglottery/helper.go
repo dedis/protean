@@ -49,8 +49,11 @@ func DemuxRequest(input *base.ExecuteInput,
 		vdata.StateProofs = input.StateProofs
 		return CloseLottery, &base.GenericInput{I: closeIn}, vdata, nil
 	case "prepare_decrypt":
+		inputHashes := make(map[string][]byte)
+		inputHashes["fnname"] = utils.HashString(input.FnName)
+		vdata.InputHashes = inputHashes
 		vdata.StateProofs = input.StateProofs
-		return PrepareDecrypt, &base.GenericInput{}, vdata, nil
+		return PrepareDecrypt, &base.GenericInput{I: nil}, vdata, nil
 	case "finalize_dkglot":
 		var finalizeIn FinalizeInput
 		err := protobuf.Decode(input.Data, &finalizeIn)

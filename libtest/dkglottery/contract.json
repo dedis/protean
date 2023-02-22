@@ -26,6 +26,17 @@
 									"value": "header"
 								}
 							}
+						},
+						{
+							"name": "update_state",
+							"dfu_id": "state",
+							"inputs": {
+								"ws": {
+									"src": "OPCODE",
+									"src_name": "writeset",
+									"idx": 1
+								}
+							}
 						}
 					]
 				}
