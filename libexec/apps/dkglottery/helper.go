@@ -1,4 +1,4 @@
-package randlottery
+package dkglottery
 
 import (
 	"github.com/dedis/protean/core"
@@ -14,7 +14,16 @@ func DemuxRequest(input *base.ExecuteInput,
 	vdata *core.VerificationData) (base.ExecutionFn, *base.GenericInput,
 	*core.VerificationData, error) {
 	switch input.FnName {
-	case "join_randlot":
+	case "setup":
+		var setupIn SetupInput
+		err := protobuf.Decode(input.Data, &setupIn)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		vdata.StateProofs = input.StateProofs
+		vdata.InputHashes, err = getSetupHashes(input.FnName, &setupIn)
+		return Setup, &base.GenericInput{I: setupIn}, vdata, nil
+	case "join_dkglot":
 		var joinIn JoinInput
 		err := protobuf.Decode(input.Data, &joinIn)
 		if err != nil {
@@ -25,7 +34,7 @@ func DemuxRequest(input *base.ExecuteInput,
 		inputHashes["fnname"] = base.GetFnHash(input.FnName)
 		vdata.InputHashes = inputHashes
 		return JoinLottery, &base.GenericInput{I: joinIn}, vdata, nil
-	case "close_randlot":
+	case "close_dkglot":
 		var closeIn CloseInput
 		err := protobuf.Decode(input.Data, &closeIn)
 		if err != nil {
@@ -39,7 +48,10 @@ func DemuxRequest(input *base.ExecuteInput,
 		vdata.InputHashes = getCloseHashes(input.FnName, &closeIn)
 		vdata.StateProofs = input.StateProofs
 		return CloseLottery, &base.GenericInput{I: closeIn}, vdata, nil
-	case "finalize_randlot":
+	case "prepare_decrypt":
+		vdata.StateProofs = input.StateProofs
+		return PrepareDecrypt, &base.GenericInput{}, vdata, nil
+	case "finalize_dkglot":
 		var finalizeIn FinalizeInput
 		err := protobuf.Decode(input.Data, &finalizeIn)
 		if err != nil {
@@ -58,7 +70,21 @@ func DemuxRequest(input *base.ExecuteInput,
 
 func MuxRequest(fnName string, genericOut *base.GenericOutput) (*base.ExecuteOutput, map[string][]byte, error) {
 	switch fnName {
-	case "join_randlot":
+	case "setup":
+		setupOut, ok := genericOut.O.(SetupOutput)
+		if !ok {
+			return nil, nil, xerrors.New("missing output")
+		}
+		data, err := protobuf.Encode(&setupOut)
+		if err != nil {
+			return nil, nil, err
+		}
+		output := &base.ExecuteOutput{Data: data}
+		wsHash := libstate.Hash(setupOut.WS)
+		outputHashes := make(map[string][]byte)
+		outputHashes["writeset"] = wsHash
+		return output, outputHashes, nil
+	case "join_dkglot":
 		joinOut, ok := genericOut.O.(JoinOutput)
 		if !ok {
 			return nil, nil, xerrors.New("missing output")
@@ -72,7 +98,7 @@ func MuxRequest(fnName string, genericOut *base.GenericOutput) (*base.ExecuteOut
 		outputHashes := make(map[string][]byte)
 		outputHashes["writeset"] = wsHash
 		return output, outputHashes, nil
-	case "close_randlot":
+	case "close_dkglot":
 		closeOut, ok := genericOut.O.(CloseOutput)
 		if !ok {
 			return nil, nil, xerrors.New("missing output")
@@ -86,7 +112,24 @@ func MuxRequest(fnName string, genericOut *base.GenericOutput) (*base.ExecuteOut
 		outputHashes := make(map[string][]byte)
 		outputHashes["writeset"] = wsHash
 		return output, outputHashes, nil
-	case "finalize_randlot":
+	case "prepare_decrypt":
+		prepDecOut, ok := genericOut.O.(PrepDecOutput)
+		if !ok {
+			return nil, nil, xerrors.New("missing output")
+		}
+		data, err := protobuf.Encode(&prepDecOut)
+		if err != nil {
+			return nil, nil, xerrors.Errorf("encoding output: %v", err)
+		}
+		output := &base.ExecuteOutput{Data: data}
+		hash, err := prepDecOut.Input.Hash()
+		if err != nil {
+			return nil, nil, err
+		}
+		outputHashes := make(map[string][]byte)
+		outputHashes["ciphertexts"] = hash
+		return output, outputHashes, nil
+	case "finalize_dkglot":
 		finalizeOut, ok := genericOut.O.(FinalizeOutput)
 		if !ok {
 			return nil, nil, xerrors.New("missing output")
@@ -105,6 +148,19 @@ func MuxRequest(fnName string, genericOut *base.GenericOutput) (*base.ExecuteOut
 	return nil, nil, nil
 }
 
+func getSetupHashes(fnName string, input *SetupInput) (map[string][]byte,
+	error) {
+	inputHashes := make(map[string][]byte)
+	inputHashes["fnname"] = base.GetFnHash(fnName)
+	buf, err := utils.HashPoint(input.Pk)
+	if err != nil {
+		log.Errorf("calculating the public key hash: %v", err)
+		return nil, err
+	}
+	inputHashes["pk"] = buf
+	return inputHashes, nil
+}
+
 func getCloseHashes(fnName string, input *CloseInput) map[string][]byte {
 	inputHashes := make(map[string][]byte)
 	inputHashes["fnname"] = base.GetFnHash(fnName)
@@ -115,12 +171,11 @@ func getCloseHashes(fnName string, input *CloseInput) map[string][]byte {
 func getFinalizeHashes(fnName string, input *FinalizeInput) (map[string][]byte, error) {
 	inputHashes := make(map[string][]byte)
 	inputHashes["fnname"] = base.GetFnHash(fnName)
-	inputHashes["round"] = utils.HashUint64(input.Round)
-	buf, err := input.Randomness.Hash()
+	buf, err := utils.HashPoints(input.Ps)
 	if err != nil {
-		log.Errorf("calculating the randomness hash: %v", err)
+		log.Errorf("calculating the dec_tickets hash: %v", err)
 		return nil, err
 	}
-	inputHashes["randomness"] = buf
+	inputHashes["plaintexts"] = buf
 	return inputHashes, nil
 }

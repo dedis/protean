@@ -1,6 +1,7 @@
-package libtest
+package shufdkg
 
 import (
+	"flag"
 	"fmt"
 	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/easyneff"
@@ -9,12 +10,14 @@ import (
 	"github.com/dedis/protean/libexec"
 	"github.com/dedis/protean/libexec/apps/shufdkg"
 	execbase "github.com/dedis/protean/libexec/base"
+	"github.com/dedis/protean/libtest"
 	"github.com/dedis/protean/threshold"
 	threshbase "github.com/dedis/protean/threshold/base"
 	protean "github.com/dedis/protean/utils"
 	"github.com/stretchr/testify/require"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/kyber/v3"
+	"go.dedis.ch/kyber/v3/pairing"
 	"go.dedis.ch/kyber/v3/util/key"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
@@ -22,6 +25,22 @@ import (
 	"strconv"
 	"testing"
 )
+
+var contractFile string
+var fsmFile string
+var dfuFile string
+
+var testSuite = pairing.NewSuiteBn256()
+
+func init() {
+	flag.StringVar(&contractFile, "contract", "", "JSON file")
+	flag.StringVar(&fsmFile, "fsm", "", "JSON file")
+	flag.StringVar(&dfuFile, "dfu", "", "JSON file")
+}
+
+func TestMain(m *testing.M) {
+	log.MainTest(m)
+}
 
 func Test_ShufDKG(t *testing.T) {
 	log.SetDebugVisible(1)
@@ -31,13 +50,13 @@ func Test_ShufDKG(t *testing.T) {
 	regRoster := onet.NewRoster(all.List[0:4])
 	dfuRoster := onet.NewRoster(all.List[4:])
 
-	regCl, rid, regPr, err := SetupRegistry(&dfuFile, regRoster, dfuRoster)
+	regCl, rid, regPr, err := libtest.SetupRegistry(&dfuFile, regRoster, dfuRoster)
 	require.NoError(t, err)
 	regGenesis, err := regCl.FetchGenesisBlock(regPr.Latest.SkipChainID())
 	require.NoError(t, err)
 
 	// Initialize DFUs
-	adminCl, err := SetupStateUnit(dfuRoster)
+	adminCl, err := libtest.SetupStateUnit(dfuRoster)
 	require.NoError(t, err)
 	execCl := libexec.NewClient(dfuRoster)
 	_, err = execCl.InitUnit()

@@ -306,8 +306,9 @@ func (d *ThreshDecrypt) runVerification() error {
 }
 
 func (d *ThreshDecrypt) generateResponse() (*ReconstructResponse, error) {
-	hash, err := d.calculateHash()
+	hash, err := utils.HashPoints(d.Ps)
 	if err != nil {
+		log.Errorf("calculating the hash of points: %v", err)
 		return &ReconstructResponse{}, err
 	}
 	r := &core.OpcodeReceipt{
@@ -326,18 +327,6 @@ func (d *ThreshDecrypt) generateResponse() (*ReconstructResponse, error) {
 	sigs := make(map[string]blsproto.BlsSignature)
 	sigs["plaintexts"] = sig
 	return &ReconstructResponse{Signatures: sigs}, nil
-}
-
-func (d *ThreshDecrypt) calculateHash() ([]byte, error) {
-	h := sha256.New()
-	for i, ptext := range d.Ps {
-		data, err := ptext.Data()
-		if err != nil {
-			return nil, xerrors.Errorf("couldn't extract data item %d: %v", i, err)
-		}
-		h.Write(data)
-	}
-	return h.Sum(nil), nil
 }
 
 func (d *ThreshDecrypt) generateDecProof(u kyber.Point, sh kyber.Point) (kyber.Scalar, kyber.Scalar) {

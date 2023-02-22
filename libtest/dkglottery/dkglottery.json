@@ -1,0 +1,173 @@
+{
+	"workflows": {
+		"setupwf": {
+			"txns": {
+				"setup": {
+					"opcodes": [
+						{
+							"name": "init_dkg",
+							"dfu_id":"threshold"
+						},
+						{
+							"name": "exec",
+							"dfu_id": "codeexec",
+							"inputs": {
+								"fnname": {
+									"src": "CONST",
+									"value": "setup"
+								},
+								"pk": {
+									"src": "OPCODE",
+									"src_name": "X",
+									"idx": 0
+								},
+								"readset": {
+									"src": "KEYVALUE",
+									"value": "header"
+								}
+							}
+						}
+					]
+				}
+			}
+		},
+		"joinwf": {
+			"txns": {
+				"join": {
+					"opcodes": [
+						{
+							"name": "exec",
+							"dfu_id": "codeexec",
+							"inputs": {
+								"fnname": {
+									"src": "CONST",
+									"value": "join_dkglot"
+								},
+								"readset": {
+									"src": "KEYVALUE",
+									"value": "enc_tickets,header"
+								}
+							}
+						},
+						{
+							"name": "update_state",
+							"dfu_id": "state",
+							"inputs": {
+								"ws": {
+									"src": "OPCODE",
+									"src_name": "writeset",
+									"idx": 0
+								}
+							}
+						}
+					]
+				}
+			}
+		},
+		"closewf": {
+			"txns": {
+				"close": {
+					"opcodes": [
+						{
+							"name": "exec",
+							"dfu_id": "codeexec",
+							"inputs": {
+								"fnname": {
+									"src": "CONST",
+									"value": "close_dkglot"
+								},
+								"barrier": {
+									"src": "CONST",
+									"value": 0
+								},
+								"readset": {
+									"src": "KEYVALUE",
+									"value": "header"
+								}
+							}
+						},
+						{
+							"name": "update_state",
+							"dfu_id": "state",
+							"inputs": {
+								"ws": {
+									"src": "OPCODE",
+									"src_name": "writeset",
+									"idx": 0
+								}
+							}
+						}
+					]
+				}
+			}
+		},
+		"finalizewf": {
+			"txns": {
+				"finalize": {
+					"opcodes": [
+						{
+							"name": "exec",
+							"dfu_id": "codeexec",
+							"inputs": {
+								"fnname": {
+									"src": "CONST",
+									"value": "prepare_decrypt"
+								},
+								"readset": {
+									"src": "KEYVALUE",
+									"value": "enc_tickets"
+								}
+							}
+						},
+						{
+							"name": "decrypt",
+							"dfu_id": "threshold",
+							"inputs": {
+								"ciphertexts": {
+									"src": "OPCODE",
+									"src_name": "ciphertexts",
+									"idx": 0
+								}
+							}
+						},
+						{
+							"name": "exec",
+							"dfu_id": "codeexec",
+							"inputs": {
+								"fnname": {
+									"src": "CONST",
+									"value": "finalize_dkglot"
+								},
+								"readset": {
+									"src": "KEYVALUE",
+									"value": "header"
+								},
+								"plaintexts": {
+									"src": "OPCODE",
+									"src_name": "plaintexts",
+									"idx": 1
+								}
+							}
+						},
+						{
+							"name": "update_state",
+							"dfu_id": "state",
+							"inputs": {
+								"ws": {
+									"src": "OPCODE",
+									"src_name": "writeset",
+									"idx": 2
+								}
+							}
+						}
+					]
+				}
+			}
+		}
+	},
+	"dfus": [
+		"codeexec",
+		"state",
+		"threshold"
+	]
+}

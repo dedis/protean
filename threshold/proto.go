@@ -25,7 +25,6 @@ type InitDKGRequest struct {
 }
 
 type InitDKGReply struct {
-	//X        kyber.Point
 	Output   base.DKGOutput
 	Receipts map[string]*core.OpcodeReceipt
 }

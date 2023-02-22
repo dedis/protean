@@ -1,35 +1,48 @@
-package randlottery
+package dkglottery
 
 import (
-	"crypto/sha256"
 	"encoding/binary"
 	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/libexec/base"
-	"github.com/dedis/protean/utils"
-	"go.dedis.ch/cothority/v3"
+	threshold "github.com/dedis/protean/threshold/base"
 	"go.dedis.ch/cothority/v3/byzcoin"
-	"go.dedis.ch/kyber/v3/pairing"
-	"go.dedis.ch/kyber/v3/sign/bls"
-	"go.dedis.ch/kyber/v3/sign/schnorr"
-	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/protobuf"
 	"golang.org/x/xerrors"
 )
+
+func Setup(genInput *base.GenericInput) (*base.GenericOutput, error) {
+	input, ok := genInput.I.(SetupInput)
+	if !ok {
+		return nil, xerrors.New("missing input")
+	}
+	kvDict, ok := genInput.KVDicts["readset"]
+	if !ok {
+		return nil, xerrors.New("missing keyvalue data")
+	}
+	hdr, err := getHeader(&kvDict)
+	if err != nil {
+		return nil, err
+	}
+	hdr.CurrState = "lottery_open"
+	hdrBuf, err := protobuf.Encode(hdr)
+	if err != nil {
+		return nil, xerrors.Errorf("couldn't encode header: %v", err)
+	}
+	pkBuf, err := input.Pk.MarshalBinary()
+	if err != nil {
+		return nil, xerrors.Errorf("marshaling public key: %v", err)
+	}
+	args := byzcoin.Arguments{
+		{Name: "header", Value: hdrBuf},
+		{Name: "pk", Value: pkBuf},
+	}
+	return &base.GenericOutput{O: SetupOutput{WS: args}}, nil
+}
 
 func JoinLottery(genInput *base.GenericInput) (*base.GenericOutput, error) {
 	input, ok := genInput.I.(JoinInput)
 	if !ok {
 		return nil, xerrors.New("missing input")
-	}
-	ticket := input.Ticket
-	pkHash, err := utils.HashPoint(ticket.Key)
-	if err != nil {
-		return nil, xerrors.Errorf("couldn't calculate the hash of pk: %v",
-			err)
-	}
-	err = schnorr.Verify(cothority.Suite, ticket.Key, pkHash, ticket.Sig)
-	if err != nil {
-		return nil, xerrors.Errorf("couldn't verify signature: %v", err)
 	}
 	kvDict, ok := genInput.KVDicts["readset"]
 	if !ok {
@@ -39,12 +52,12 @@ func JoinLottery(genInput *base.GenericInput) (*base.GenericOutput, error) {
 	if err != nil {
 		return nil, err
 	}
-	tickets.Data = append(tickets.Data, ticket)
+	tickets.Data.Pairs = append(tickets.Data.Pairs, input.Ticket.Data)
 	buf, err := protobuf.Encode(tickets)
 	if err != nil {
 		return nil, xerrors.Errorf("couldn't encode tickets: %v", err)
 	}
-	args := byzcoin.Arguments{{Name: "tickets", Value: buf}}
+	args := byzcoin.Arguments{{Name: "enc_tickets", Value: buf}}
 	return &base.GenericOutput{O: JoinOutput{WS: args}}, nil
 }
 
@@ -75,28 +88,7 @@ func CloseLottery(genInput *base.GenericInput) (*base.GenericOutput, error) {
 	return &base.GenericOutput{O: CloseOutput{WS: args}}, nil
 }
 
-func FinalizeLottery(genInput *base.GenericInput) (*base.GenericOutput, error) {
-	input, ok := genInput.I.(FinalizeInput)
-	if !ok {
-		return nil, xerrors.New("missing input")
-	}
-	// Check that the round values match
-	if input.Round != input.Randomness.Round {
-		return nil, xerrors.New("invalid round value")
-	}
-	// Verify randomness
-	suite := pairing.NewSuiteBn256()
-	err := bls.Verify(suite, input.Randomness.Public, input.Randomness.Prev,
-		input.Randomness.Value)
-	if err != nil {
-		return nil, xerrors.Errorf("couldn't verify randomness: %v", err)
-	}
-	// Derive random integer
-	h := sha256.New()
-	h.Write(input.Randomness.Value)
-	randBytes := h.Sum(nil)
-	rand := binary.LittleEndian.Uint64(randBytes)
-	// Get tickets
+func PrepareDecrypt(genInput *base.GenericInput) (*base.GenericOutput, error) {
 	kvDict, ok := genInput.KVDicts["readset"]
 	if !ok {
 		return nil, xerrors.New("missing keyvalue data")
@@ -105,14 +97,35 @@ func FinalizeLottery(genInput *base.GenericInput) (*base.GenericOutput, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Find winner
-	winnerIdx := rand % uint64(len(tickets.Data))
-	winner := Winner{
-		Index: int(winnerIdx),
-		Key:   tickets.Data[winnerIdx].Key,
+	input := threshold.DecryptInput{ElGamalPairs: tickets.Data}
+	return &base.GenericOutput{O: PrepDecOutput{Input: input}}, nil
+}
+
+func FinalizeLottery(genInput *base.GenericInput) (*base.GenericOutput, error) {
+	input, ok := genInput.I.(FinalizeInput)
+	if !ok {
+		return nil, xerrors.New("missing input")
 	}
-	log.Info("Winner index:", winnerIdx, winner.Key.String())
-	// Get header
+	kvDict, ok := genInput.KVDicts["readset"]
+	if !ok {
+		return nil, xerrors.New("missing keyvalue data")
+	}
+	pdata := make([][]byte, len(input.Ps))
+	for i, p := range input.Ps {
+		msg, err := p.Data()
+		if err != nil {
+			return nil, xerrors.Errorf("couldn't recover plaintext: %v", err)
+		}
+		pdata[i] = msg
+	}
+	randBytes := generateRandomness(pdata)
+	rand := binary.LittleEndian.Uint64(randBytes)
+	winnerIdx := rand % uint64(len(pdata))
+	winner := Winner{
+		Index:  int(winnerIdx),
+		Ticket: pdata[winnerIdx],
+	}
+	// Prepare write set
 	hdr, err := getHeader(&kvDict)
 	if err != nil {
 		return nil, err
@@ -122,10 +135,10 @@ func FinalizeLottery(genInput *base.GenericInput) (*base.GenericOutput, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("couldn't encode header: %v", err)
 	}
-	// Prepare write set
-	randBuf, err := protobuf.Encode(&input.Randomness)
+	decTickets := DecTickets{Data: pdata}
+	dtBuf, err := protobuf.Encode(&decTickets)
 	if err != nil {
-		return nil, xerrors.Errorf("couldn't encode randomness: %v", err)
+		return nil, xerrors.Errorf("couldn't encode decrypted tickets: %v", err)
 	}
 	winnerBuf, err := protobuf.Encode(&winner)
 	if err != nil {
@@ -133,7 +146,7 @@ func FinalizeLottery(genInput *base.GenericInput) (*base.GenericOutput, error) {
 	}
 	args := byzcoin.Arguments{
 		{Name: "header", Value: hdrBuf},
-		{Name: "randomness", Value: randBuf},
+		{Name: "dec_tickets", Value: dtBuf},
 		{Name: "winner", Value: winnerBuf},
 	}
 	return &base.GenericOutput{O: FinalizeOutput{WS: args}}, nil
@@ -152,15 +165,27 @@ func getHeader(kvDict *core.KVDict) (*core.ContractHeader, error) {
 	return hdr, nil
 }
 
-func getTickets(kvDict *core.KVDict) (*Tickets, error) {
-	buf, ok := kvDict.Data["tickets"]
+func getTickets(kvDict *core.KVDict) (*EncTickets, error) {
+	buf, ok := kvDict.Data["enc_tickets"]
 	if !ok {
-		return nil, xerrors.New("missing key: tickets")
+		return nil, xerrors.New("missing key: enc_tickets")
 	}
-	tickets := &Tickets{}
+	tickets := &EncTickets{}
 	err := protobuf.Decode(buf, tickets)
 	if err != nil {
 		return nil, xerrors.Errorf("couldn't decode tickets: %v", err)
 	}
 	return tickets, nil
+}
+
+func generateRandomness(data [][]byte) []byte {
+	sz := len(data[0])
+	rand := make([]byte, sz)
+	copy(rand, data[0])
+	for i := 1; i < len(data); i++ {
+		for j := 0; j < sz; j++ {
+			rand[j] = rand[j] ^ data[i][j]
+		}
+	}
+	return rand
 }

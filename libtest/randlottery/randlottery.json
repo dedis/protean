@@ -10,7 +10,7 @@
 							"inputs": {
 								"fnname": {
 									"src": "CONST",
-									"value": "join_lottery"
+									"value": "join_randlot"
 								},
 								"readset": {
 									"src": "KEYVALUE",
@@ -43,7 +43,7 @@
 							"inputs": {
 								"fnname": {
 									"src": "CONST",
-									"value": "close_lottery"
+									"value": "close_randlot"
 								},
 								"barrier": {
 									"src": "CONST",
@@ -90,7 +90,7 @@
 							"inputs": {
 								"fnname": {
 									"src": "CONST",
-									"value": "finalize_lottery"
+									"value": "finalize_randlot"
 								},
 								"round": {
 									"src": "CONST",

@@ -1,7 +1,6 @@
 package libtest
 
 import (
-	"flag"
 	"github.com/dedis/protean/libclient"
 	"github.com/dedis/protean/libexec"
 	"github.com/dedis/protean/libstate"
@@ -10,29 +9,10 @@ import (
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/darc"
 	"go.dedis.ch/cothority/v3/skipchain"
-	"go.dedis.ch/kyber/v3/pairing"
 	"go.dedis.ch/onet/v3"
-	"go.dedis.ch/onet/v3/log"
 	"os"
-	"testing"
 	"time"
 )
-
-var contractFile string
-var fsmFile string
-var dfuFile string
-
-var testSuite = pairing.NewSuiteBn256()
-
-func init() {
-	flag.StringVar(&contractFile, "contract", "", "JSON file")
-	flag.StringVar(&fsmFile, "fsm", "", "JSON file")
-	flag.StringVar(&dfuFile, "dfu", "", "JSON file")
-}
-
-func TestMain(m *testing.M) {
-	log.MainTest(m)
-}
 
 func SetupRegistry(dfuFile *string, regRoster *onet.Roster,
 	dfuRoster *onet.Roster) (*registry.Client, byzcoin.InstanceID,

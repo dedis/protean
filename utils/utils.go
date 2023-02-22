@@ -3,6 +3,7 @@ package utils
 import (
 	"crypto/sha256"
 	"encoding/binary"
+	"golang.org/x/xerrors"
 	"sort"
 	"time"
 
@@ -86,6 +87,18 @@ func HashPoint(p kyber.Point) ([]byte, error) {
 	}
 	h := sha256.New()
 	h.Write(buf)
+	return h.Sum(nil), nil
+}
+
+func HashPoints(ps []kyber.Point) ([]byte, error) {
+	h := sha256.New()
+	for _, ptext := range ps {
+		data, err := ptext.MarshalBinary()
+		if err != nil {
+			return nil, xerrors.Errorf("couldn't marshal point: %v", err)
+		}
+		h.Write(data)
+	}
 	return h.Sum(nil), nil
 }
 

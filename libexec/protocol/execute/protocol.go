@@ -97,7 +97,6 @@ func (p *Execute) Start() error {
 		return err
 	}
 	p.responses = append(p.responses, resp)
-	//p.mask, err = sign.NewMask(p.suite, p.Publics(), p.Public())
 	p.mask, err = sign.NewMask(p.suite, p.Publics, p.KP.Public)
 	if err != nil {
 		p.finish(false)
