@@ -14,7 +14,7 @@
 							"inputs": {
 								"fnname": {
 									"src": "CONST",
-									"value": "setup_dkglot"
+									"value": "setup_vote"
 								},
 								"pk": {
 									"src": "OPCODE",
@@ -42,9 +42,9 @@
 				}
 			}
 		},
-		"joinwf": {
+		"votewf": {
 			"txns": {
-				"join": {
+				"vote": {
 					"opcodes": [
 						{
 							"name": "exec",
@@ -52,11 +52,11 @@
 							"inputs": {
 								"fnname": {
 									"src": "CONST",
-									"value": "join_dkglot"
+									"value": "vote"
 								},
 								"readset": {
 									"src": "KEYVALUE",
-									"value": "enc_tickets,header"
+									"value": "enc_ballots,header"
 								}
 							}
 						},
@@ -85,7 +85,7 @@
 							"inputs": {
 								"fnname": {
 									"src": "CONST",
-									"value": "close_dkglot"
+									"value": "close_vote"
 								},
 								"barrier": {
 									"src": "CONST",
@@ -114,7 +114,7 @@
 		},
 		"finalizewf": {
 			"txns": {
-				"finalize": {
+				"shuffle": {
 					"opcodes": [
 						{
 							"name": "exec",
@@ -122,11 +122,75 @@
 							"inputs": {
 								"fnname": {
 									"src": "CONST",
-									"value": "prepare_decrypt_dkglot"
+									"value": "prepare_shuffle"
 								},
 								"readset": {
 									"src": "KEYVALUE",
-									"value": "enc_tickets"
+									"value": "enc_ballots,pk"
+								}
+							}
+						},
+						{
+							"name": "shuffle",
+							"dfu_id": "easyneff",
+							"inputs": {
+								"pairs": {
+									"src": "OPCODE",
+									"src_name": "ciphertexts",
+									"idx": 0
+								},
+								"h": {
+									"src": "OPCODE",
+									"src_name": "pk",
+									"idx": 0
+								}
+							}
+						},
+						{
+							"name": "exec",
+							"dfu_id": "codeexec",
+							"inputs": {
+								"fnname": {
+									"src": "CONST",
+									"value": "prepare_proofs"
+								},
+								"readset": {
+									"src": "KEYVALUE",
+									"value": "header"
+								},
+								"proofs": {
+									"src": "OPCODE",
+									"src_name": "proofs",
+									"idx": 1
+								}
+							}
+						},
+						{
+							"name": "update_state",
+							"dfu_id": "state",
+							"inputs": {
+								"ws": {
+									"src": "OPCODE",
+									"src_name": "writeset",
+									"idx": 2
+								}
+							}
+						}
+					]
+				},
+				"tally": {
+					"opcodes": [
+						{
+							"name": "exec",
+							"dfu_id": "codeexec",
+							"inputs": {
+								"fnname": {
+									"src": "CONST",
+									"value": "prepare_decrypt_vote"
+								},
+								"readset": {
+									"src": "KEYVALUE",
+									"value": "proofs"
 								}
 							}
 						},
@@ -147,7 +211,7 @@
 							"inputs": {
 								"fnname": {
 									"src": "CONST",
-									"value": "finalize_dkglot"
+									"value": "tally"
 								},
 								"readset": {
 									"src": "KEYVALUE",
@@ -157,6 +221,10 @@
 									"src": "OPCODE",
 									"src_name": "plaintexts",
 									"idx": 1
+								},
+								"candidate_count": {
+									"src": "CONST",
+									"value": 3
 								}
 							}
 						},
@@ -179,6 +247,7 @@
 	"dfus": [
 		"codeexec",
 		"state",
+		"easyneff",
 		"threshold"
 	]
 }

@@ -107,10 +107,6 @@ func FinalizeLottery(genInput *base.GenericInput) (*base.GenericOutput, error) {
 	if !ok {
 		return nil, xerrors.New("missing input")
 	}
-	kvDict, ok := genInput.KVDicts["readset"]
-	if !ok {
-		return nil, xerrors.New("missing keyvalue data")
-	}
 	pdata := make([][]byte, len(input.Ps))
 	for i, p := range input.Ps {
 		msg, err := p.Data()
@@ -128,6 +124,10 @@ func FinalizeLottery(genInput *base.GenericInput) (*base.GenericOutput, error) {
 	}
 	log.Info("Winner is:", winner.Index, winner.Ticket)
 	// Prepare write set
+	kvDict, ok := genInput.KVDicts["readset"]
+	if !ok {
+		return nil, xerrors.New("missing keyvalue data")
+	}
 	hdr, err := getHeader(&kvDict)
 	if err != nil {
 		return nil, err

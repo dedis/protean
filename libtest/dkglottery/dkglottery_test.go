@@ -130,7 +130,7 @@ func Test_DKGLottery(t *testing.T) {
 	sp := make(map[string]*core.StateProof)
 	sp["readset"] = &gcs.Proof
 	execInput := execbase.ExecuteInput{
-		FnName:      "setup",
+		FnName:      "setup_dkglot",
 		Data:        data,
 		StateProofs: sp,
 	}
@@ -221,7 +221,7 @@ func Test_DKGLottery(t *testing.T) {
 	sp = make(map[string]*core.StateProof)
 	sp["readset"] = &gcs.Proof
 	execInput = execbase.ExecuteInput{
-		FnName:      "prepare_decrypt",
+		FnName:      "prepare_decrypt_dkglot",
 		StateProofs: sp,
 	}
 	execReply, err = execCl.Execute(execInput, execReq)

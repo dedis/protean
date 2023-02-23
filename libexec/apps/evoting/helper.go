@@ -1,4 +1,4 @@
-package dkglottery
+package evoting
 
 import (
 	"github.com/dedis/protean/core"
@@ -14,7 +14,7 @@ func DemuxRequest(input *base.ExecuteInput,
 	vdata *core.VerificationData) (base.ExecutionFn, *base.GenericInput,
 	*core.VerificationData, error) {
 	switch input.FnName {
-	case "setup_dkglot":
+	case "setup_vote":
 		var setupIn SetupInput
 		err := protobuf.Decode(input.Data, &setupIn)
 		if err != nil {
@@ -23,9 +23,9 @@ func DemuxRequest(input *base.ExecuteInput,
 		vdata.StateProofs = input.StateProofs
 		vdata.InputHashes, err = getSetupHashes(input.FnName, &setupIn)
 		return Setup, &base.GenericInput{I: setupIn}, vdata, nil
-	case "join_dkglot":
-		var joinIn JoinInput
-		err := protobuf.Decode(input.Data, &joinIn)
+	case "vote":
+		var voteIn VoteInput
+		err := protobuf.Decode(input.Data, &voteIn)
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -33,8 +33,8 @@ func DemuxRequest(input *base.ExecuteInput,
 		inputHashes := make(map[string][]byte)
 		inputHashes["fnname"] = utils.HashString(input.FnName)
 		vdata.InputHashes = inputHashes
-		return JoinLottery, &base.GenericInput{I: joinIn}, vdata, nil
-	case "close_dkglot":
+		return Vote, &base.GenericInput{I: voteIn}, vdata, nil
+	case "close_vote":
 		var closeIn CloseInput
 		err := protobuf.Decode(input.Data, &closeIn)
 		if err != nil {
@@ -47,25 +47,43 @@ func DemuxRequest(input *base.ExecuteInput,
 		closeIn.BlkHeight = len(pr.Proof.Links)
 		vdata.InputHashes = getCloseHashes(input.FnName, &closeIn)
 		vdata.StateProofs = input.StateProofs
-		return CloseLottery, &base.GenericInput{I: closeIn}, vdata, nil
-	case "prepare_decrypt_dkglot":
+		return CloseVote, &base.GenericInput{I: closeIn}, vdata, nil
+	case "prepare_shuffle":
+		inputHashes := make(map[string][]byte)
+		inputHashes["fnname"] = utils.HashString(input.FnName)
+		vdata.InputHashes = inputHashes
+		vdata.StateProofs = input.StateProofs
+		return PrepareShuffle, &base.GenericInput{I: nil}, vdata, nil
+	case "prepare_proofs":
+		var storeIn PrepProofsInput
+		err := protobuf.Decode(input.Data, &storeIn)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		vdata.InputHashes, err = getStoreHashes(input.FnName, &storeIn)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		vdata.StateProofs = input.StateProofs
+		return PrepareProofs, &base.GenericInput{I: storeIn}, vdata, nil
+	case "prepare_decrypt_vote":
 		inputHashes := make(map[string][]byte)
 		inputHashes["fnname"] = utils.HashString(input.FnName)
 		vdata.InputHashes = inputHashes
 		vdata.StateProofs = input.StateProofs
 		return PrepareDecrypt, &base.GenericInput{I: nil}, vdata, nil
-	case "finalize_dkglot":
-		var finalizeIn FinalizeInput
-		err := protobuf.Decode(input.Data, &finalizeIn)
+	case "tally":
+		var tallyIn TallyInput
+		err := protobuf.Decode(input.Data, &tallyIn)
 		if err != nil {
 			return nil, nil, nil, err
 		}
-		vdata.InputHashes, err = getFinalizeHashes(input.FnName, &finalizeIn)
+		vdata.InputHashes, err = getTallyHashes(input.FnName, &tallyIn)
 		if err != nil {
 			return nil, nil, nil, err
 		}
 		vdata.StateProofs = input.StateProofs
-		return FinalizeLottery, &base.GenericInput{I: finalizeIn}, vdata, nil
+		return Tally, &base.GenericInput{I: tallyIn}, vdata, nil
 	default:
 	}
 	return nil, nil, nil, nil
@@ -73,7 +91,7 @@ func DemuxRequest(input *base.ExecuteInput,
 
 func MuxRequest(fnName string, genericOut *base.GenericOutput) (*base.ExecuteOutput, map[string][]byte, error) {
 	switch fnName {
-	case "setup_dkglot":
+	case "setup_vote":
 		setupOut, ok := genericOut.O.(SetupOutput)
 		if !ok {
 			return nil, nil, xerrors.New("missing output")
@@ -87,21 +105,21 @@ func MuxRequest(fnName string, genericOut *base.GenericOutput) (*base.ExecuteOut
 		outputHashes := make(map[string][]byte)
 		outputHashes["writeset"] = wsHash
 		return output, outputHashes, nil
-	case "join_dkglot":
-		joinOut, ok := genericOut.O.(JoinOutput)
+	case "vote":
+		voteOut, ok := genericOut.O.(VoteOutput)
 		if !ok {
 			return nil, nil, xerrors.New("missing output")
 		}
-		data, err := protobuf.Encode(&joinOut)
+		data, err := protobuf.Encode(&voteOut)
 		if err != nil {
 			return nil, nil, err
 		}
 		output := &base.ExecuteOutput{Data: data}
-		wsHash := libstate.Hash(joinOut.WS)
+		wsHash := libstate.Hash(voteOut.WS)
 		outputHashes := make(map[string][]byte)
 		outputHashes["writeset"] = wsHash
 		return output, outputHashes, nil
-	case "close_dkglot":
+	case "close_vote":
 		closeOut, ok := genericOut.O.(CloseOutput)
 		if !ok {
 			return nil, nil, xerrors.New("missing output")
@@ -115,7 +133,36 @@ func MuxRequest(fnName string, genericOut *base.GenericOutput) (*base.ExecuteOut
 		outputHashes := make(map[string][]byte)
 		outputHashes["writeset"] = wsHash
 		return output, outputHashes, nil
-	case "prepare_decrypt_dkglot":
+	case "prepare_shuffle":
+		prepShufOut, ok := genericOut.O.(PrepShufOutput)
+		if !ok {
+			return nil, nil, xerrors.New("missing output")
+		}
+		data, err := protobuf.Encode(&prepShufOut)
+		if err != nil {
+			return nil, nil, xerrors.Errorf("encoding output: %v", err)
+		}
+		output := &base.ExecuteOutput{Data: data}
+		outputHashes, err := prepShufOut.Input.PrepareHashes()
+		if err != nil {
+			return nil, nil, err
+		}
+		return output, outputHashes, nil
+	case "prepare_proofs":
+		prepProofsOut, ok := genericOut.O.(PrepProofsOutput)
+		if !ok {
+			return nil, nil, xerrors.New("missing output")
+		}
+		data, err := protobuf.Encode(&prepProofsOut)
+		if err != nil {
+			return nil, nil, xerrors.Errorf("encoding output: %v", err)
+		}
+		output := &base.ExecuteOutput{Data: data}
+		wsHash := libstate.Hash(prepProofsOut.WS)
+		outputHashes := make(map[string][]byte)
+		outputHashes["writeset"] = wsHash
+		return output, outputHashes, nil
+	case "prepare_decrypt_vote":
 		prepDecOut, ok := genericOut.O.(PrepDecOutput)
 		if !ok {
 			return nil, nil, xerrors.New("missing output")
@@ -132,17 +179,17 @@ func MuxRequest(fnName string, genericOut *base.GenericOutput) (*base.ExecuteOut
 		outputHashes := make(map[string][]byte)
 		outputHashes["ciphertexts"] = hash
 		return output, outputHashes, nil
-	case "finalize_dkglot":
-		finalizeOut, ok := genericOut.O.(FinalizeOutput)
+	case "tally":
+		tallyOut, ok := genericOut.O.(TallyOutput)
 		if !ok {
 			return nil, nil, xerrors.New("missing output")
 		}
-		data, err := protobuf.Encode(&finalizeOut)
+		data, err := protobuf.Encode(&tallyOut)
 		if err != nil {
 			return nil, nil, xerrors.Errorf("encoding output: %v", err)
 		}
 		output := &base.ExecuteOutput{Data: data}
-		wsHash := libstate.Hash(finalizeOut.WS)
+		wsHash := libstate.Hash(tallyOut.WS)
 		outputHashes := make(map[string][]byte)
 		outputHashes["writeset"] = wsHash
 		return output, outputHashes, nil
@@ -171,14 +218,29 @@ func getCloseHashes(fnName string, input *CloseInput) map[string][]byte {
 	return inputHashes
 }
 
-func getFinalizeHashes(fnName string, input *FinalizeInput) (map[string][]byte, error) {
+func getStoreHashes(fnName string, input *PrepProofsInput) (
+	map[string][]byte, error) {
+	var err error
+	inputHashes := make(map[string][]byte)
+	inputHashes["fnname"] = utils.HashString(fnName)
+	inputHashes["proofs"], err = input.ShProofs.Hash()
+	if err != nil {
+		log.Errorf("calculating the proofs hash: %v", err)
+		return nil, err
+	}
+	return inputHashes, nil
+}
+
+func getTallyHashes(fnName string, input *TallyInput) (map[string][]byte,
+	error) {
 	inputHashes := make(map[string][]byte)
 	inputHashes["fnname"] = utils.HashString(fnName)
 	buf, err := utils.HashPoints(input.Ps)
 	if err != nil {
-		log.Errorf("calculating the dec_tickets hash: %v", err)
+		log.Errorf("calculating the dec_ballots hash: %v", err)
 		return nil, err
 	}
+	inputHashes["candidate_count"] = utils.HashUint64(uint64(input.CandCount))
 	inputHashes["plaintexts"] = buf
 	return inputHashes, nil
 }

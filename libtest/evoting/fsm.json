@@ -1,0 +1,26 @@
+{
+  "initial_state": "init",
+  "states": ["init","vote_open", "vote_closed", "vote_shuffled", "vote_finalized"],
+  "transitions": {
+    "setup": {
+      "from": "init",
+      "to": "vote_open"
+    },
+    "vote": {
+      "from": "vote_open",
+      "to": "vote_open"
+    },
+    "close": {
+      "from": "vote_open",
+      "to": "vote_closed"
+    },
+    "shuffle": {
+      "from": "vote_closed",
+      "to": "vote_shuffled"
+    },
+    "tally": {
+      "from": "vote_shuffled",
+      "to": "vote_finalized"
+    }
+  }
+}
