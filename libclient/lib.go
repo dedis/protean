@@ -144,7 +144,7 @@ func muxDependencyValue(contract *core.Contract) {
 			for _, opcode := range txn.Opcodes {
 				for _, dep := range opcode.Dependencies {
 					switch v := dep.Value.(type) {
-					case int:
+					case float64:
 						dep.UintValue = uint64(v)
 					case string:
 						dep.StringValue = v
