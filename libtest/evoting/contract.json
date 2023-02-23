@@ -136,12 +136,12 @@
 							"inputs": {
 								"pairs": {
 									"src": "OPCODE",
-									"src_name": "ciphertexts",
+									"src_name": "pairs",
 									"idx": 0
 								},
 								"h": {
 									"src": "OPCODE",
-									"src_name": "pk",
+									"src_name": "h",
 									"idx": 0
 								}
 							}
@@ -224,7 +224,7 @@
 								},
 								"candidate_count": {
 									"src": "CONST",
-									"value": 3
+									"value": 5
 								}
 							}
 						},

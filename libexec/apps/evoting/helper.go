@@ -60,7 +60,7 @@ func DemuxRequest(input *base.ExecuteInput,
 		if err != nil {
 			return nil, nil, nil, err
 		}
-		vdata.InputHashes, err = getStoreHashes(input.FnName, &storeIn)
+		vdata.InputHashes, err = getPrepProofHashes(input.FnName, &storeIn)
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -80,6 +80,7 @@ func DemuxRequest(input *base.ExecuteInput,
 		}
 		vdata.InputHashes, err = getTallyHashes(input.FnName, &tallyIn)
 		if err != nil {
+			log.Errorf("calculating tally hashes: %v", err)
 			return nil, nil, nil, err
 		}
 		vdata.StateProofs = input.StateProofs
@@ -218,7 +219,7 @@ func getCloseHashes(fnName string, input *CloseInput) map[string][]byte {
 	return inputHashes
 }
 
-func getStoreHashes(fnName string, input *PrepProofsInput) (
+func getPrepProofHashes(fnName string, input *PrepProofsInput) (
 	map[string][]byte, error) {
 	var err error
 	inputHashes := make(map[string][]byte)
