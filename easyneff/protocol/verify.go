@@ -117,7 +117,7 @@ func (s *ShuffleVerify) verifyProofs(r structVerifyProofs) error {
 	s.ShufInput = r.ShufInput
 	s.ShufOutput = r.ShufOutput
 	s.ExecReq = r.ExecReq
-	s.InputHashes, err = s.ShufInput.PrepareInputHashes()
+	s.InputHashes, err = s.ShufInput.PrepareHashes()
 	err = s.runVerification()
 	if err != nil {
 		log.Errorf("%s couldn't verify the execution request: %v", s.Name(), err)

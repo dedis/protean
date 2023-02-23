@@ -129,7 +129,6 @@ func (p *NeffShuffle) Dispatch() error {
 	return nil
 }
 
-//func splitPairs(pairs []utils.ElGamalPair) ([]kyber.Point, []kyber.Point) {
 func splitPairs(pairs utils.ElGamalPairs) ([]kyber.Point, []kyber.Point) {
 	ps := pairs.Pairs
 	xs := make([]kyber.Point, len(ps))

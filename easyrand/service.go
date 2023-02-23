@@ -96,7 +96,7 @@ func (s *EasyRand) Randomness(req *RandomnessRequest) (*RandomnessReply, error) 
 		return nil, err
 	}
 	signPi := pi.(*protocol.SignProtocol)
-	signPi.InputHashes, err = req.Input.PrepareInputHashes()
+	signPi.InputHashes, err = req.Input.PrepareHashes()
 	if err != nil {
 		log.Errorf("failed to prepare the input hashes: %v", err)
 		return nil, err

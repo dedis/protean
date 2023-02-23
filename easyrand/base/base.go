@@ -24,7 +24,7 @@ type RandomnessOutput struct {
 	Value []byte
 }
 
-func (randInput *RandomnessInput) PrepareInputHashes() (map[string][]byte, error) {
+func (randInput *RandomnessInput) PrepareHashes() (map[string][]byte, error) {
 	inputHashes := make(map[string][]byte)
 	inputHashes["round"] = utils.HashUint64(randInput.Round)
 	return inputHashes, nil

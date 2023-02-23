@@ -134,7 +134,7 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 		return nil, xerrors.New("failed to create decryptShare protocol: " + err.Error())
 	}
 	decProto := pi.(*protocol.ThreshDecrypt)
-	decProto.InputHashes, err = req.Input.PrepareInputHashes()
+	decProto.InputHashes, err = req.Input.PrepareHashes()
 	if err != nil {
 		log.Errorf("failed to prepare the input hashes: %v", err)
 		return nil, err

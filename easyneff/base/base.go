@@ -2,7 +2,6 @@ package base
 
 import (
 	"crypto/sha256"
-
 	"github.com/dedis/protean/utils"
 	"go.dedis.ch/kyber/v3"
 )
@@ -28,6 +27,21 @@ type Proof struct {
 	Signature []byte // on the Proof
 }
 
+func (shInput *ShuffleInput) PrepareHashes() (map[string][]byte, error) {
+	inputHashes := make(map[string][]byte)
+	hash, err := shInput.Pairs.Hash()
+	if err != nil {
+		return nil, err
+	}
+	inputHashes["pairs"] = hash
+	hash, err = utils.HashPoint(shInput.H)
+	if err != nil {
+		return nil, err
+	}
+	inputHashes["h"] = hash
+	return inputHashes, nil
+}
+
 func (shOut *ShuffleOutput) Hash() ([]byte, error) {
 	h := sha256.New()
 	for _, pr := range shOut.Proofs {
@@ -47,19 +61,4 @@ func (shOut *ShuffleOutput) Hash() ([]byte, error) {
 		h.Write(pr.Signature)
 	}
 	return h.Sum(nil), nil
-}
-
-func (shInput *ShuffleInput) PrepareInputHashes() (map[string][]byte, error) {
-	inputHashes := make(map[string][]byte)
-	hash, err := shInput.Pairs.Hash()
-	if err != nil {
-		return nil, err
-	}
-	inputHashes["pairs"] = hash
-	hash, err = utils.HashPoint(shInput.H)
-	if err != nil {
-		return nil, err
-	}
-	inputHashes["h"] = hash
-	return inputHashes, nil
 }

@@ -67,7 +67,7 @@ func (s *EasyNeff) Shuffle(req *ShuffleRequest) (*ShuffleReply, error) {
 		shufVerify.ShufOutput = &shufProof
 		shufVerify.ExecReq = &req.ExecReq
 		shufVerify.KP = protean.GetBLSKeyPair(s.ServerIdentity())
-		shufVerify.InputHashes, err = req.Input.PrepareInputHashes()
+		shufVerify.InputHashes, err = req.Input.PrepareHashes()
 		if err != nil {
 			log.Errorf("failed to prepare the input hashes: %v", err)
 			return nil, err

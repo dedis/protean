@@ -23,7 +23,7 @@ type DecryptOutput struct {
 	Ps []kyber.Point
 }
 
-func (decInput *DecryptInput) PrepareInputHashes() (map[string][]byte, error) {
+func (decInput *DecryptInput) PrepareHashes() (map[string][]byte, error) {
 	inputHashes := make(map[string][]byte)
 	hash, err := decInput.Hash()
 	if err != nil {

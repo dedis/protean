@@ -88,7 +88,7 @@ func (v *Verify) Start() error {
 func (v *Verify) verifyRequest(r structRequest) error {
 	defer v.Done()
 	resp := Response{}
-	v.InputHashes = r.Input.PrepareInputHashes()
+	v.InputHashes = r.Input.PrepareHashes()
 	err := r.ExecReq.Verify(&core.VerificationData{UID: base.UID,
 		OpcodeName: base.UPDATE_STATE, InputHashes: v.InputHashes})
 	if err != nil {

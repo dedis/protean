@@ -18,7 +18,7 @@ type UpdateInput struct {
 	Args byzcoin.Arguments
 }
 
-func (input *UpdateInput) PrepareInputHashes() map[string][]byte {
+func (input *UpdateInput) PrepareHashes() map[string][]byte {
 	inputHashes := make(map[string][]byte)
 	inputHashes["ws"] = Hash(input.Args)
 	return inputHashes

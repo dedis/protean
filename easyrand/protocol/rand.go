@@ -74,7 +74,7 @@ func (p *SignProtocol) Dispatch() error {
 	initMsg := <-p.initChan
 	p.Input = initMsg.Input
 	p.ExecReq = initMsg.ExecReq
-	p.InputHashes, err = p.Input.PrepareInputHashes()
+	p.InputHashes, err = p.Input.PrepareHashes()
 	if err != nil {
 		log.Errorf("%s couldn't generate the input hashes: %v", p.Name(), err)
 		return err

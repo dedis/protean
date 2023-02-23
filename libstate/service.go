@@ -185,7 +185,7 @@ func (s *Service) runVerification(req *UpdateStateRequest) error {
 	proto := pi.(*verify.Verify)
 	proto.Input = &req.Input
 	proto.ExecReq = &req.ExecReq
-	proto.InputHashes = req.Input.PrepareInputHashes()
+	proto.InputHashes = req.Input.PrepareHashes()
 	proto.VerifyFn = s.verifyUpdate
 	proto.Threshold = threshold
 	err = proto.Start()

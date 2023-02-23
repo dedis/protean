@@ -125,7 +125,7 @@ func (d *ThreshDecrypt) decryptShare(r structDecryptShare) error {
 		return cothority.ErrorOrNil(d.SendToParent(&DecryptShareResponse{}),
 			"sending DecryptShareResponse to parent")
 	}
-	d.InputHashes, err = d.DecInput.PrepareInputHashes()
+	d.InputHashes, err = d.DecInput.PrepareHashes()
 	if err != nil {
 		log.Errorf("%s couldn't generate the input hashes: %v", d.Name(), err)
 		d.Done()
