@@ -62,7 +62,7 @@ func Test_Voting(t *testing.T) {
 	require.NoError(t, err)
 
 	// Initialize DFUs
-	adminCl, err := libtest.SetupStateUnit(dfuRoster)
+	adminCl, err := libtest.SetupStateUnit(dfuRoster, 5)
 	require.NoError(t, err)
 	execCl := libexec.NewClient(dfuRoster)
 	_, err = execCl.InitUnit()
@@ -83,7 +83,7 @@ func Test_Voting(t *testing.T) {
 		FSM:      fsm,
 	}
 	hdr := &core.ContractHeader{
-		CodeHash:  []byte("codehash"),
+		CodeHash:  utils.GetCodeHash(),
 		Lock:      nil,
 		CurrState: fsm.InitialState,
 	}

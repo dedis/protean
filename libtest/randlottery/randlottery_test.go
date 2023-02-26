@@ -62,7 +62,7 @@ func Test_RandLottery(t *testing.T) {
 	participants := libtest.GenerateWriters(10)
 
 	// Initialize DFUs
-	adminCl, err := libtest.SetupStateUnit(dfuRoster)
+	adminCl, err := libtest.SetupStateUnit(dfuRoster, 5)
 	require.NoError(t, err)
 	execCl := libexec.NewClient(dfuRoster)
 	_, err = execCl.InitUnit()
@@ -83,7 +83,7 @@ func Test_RandLottery(t *testing.T) {
 		FSM:      fsm,
 	}
 	hdr := &core.ContractHeader{
-		CodeHash:  []byte("codehash"),
+		CodeHash:  utils.GetCodeHash(),
 		Lock:      nil,
 		CurrState: fsm.InitialState,
 	}
@@ -94,7 +94,7 @@ func Test_RandLottery(t *testing.T) {
 	require.NoError(t, err)
 	args := byzcoin.Arguments{{Name: "tickets", Value: buf}}
 	reply, err := adminCl.Cl.InitContract(raw, hdr, args, 10)
-	time.Sleep(5 * time.Second)
+	//time.Sleep(5 * time.Second)
 	cid := reply.CID
 	require.NoError(t, err)
 	stGenesis, err := adminCl.Cl.FetchGenesisBlock(reply.TxResp.Proof.
@@ -165,10 +165,10 @@ func Test_RandLottery(t *testing.T) {
 
 	execReq.Index = 1
 	execReq.OpReceipts = execReply.Receipts
-	_, err = adminCl.Cl.UpdateState(closeOut.WS, execReq, 5)
+	_, err = adminCl.Cl.UpdateState(closeOut.WS, execReq, 10)
 	require.NoError(t, err)
 
-	time.Sleep(3 * time.Second)
+	//time.Sleep(3 * time.Second)
 
 	//finalize txn
 	gcs, err = adminCl.Cl.GetState(cid)
@@ -214,10 +214,10 @@ func Test_RandLottery(t *testing.T) {
 
 	execReq.Index = 2
 	execReq.OpReceipts = execReply.Receipts
-	_, err = adminCl.Cl.UpdateState(finalOut.WS, execReq, 5)
+	_, err = adminCl.Cl.UpdateState(finalOut.WS, execReq, 10)
 	require.NoError(t, err)
 
-	time.Sleep(3 * time.Second)
+	//time.Sleep(3 * time.Second)
 }
 
 func executeJoin(t *testing.T, d *JoinData, p darc.Signer) {

@@ -23,7 +23,6 @@ func SetupRegistry(dfuFile *string, regRoster *onet.Roster,
 		return nil, id, nil, err
 	}
 	for k := range dfuReg.Units {
-		//dfuReg.Units[k].Keys = roster.Publics()
 		if k == "easyneff" || k == "threshold" || k == "easyrand" {
 			dfuReg.Units[k].Keys = dfuRoster.ServicePublics(blscosi.ServiceName)
 		} else if k == "codeexec" {
@@ -53,8 +52,8 @@ func SetupRegistry(dfuFile *string, regRoster *onet.Roster,
 	return cl, reply.IID, pr, nil
 }
 
-func SetupStateUnit(roster *onet.Roster) (*libstate.AdminClient, error) {
-	adminCl, byzID, err := libstate.SetupByzcoin(roster, 5)
+func SetupStateUnit(roster *onet.Roster, blockTime int) (*libstate.AdminClient, error) {
+	adminCl, byzID, err := libstate.SetupByzcoin(roster, blockTime)
 	if err != nil {
 		return nil, err
 	}

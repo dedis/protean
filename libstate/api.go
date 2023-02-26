@@ -39,14 +39,14 @@ func NewClient(byzcoin *byzcoin.Client, signer darc.Signer) *Client {
 		ServiceName), signer: signer, ctr: uint64(1)}
 }
 
-func SetupByzcoin(r *onet.Roster, blockTime time.Duration) (*AdminClient,
+func SetupByzcoin(r *onet.Roster, blockTime int) (*AdminClient,
 	skipchain.SkipBlockID, error) {
 	signer := darc.NewSignerEd25519(nil, nil)
 	gMsg, err := byzcoin.DefaultGenesisMsg(byzcoin.CurrentVersion, r, []string{"spawn:keyValue", "invoke:keyValue.update"}, signer.Identity())
 	if err != nil {
 		return nil, nil, err
 	}
-	gMsg.BlockInterval = blockTime * time.Second
+	gMsg.BlockInterval = time.Duration(blockTime) * time.Second
 	c, _, err := byzcoin.NewLedger(gMsg, true)
 	if err != nil {
 		return nil, nil, err
@@ -82,7 +82,8 @@ func (c *Client) InitContract(raw *core.ContractRaw, hdr *core.ContractHeader,
 	return reply, nil
 }
 
-func (c *Client) GetState(cid byzcoin.InstanceID) (*GetStateReply, error) {
+func (c *Client) GetState(cid byzcoin.InstanceID) (*GetStateReply,
+	error) {
 	reply := &GetStateReply{}
 	req := &GetStateRequest{CID: cid}
 	err := c.c.SendProtobuf(c.bcClient.Roster.List[0], req, reply)

@@ -50,5 +50,4 @@ type UpdateStateRequest struct {
 
 type UpdateStateReply struct {
 	TxResp *byzcoin.AddTxResponse
-	//Receipts map[string]*core.OpcodeReceipt
 }

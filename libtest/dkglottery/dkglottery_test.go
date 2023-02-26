@@ -62,7 +62,7 @@ func Test_DKGLottery(t *testing.T) {
 	require.NoError(t, err)
 
 	// Initialize DFUs
-	adminCl, err := libtest.SetupStateUnit(dfuRoster)
+	adminCl, err := libtest.SetupStateUnit(dfuRoster, 5)
 	require.NoError(t, err)
 	execCl := libexec.NewClient(dfuRoster)
 	_, err = execCl.InitUnit()
@@ -81,7 +81,7 @@ func Test_DKGLottery(t *testing.T) {
 		FSM:      fsm,
 	}
 	hdr := &core.ContractHeader{
-		CodeHash:  []byte("codehash"),
+		CodeHash:  utils.GetCodeHash(),
 		Lock:      nil,
 		CurrState: fsm.InitialState,
 	}
@@ -162,6 +162,7 @@ func Test_DKGLottery(t *testing.T) {
 	executeJoin(t, &d, tickets[1])
 	executeJoin(t, &d, tickets[2])
 	executeJoin(t, &d, tickets[3])
+	executeJoin(t, &d, tickets[4])
 
 	// execute close txn
 	gcs, err = adminCl.Cl.GetState(cid)

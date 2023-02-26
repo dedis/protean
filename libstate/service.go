@@ -100,7 +100,6 @@ func (s *Service) InitContract(req *InitContractRequest) (*InitContractReply, er
 	if err != nil {
 		return nil, xerrors.Errorf("encoding contract header: %v", err)
 	}
-	//args[0].Value = hdrBuf
 	args[0].Value = rawBuf
 	args[1].Value = hdrBuf
 	if req.InitArgs != nil {
@@ -131,7 +130,6 @@ func (s *Service) InitContract(req *InitContractRequest) (*InitContractReply, er
 
 func (s *Service) GetState(req *GetStateRequest) (*GetStateReply, error) {
 	if s.bc == nil {
-		//s.bc = byzcoin.NewClientKeep(s.byzID, *s.roster)
 		s.bc = byzcoin.NewClient(s.byzID, *s.roster)
 	}
 	pr, err := s.bc.GetProof(req.CID.Slice())

@@ -193,7 +193,6 @@ func verifyInitTxn(input *base.InitTxnInput) (*core.DFURegistry, *core.ContractR
 		return nil, nil, nil, xerrors.Errorf("cannot execute txn %s in curr_state %s",
 			input.TxnName, header.CurrState)
 	}
-	//TODO: Check H(code)
 	return &registry, &raw, &header, nil
 }
 
@@ -225,8 +224,7 @@ func newService(c *onet.Context) (onet.Service, error) {
 		ServiceProcessor: onet.NewServiceProcessor(c),
 		suite:            *suite,
 	}
-	if err := s.RegisterHandlers(s.InitUnit, s.InitTransaction,
-		s.Execute); err != nil {
+	if err := s.RegisterHandlers(s.InitUnit, s.InitTransaction, s.Execute); err != nil {
 		return nil, xerrors.New("couldn't register messages")
 	}
 	return s, nil

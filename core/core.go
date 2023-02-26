@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/dedis/protean/contracts"
+	"github.com/dedis/protean/utils"
 	"sort"
 	"strings"
 
@@ -51,7 +52,12 @@ func (r *ExecutionRequest) Verify(data *VerificationData) error {
 	if err != nil {
 		return xerrors.Errorf("cannot verify signature on the execution plan: %v", err)
 	}
-	// 3) Check dependencies
+	// 3) Check that the hash of code-to-be-executed matches H(code) of the execution request
+	codeHash := utils.GetCodeHash()
+	if !bytes.Equal(codeHash, r.EP.CodeHash) {
+		return xerrors.New("code hashes do not match")
+	}
+	// 4) Check dependencies
 	for inputName, dep := range opcode.Dependencies {
 		if dep.Src == OPCODE {
 			receipt, ok := r.OpReceipts[dep.SrcName]
