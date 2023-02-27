@@ -4,6 +4,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"github.com/dedis/protean/core"
+	"golang.org/x/xerrors"
 	"strconv"
 
 	"github.com/dedis/protean/sys"
@@ -25,51 +27,94 @@ func prepareExecutionPlan(data *sbData, wf *sys.Workflow) (*sys.ExecutionPlan, e
 	return &sys.ExecutionPlan{Workflow: wf, UnitPublics: publics}, nil
 }
 
-func verifyDag(wfNodes []*sys.WfNode) error {
-	var edges []*edge
-	//levels := make(map[int]int)
-	nodes := make(map[int]bool)
-	for idx, wfn := range wfNodes {
-		//levels[idx] = -1
-		nodes[idx] = true
-		for _, p := range wfn.Deps {
-			edges = append(edges, &edge{parent: p, child: idx, removed: false})
-		}
-	}
-	var sorted []int
-	idx := 0
-	//noIncoming := findNoIncoming(nodes, edges, levels)
-	noIncoming := findNoIncoming(nodes, edges)
-	for idx < len(noIncoming) {
-		curr := noIncoming[idx]
-		sorted = append(sorted, curr)
-		for i := 0; i < len(edges); i++ {
-			tmp := edges[i]
-			if curr == tmp.parent && tmp.removed == false {
-				tmp.removed = true
-				if !hasIncomingEdge(tmp.child, edges) {
-					noIncoming = append(noIncoming, tmp.child)
+func VerifyDag(contract *core.Contract) error {
+	for wfName, wf := range contract.Workflows {
+		for txnName, txn := range wf.Txns {
+			var edges []*edge
+			nodes := make(map[int]bool)
+			for idx, opcode := range txn.Opcodes {
+				nodes[idx] = true
+				for _, dep := range opcode.Dependencies {
+					if dep.Src == core.OPCODE {
+						edges = append(edges, &edge{parent: dep.Idx,
+							child: idx, removed: false})
+					}
 				}
-				//currLvl := levels[tmp.child]
-				//newLvl := levels[curr] + 1
-				//if currLvl != -1 {
-				//levels[tmp.child] = newLvl
-				//} else {
-				//if newLvl > currLvl {
-				//levels[tmp.child] = newLvl
-				//}
-				//}
 			}
-		}
-		idx++
-	}
-	for _, edge := range edges {
-		if edge.removed == false {
-			return fmt.Errorf("Workflow has a circular dependency")
+			var sorted []int
+			idx := 0
+			noIncoming := findNoIncoming(nodes, edges)
+			for idx < len(noIncoming) {
+				curr := noIncoming[idx]
+				sorted = append(sorted, curr)
+				for i := 0; i < len(edges); i++ {
+					tmp := edges[i]
+					if curr == tmp.parent && tmp.removed == false {
+						tmp.removed = true
+						if !hasIncomingEdge(tmp.child, edges) {
+							noIncoming = append(noIncoming, tmp.child)
+						}
+					}
+				}
+				idx++
+			}
+			for _, edge := range edges {
+				if edge.removed == false {
+					return xerrors.Errorf("%s:%s has circular dependency",
+						wfName, txnName)
+				}
+			}
 		}
 	}
 	return nil
 }
+
+//
+//func verifyDag(wfNodes []*sys.WfNode) error {
+//	var edges []*edge
+//	//levels := make(map[int]int)
+//	nodes := make(map[int]bool)
+//	for idx, wfn := range wfNodes {
+//		//levels[idx] = -1
+//		nodes[idx] = true
+//		for _, p := range wfn.Deps {
+//			edges = append(edges, &edge{parent: p, child: idx, removed: false})
+//		}
+//	}
+//	var sorted []int
+//	idx := 0
+//	//noIncoming := findNoIncoming(nodes, edges, levels)
+//	noIncoming := findNoIncoming(nodes, edges)
+//	for idx < len(noIncoming) {
+//		curr := noIncoming[idx]
+//		sorted = append(sorted, curr)
+//		for i := 0; i < len(edges); i++ {
+//			tmp := edges[i]
+//			if curr == tmp.parent && tmp.removed == false {
+//				tmp.removed = true
+//				if !hasIncomingEdge(tmp.child, edges) {
+//					noIncoming = append(noIncoming, tmp.child)
+//				}
+//				//currLvl := levels[tmp.child]
+//				//newLvl := levels[curr] + 1
+//				//if currLvl != -1 {
+//				//levels[tmp.child] = newLvl
+//				//} else {
+//				//if newLvl > currLvl {
+//				//levels[tmp.child] = newLvl
+//				//}
+//				//}
+//			}
+//		}
+//		idx++
+//	}
+//	for _, edge := range edges {
+//		if edge.removed == false {
+//			return fmt.Errorf("Workflow has a circular dependency")
+//		}
+//	}
+//	return nil
+//}
 
 func hasIncomingEdge(node int, edges []*edge) bool {
 	for _, edge := range edges {

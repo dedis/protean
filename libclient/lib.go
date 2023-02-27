@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/dedis/protean/core"
+	"go.dedis.ch/onet/v3/log"
 	"golang.org/x/xerrors"
 	"io/ioutil"
 	"os"
@@ -75,6 +76,11 @@ func ReadContractJSON(file *string) (*core.Contract, error) {
 		return nil, xerrors.Errorf("Cannot unmarshal json value: %v", err)
 	}
 	muxDependencyValue(&contract)
+	err = verifyDag(&contract)
+	if err != nil {
+		log.Error(err)
+		return nil, err
+	}
 	return &contract, nil
 }
 
@@ -155,4 +161,74 @@ func muxDependencyValue(contract *core.Contract) {
 			}
 		}
 	}
+}
+
+type edge struct {
+	parent  int
+	child   int
+	removed bool
+}
+
+func verifyDag(contract *core.Contract) error {
+	for wfName, wf := range contract.Workflows {
+		for txnName, txn := range wf.Txns {
+			var edges []*edge
+			nodes := make(map[int]bool)
+			for idx, opcode := range txn.Opcodes {
+				nodes[idx] = true
+				for _, dep := range opcode.Dependencies {
+					if dep.Src == core.OPCODE {
+						edges = append(edges, &edge{parent: dep.Idx,
+							child: idx, removed: false})
+					}
+				}
+			}
+			var sorted []int
+			idx := 0
+			noIncoming := findNoIncoming(nodes, edges)
+			for idx < len(noIncoming) {
+				curr := noIncoming[idx]
+				sorted = append(sorted, curr)
+				for i := 0; i < len(edges); i++ {
+					tmp := edges[i]
+					if curr == tmp.parent && tmp.removed == false {
+						tmp.removed = true
+						if !hasIncomingEdge(tmp.child, edges) {
+							noIncoming = append(noIncoming, tmp.child)
+						}
+					}
+				}
+				idx++
+			}
+			for _, edge := range edges {
+				if edge.removed == false {
+					return xerrors.Errorf("%s:%s has circular dependency",
+						wfName, txnName)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func hasIncomingEdge(node int, edges []*edge) bool {
+	for _, edge := range edges {
+		if (node == edge.child) && (edge.removed == false) {
+			return true
+		}
+	}
+	return false
+}
+
+func findNoIncoming(nodes map[int]bool, edges []*edge) []int {
+	var noIncoming []int
+	for _, edge := range edges {
+		nodes[edge.child] = false
+	}
+	for k, v := range nodes {
+		if v == true {
+			noIncoming = append(noIncoming, k)
+		}
+	}
+	return noIncoming
 }
