@@ -110,6 +110,16 @@ func HashUint64(val uint64) []byte {
 	return h.Sum(nil)
 }
 
+func GetCodeHash() []byte {
+	buf := make([]byte, 16*1024)
+	for i := 0; i < len(buf); i++ {
+		buf[i] = byte(i)
+	}
+	h := sha256.New()
+	h.Write(buf)
+	return h.Sum(nil)
+}
+
 // Utility functions for BLS
 
 func GetBLSKeyPair(id *network.ServerIdentity) *key.Pair {

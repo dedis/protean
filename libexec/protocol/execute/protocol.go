@@ -77,7 +77,7 @@ func (p *Execute) Start() error {
 		p.finish(false)
 		return err
 	}
-	genInput.KVDicts, err = core.PrepareKVDicts(p.ExecReq, p.Input.StateProofs)
+	genInput.KVInput, err = core.PrepareKVDicts(p.ExecReq, p.Input.StateProofs)
 	genericOut, err := execFn(genInput)
 	if err != nil {
 		log.Errorf("%s failed to execute function: %v", p.Name(), err)
@@ -130,7 +130,7 @@ func (p *Execute) execute(r StructRequest) error {
 		return cothority.ErrorOrNil(p.SendToParent(&Response{}),
 			"sending Response to parent")
 	}
-	genInput.KVDicts, err = core.PrepareKVDicts(p.ExecReq, p.Input.StateProofs)
+	genInput.KVInput, err = core.PrepareKVDicts(p.ExecReq, p.Input.StateProofs)
 	genericOut, err := execFn(genInput)
 	if err != nil {
 		log.Errorf("%s failed to execute function: %v", p.Name(), err)

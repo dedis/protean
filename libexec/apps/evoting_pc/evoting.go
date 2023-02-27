@@ -1,4 +1,4 @@
-package evoting
+package evotingpc
 
 import (
 	"github.com/dedis/protean/core"
@@ -64,8 +64,8 @@ func Vote(genInput *base.GenericInput) (*base.GenericOutput, error) {
 	return &base.GenericOutput{O: VoteOutput{WS: args}}, nil
 }
 
-func CloseVote(genInput *base.GenericInput) (*base.GenericOutput, error) {
-	input, ok := genInput.I.(CloseInput)
+func Lock(genInput *base.GenericInput) (*base.GenericOutput, error) {
+	input, ok := genInput.I.(LockInput)
 	if !ok {
 		return nil, xerrors.New("missing input")
 	}
@@ -82,13 +82,17 @@ func CloseVote(genInput *base.GenericInput) (*base.GenericOutput, error) {
 	if err != nil {
 		return nil, err
 	}
+	hdr.Lock = true
 	hdr.CurrState = "vote_closed"
 	buf, err := protobuf.Encode(hdr)
 	if err != nil {
 		return nil, xerrors.Errorf("couldn't encode header: %v", err)
 	}
-	args := byzcoin.Arguments{{Name: "header", Value: buf}}
-	return &base.GenericOutput{O: CloseOutput{WS: args}}, nil
+	args := byzcoin.Arguments{
+		{Name: "header", Value: buf},
+		{Name: "h", Value: genInput.Precommits.Data["h"]},
+	}
+	return &base.GenericOutput{O: LockOutput{WS: args}}, nil
 }
 
 func PrepareShuffle(genInput *base.GenericInput) (*base.GenericOutput, error) {
@@ -100,13 +104,13 @@ func PrepareShuffle(genInput *base.GenericInput) (*base.GenericOutput, error) {
 	if err != nil {
 		return nil, err
 	}
-	pk, err := getPoint(&kvDict)
+	h, err := getPoint(&kvDict)
 	if err != nil {
 		return nil, err
 	}
 	input := easyneff.ShuffleInput{
 		Pairs: ballots.Data,
-		H:     pk,
+		H:     h,
 	}
 	return &base.GenericOutput{O: PrepShufOutput{Input: input}}, nil
 }
@@ -181,6 +185,7 @@ func Tally(genInput *base.GenericInput) (*base.GenericOutput, error) {
 	if err != nil {
 		return nil, err
 	}
+	hdr.Lock = false
 	hdr.CurrState = "vote_finalized"
 	hdrBuf, err := protobuf.Encode(hdr)
 	if err != nil {
@@ -230,16 +235,17 @@ func getBallots(kvDict *core.KVDict) (*EncBallots, error) {
 }
 
 func getPoint(kvDict *core.KVDict) (kyber.Point, error) {
-	buf, ok := kvDict.Data["pk"]
+	//buf, ok := kvDict.Data["pk"]
+	buf, ok := kvDict.Data["h"]
 	if !ok {
-		return nil, xerrors.New("missing key: pk")
+		return nil, xerrors.New("missing key: h")
 	}
-	pk := cothority.Suite.Point()
-	err := pk.UnmarshalBinary(buf)
+	h := cothority.Suite.Point()
+	err := h.UnmarshalBinary(buf)
 	if err != nil {
-		return nil, xerrors.Errorf("cannot retrieve pk: %v", err)
+		return nil, xerrors.Errorf("cannot retrieve point: %v", err)
 	}
-	return pk, nil
+	return h, nil
 }
 
 func getProofs(kvDict *core.KVDict) ([]easyneff.Proof, error) {

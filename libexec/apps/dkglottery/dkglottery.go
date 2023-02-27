@@ -16,7 +16,7 @@ func Setup(genInput *base.GenericInput) (*base.GenericOutput, error) {
 	if !ok {
 		return nil, xerrors.New("missing input")
 	}
-	kvDict, ok := genInput.KVDicts["readset"]
+	kvDict, ok := genInput.KVInput["readset"]
 	if !ok {
 		return nil, xerrors.New("missing keyvalue data")
 	}
@@ -45,7 +45,7 @@ func JoinLottery(genInput *base.GenericInput) (*base.GenericOutput, error) {
 	if !ok {
 		return nil, xerrors.New("missing input")
 	}
-	kvDict, ok := genInput.KVDicts["readset"]
+	kvDict, ok := genInput.KVInput["readset"]
 	if !ok {
 		return nil, xerrors.New("missing keyvalue data")
 	}
@@ -72,7 +72,7 @@ func CloseLottery(genInput *base.GenericInput) (*base.GenericOutput, error) {
 		return nil, xerrors.New("barrier point is not reached yet")
 	}
 	// Get header
-	kvDict, ok := genInput.KVDicts["readset"]
+	kvDict, ok := genInput.KVInput["readset"]
 	if !ok {
 		return nil, xerrors.New("missing keyvalue data")
 	}
@@ -90,7 +90,7 @@ func CloseLottery(genInput *base.GenericInput) (*base.GenericOutput, error) {
 }
 
 func PrepareDecrypt(genInput *base.GenericInput) (*base.GenericOutput, error) {
-	kvDict, ok := genInput.KVDicts["readset"]
+	kvDict, ok := genInput.KVInput["readset"]
 	if !ok {
 		return nil, xerrors.New("missing keyvalue data")
 	}
@@ -124,7 +124,7 @@ func FinalizeLottery(genInput *base.GenericInput) (*base.GenericOutput, error) {
 	}
 	log.Info("Winner is:", winner.Index, winner.Ticket)
 	// Prepare write set
-	kvDict, ok := genInput.KVDicts["readset"]
+	kvDict, ok := genInput.KVInput["readset"]
 	if !ok {
 		return nil, xerrors.New("missing keyvalue data")
 	}

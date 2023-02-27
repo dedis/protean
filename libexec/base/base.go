@@ -31,6 +31,7 @@ type ExecuteInput struct {
 	FnName      string
 	Data        []byte
 	StateProofs map[string]*core.StateProof
+	Precommits  *core.KVDict
 }
 
 type ExecuteOutput struct {
@@ -38,8 +39,9 @@ type ExecuteOutput struct {
 }
 
 type GenericInput struct {
-	I       interface{}
-	KVDicts map[string]core.KVDict
+	I          interface{}
+	KVInput    map[string]core.KVDict
+	Precommits *core.KVDict
 }
 
 type GenericOutput struct {

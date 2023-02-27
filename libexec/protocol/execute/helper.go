@@ -4,6 +4,7 @@ import (
 	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/libexec/apps/dkglottery"
 	"github.com/dedis/protean/libexec/apps/evoting"
+	evotingpc "github.com/dedis/protean/libexec/apps/evoting_pc"
 	"github.com/dedis/protean/libexec/apps/randlottery"
 	"github.com/dedis/protean/libexec/apps/shufdkg"
 	"github.com/dedis/protean/libexec/base"
@@ -23,6 +24,9 @@ func demuxRequest(input *base.ExecuteInput) (base.ExecutionFn,
 	case "setup_vote", "vote", "close_vote", "prepare_shuffle",
 		"prepare_proofs", "prepare_decrypt_vote", "tally":
 		return evoting.DemuxRequest(input, vdata)
+	case "setup_vote_pc", "vote_pc", "lock", "prepare_shuffle_pc",
+		"prepare_proofs_pc", "prepare_decrypt_vote_pc", "tally_pc":
+		return evotingpc.DemuxRequest(input, vdata)
 	default:
 	}
 	return nil, nil, nil, nil
@@ -40,6 +44,9 @@ func muxRequest(fnName string, genericOut *base.GenericOutput) (*base.ExecuteOut
 	case "setup_vote", "vote", "close_vote", "prepare_shuffle",
 		"prepare_proofs", "prepare_decrypt_vote", "tally":
 		return evoting.MuxRequest(fnName, genericOut)
+	case "setup_vote_pc", "vote_pc", "lock", "prepare_shuffle_pc",
+		"prepare_proofs_pc", "prepare_decrypt_vote_pc", "tally_pc":
+		return evotingpc.MuxRequest(fnName, genericOut)
 	default:
 	}
 	return nil, nil, nil

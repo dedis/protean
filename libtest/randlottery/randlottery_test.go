@@ -84,7 +84,7 @@ func Test_RandLottery(t *testing.T) {
 	}
 	hdr := &core.ContractHeader{
 		CodeHash:  utils.GetCodeHash(),
-		Lock:      nil,
+		Lock:      false,
 		CurrState: fsm.InitialState,
 	}
 

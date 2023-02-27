@@ -79,7 +79,7 @@ func Test_ShufDKG(t *testing.T) {
 	}
 	hdr := &core.ContractHeader{
 		CodeHash:  protean.GetCodeHash(),
-		Lock:      nil,
+		Lock:      false,
 		CurrState: fsm.InitialState,
 	}
 

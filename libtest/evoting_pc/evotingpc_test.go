@@ -1,12 +1,12 @@
-package dkglottery
+package evotingpc
 
 import (
 	"flag"
 	"github.com/dedis/protean/core"
+	"github.com/dedis/protean/easyneff"
 	"github.com/dedis/protean/libclient"
 	"github.com/dedis/protean/libexec"
-	"github.com/dedis/protean/libexec/apps/dkglottery"
-	"github.com/dedis/protean/libexec/apps/randlottery"
+	evotingpc "github.com/dedis/protean/libexec/apps/evoting_pc"
 	execbase "github.com/dedis/protean/libexec/base"
 	"github.com/dedis/protean/libstate"
 	"github.com/dedis/protean/libtest"
@@ -20,7 +20,6 @@ import (
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/protobuf"
-	"math/rand"
 	"testing"
 	"time"
 )
@@ -43,12 +42,13 @@ type JoinData struct {
 	rdata   *execbase.ByzData
 	cdata   *execbase.ByzData
 	cid     byzcoin.InstanceID
+	X       kyber.Point
 }
 
 func TestMain(m *testing.M) {
 	log.MainTest(m)
 }
-func Test_DKGLottery(t *testing.T) {
+func Test_VotingPC(t *testing.T) {
 	log.SetDebugVisible(1)
 	l := onet.NewTCPTest(cothority.Suite)
 	_, all, _ := l.GenTree(14, true)
@@ -67,6 +67,8 @@ func Test_DKGLottery(t *testing.T) {
 	execCl := libexec.NewClient(dfuRoster)
 	_, err = execCl.InitUnit()
 	require.NoError(t, err)
+	neffCl := easyneff.NewClient(dfuRoster)
+	neffCl.InitUnit()
 	thCl := threshold.NewClient(dfuRoster)
 	thCl.InitUnit()
 
@@ -87,10 +89,10 @@ func Test_DKGLottery(t *testing.T) {
 	}
 
 	// Initialize contract (state unit)
-	encTickets := dkglottery.EncTickets{}
-	buf, err := protobuf.Encode(&encTickets)
+	encBallots := evotingpc.EncBallots{}
+	buf, err := protobuf.Encode(&encBallots)
 	require.NoError(t, err)
-	args := byzcoin.Arguments{{Name: "enc_tickets", Value: buf}}
+	args := byzcoin.Arguments{{Name: "enc_ballots", Value: buf}}
 	reply, err := adminCl.Cl.InitContract(raw, hdr, args, 10)
 	time.Sleep(5 * time.Second)
 	cid := reply.CID
@@ -120,17 +122,18 @@ func Test_DKGLottery(t *testing.T) {
 		Index: 0,
 		EP:    &itReply.Plan,
 	}
+
 	// Step 1: init_dkg
 	dkgReply, err := thCl.InitDKG(execReq)
 	require.NoError(t, err)
 	// Step 2: exec
-	setupInput := dkglottery.SetupInput{Pk: dkgReply.Output.X}
+	setupInput := evotingpc.SetupInput{Pk: dkgReply.Output.X}
 	data, err := protobuf.Encode(&setupInput)
 	require.NoError(t, err)
 	sp := make(map[string]*core.StateProof)
 	sp["readset"] = &gcs.Proof
 	execInput := execbase.ExecuteInput{
-		FnName:      "setup_dkglot",
+		FnName:      "setup_vote_pc",
 		Data:        data,
 		StateProofs: sp,
 	}
@@ -139,7 +142,7 @@ func Test_DKGLottery(t *testing.T) {
 	execReply, err := execCl.Execute(execInput, execReq)
 	require.NoError(t, err)
 	// Step 3: update_state
-	var setupOut dkglottery.SetupOutput
+	var setupOut evotingpc.SetupOutput
 	err = protobuf.Decode(execReply.Output.Data, &setupOut)
 	require.NoError(t, err)
 
@@ -149,42 +152,46 @@ func Test_DKGLottery(t *testing.T) {
 	require.NoError(t, err)
 	time.Sleep(3 * time.Second)
 
-	// execute join txns
 	d := JoinData{
 		adminCl: adminCl,
 		execCl:  execCl,
 		rdata:   &rdata,
 		cdata:   &cdata,
 		cid:     cid,
+		X:       dkgReply.Output.X,
 	}
-	tickets := generateTickets(dkgReply.Output.X, 10)
-	executeJoin(t, &d, tickets[0])
-	executeJoin(t, &d, tickets[1])
-	executeJoin(t, &d, tickets[2])
-	executeJoin(t, &d, tickets[3])
-	executeJoin(t, &d, tickets[4])
+	executeVote(t, &d, "00100")
+	executeVote(t, &d, "01000")
+	executeVote(t, &d, "00001")
+	executeVote(t, &d, "00001")
+	executeVote(t, &d, "10000")
 
-	// execute close txn
+	// execute lock txn
 	gcs, err = adminCl.Cl.GetState(cid)
 	require.NoError(t, err)
 	cdata.Proof = gcs.Proof.Proof
 
-	itReply, err = execCl.InitTransaction(rdata, cdata, "closewf", "close")
+	itReply, err = execCl.InitTransaction(rdata, cdata, "finalizewf", "lock")
 	require.NoError(t, err)
 	require.NotNil(t, itReply)
 
 	// Step 1: exec
-	closeInput := dkglottery.CloseInput{
+	lockInput := evotingpc.LockInput{
 		Barrier: 0,
 	}
-	data, err = protobuf.Encode(&closeInput)
+	data, err = protobuf.Encode(&lockInput)
 	require.NoError(t, err)
+	hBuf, err := dkgReply.Output.X.MarshalBinary()
+	require.NoError(t, err)
+	pc := &core.KVDict{Data: make(map[string][]byte)}
+	pc.Data["h"] = hBuf
 	sp = make(map[string]*core.StateProof)
 	sp["readset"] = &gcs.Proof
 	execInput = execbase.ExecuteInput{
-		FnName:      "close_dkglot",
+		FnName:      "lock",
 		Data:        data,
 		StateProofs: sp,
+		Precommits:  pc,
 	}
 	execReq = &core.ExecutionRequest{
 		Index: 0,
@@ -194,23 +201,23 @@ func Test_DKGLottery(t *testing.T) {
 	require.NoError(t, err)
 
 	// Step 2: update_state
-	var closeOut dkglottery.CloseOutput
-	err = protobuf.Decode(execReply.Output.Data, &closeOut)
+	var lockOut evotingpc.LockOutput
+	err = protobuf.Decode(execReply.Output.Data, &lockOut)
 	require.NoError(t, err)
 
 	execReq.Index = 1
 	execReq.OpReceipts = execReply.Receipts
-	_, err = adminCl.Cl.UpdateState(closeOut.WS, execReq, 5)
+	_, err = adminCl.Cl.UpdateState(lockOut.WS, execReq, 5)
 	require.NoError(t, err)
 
 	time.Sleep(3 * time.Second)
 
-	// execute finalize txn
+	// execute shuffle txn
 	gcs, err = adminCl.Cl.GetState(cid)
 	require.NoError(t, err)
 	cdata.Proof = gcs.Proof.Proof
 
-	itReply, err = execCl.InitTransaction(rdata, cdata, "finalizewf", "finalize")
+	itReply, err = execCl.InitTransaction(rdata, cdata, "finalizewf", "shuffle")
 	require.NoError(t, err)
 	require.NotNil(t, itReply)
 	execReq = &core.ExecutionRequest{
@@ -222,25 +229,89 @@ func Test_DKGLottery(t *testing.T) {
 	sp = make(map[string]*core.StateProof)
 	sp["readset"] = &gcs.Proof
 	execInput = execbase.ExecuteInput{
-		FnName:      "prepare_decrypt_dkglot",
+		FnName:      "prepare_shuffle_pc",
 		StateProofs: sp,
 	}
 	execReply, err = execCl.Execute(execInput, execReq)
 	require.NoError(t, err)
-	// Step 2: decrypt
-	var prepOut dkglottery.PrepDecOutput
-	err = protobuf.Decode(execReply.Output.Data, &prepOut)
+
+	// Step 2: shuffle
+	var prepShOut evotingpc.PrepShufOutput
+	err = protobuf.Decode(execReply.Output.Data, &prepShOut)
 	require.NoError(t, err)
+
 	execReq.Index = 1
 	execReq.OpReceipts = execReply.Receipts
-	decReply, err := thCl.Decrypt(&prepOut.Input, execReq)
+	shReply, err := neffCl.Shuffle(prepShOut.Input.Pairs, prepShOut.Input.H, execReq)
 	require.NoError(t, err)
+
 	// Step 3: exec
-	finalInput := dkglottery.FinalizeInput{Ps: decReply.Output.Ps}
-	data, err = protobuf.Encode(&finalInput)
+	prepPrInput := evotingpc.PrepProofsInput{ShProofs: shReply.Proofs}
+	data, err = protobuf.Encode(&prepPrInput)
 	require.NoError(t, err)
 	execInput = execbase.ExecuteInput{
-		FnName:      "finalize_dkglot",
+		FnName:      "prepare_proofs_pc",
+		Data:        data,
+		StateProofs: sp,
+	}
+	execReq.Index = 2
+	execReq.OpReceipts = shReply.Receipts
+	execReply, err = execCl.Execute(execInput, execReq)
+	require.NoError(t, err)
+
+	// Step 4: update_state
+	var prepPrOut evotingpc.PrepProofsOutput
+	err = protobuf.Decode(execReply.Output.Data, &prepPrOut)
+	require.NoError(t, err)
+
+	execReq.Index = 3
+	execReq.OpReceipts = execReply.Receipts
+	_, err = adminCl.Cl.UpdateState(prepPrOut.WS, execReq, 5)
+
+	time.Sleep(3 * time.Second)
+
+	// execute tally txn
+	gcs, err = adminCl.Cl.GetState(cid)
+	require.NoError(t, err)
+	cdata.Proof = gcs.Proof.Proof
+
+	itReply, err = execCl.InitTransaction(rdata, cdata, "finalizewf", "tally")
+	require.NoError(t, err)
+	require.NotNil(t, itReply)
+	execReq = &core.ExecutionRequest{
+		Index: 0,
+		EP:    &itReply.Plan,
+	}
+
+	// Step 1: exec
+	sp = make(map[string]*core.StateProof)
+	sp["readset"] = &gcs.Proof
+	execInput = execbase.ExecuteInput{
+		FnName:      "prepare_decrypt_vote_pc",
+		StateProofs: sp,
+	}
+	execReply, err = execCl.Execute(execInput, execReq)
+	require.NoError(t, err)
+
+	// Step 2: decrypt
+	var prepDecOut evotingpc.PrepDecOutput
+	err = protobuf.Decode(execReply.Output.Data, &prepDecOut)
+	require.NoError(t, err)
+
+	execReq.Index = 1
+	execReq.OpReceipts = execReply.Receipts
+	decReply, err := thCl.Decrypt(&prepDecOut.Input, execReq)
+	require.NoError(t, err)
+
+	// Step 3: exec
+	tallyIn := evotingpc.TallyInput{
+		CandCount: 5,
+		Ps:        decReply.Output.Ps,
+	}
+	data, err = protobuf.Encode(&tallyIn)
+	require.NoError(t, err)
+	execInput = execbase.ExecuteInput{
+		FnName:      "tally_pc",
 		Data:        data,
 		StateProofs: sp,
 	}
@@ -248,41 +319,39 @@ func Test_DKGLottery(t *testing.T) {
 	execReq.OpReceipts = decReply.Receipts
 	execReply, err = execCl.Execute(execInput, execReq)
 	require.NoError(t, err)
+
 	// Step 4: update_state
-	var finalOut randlottery.FinalizeOutput
-	err = protobuf.Decode(execReply.Output.Data, &finalOut)
+	var tallyOut evotingpc.TallyOutput
+	err = protobuf.Decode(execReply.Output.Data, &tallyOut)
 	require.NoError(t, err)
 
 	execReq.Index = 3
 	execReq.OpReceipts = execReply.Receipts
-	_, err = adminCl.Cl.UpdateState(finalOut.WS, execReq, 5)
+	_, err = adminCl.Cl.UpdateState(tallyOut.WS, execReq, 5)
 	require.NoError(t, err)
-
-	//time.Sleep(3 * time.Second)
 }
 
-func executeJoin(t *testing.T, d *JoinData, ticket utils.ElGamalPair) {
+func executeVote(t *testing.T, d *JoinData, ballot string) {
 	gcs, err := d.adminCl.Cl.GetState(d.cid)
 	require.NoError(t, err)
 
 	d.cdata.Proof = gcs.Proof.Proof
-	itReply, err := d.execCl.InitTransaction(*d.rdata, *d.cdata, "joinwf", "join")
+	itReply, err := d.execCl.InitTransaction(*d.rdata, *d.cdata, "votewf",
+		"vote")
 	require.NoError(t, err)
 	require.NotNil(t, itReply)
 
 	// Step 1: execute
-
-	input := dkglottery.JoinInput{
-		Ticket: dkglottery.Ticket{
-			Data: ticket,
-		},
+	encBallot := utils.ElGamalEncrypt(d.X, []byte(ballot))
+	input := evotingpc.VoteInput{
+		Ballot: evotingpc.Ballot{Data: encBallot},
 	}
 	data, err := protobuf.Encode(&input)
 	require.NoError(t, err)
 	sp := make(map[string]*core.StateProof)
 	sp["readset"] = &gcs.Proof
 	execInput := execbase.ExecuteInput{
-		FnName:      "join_dkglot",
+		FnName:      "vote_pc",
 		Data:        data,
 		StateProofs: sp,
 	}
@@ -294,24 +363,14 @@ func executeJoin(t *testing.T, d *JoinData, ticket utils.ElGamalPair) {
 	require.NoError(t, err)
 
 	// Step 2: update_state
-	var joinOut randlottery.JoinOutput
-	err = protobuf.Decode(execReply.Output.Data, &joinOut)
+	var voteOut evotingpc.VoteOutput
+	err = protobuf.Decode(execReply.Output.Data, &voteOut)
 	require.NoError(t, err)
 
 	execReq.Index = 1
 	execReq.OpReceipts = execReply.Receipts
-	_, err = d.adminCl.Cl.UpdateState(joinOut.WS, execReq, 5)
+	_, err = d.adminCl.Cl.UpdateState(voteOut.WS, execReq, 5)
 	require.NoError(t, err)
 
 	time.Sleep(3 * time.Second)
-}
-
-func generateTickets(X kyber.Point, count int) []utils.ElGamalPair {
-	tickets := make([]utils.ElGamalPair, count)
-	for i := 0; i < count; i++ {
-		randBytes := make([]byte, 24)
-		rand.Read(randBytes)
-		tickets[i] = utils.ElGamalEncrypt(X, randBytes)
-	}
-	return tickets
 }

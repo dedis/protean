@@ -129,7 +129,7 @@ type ContractRaw struct {
 type ContractHeader struct {
 	CID       byzcoin.InstanceID
 	CodeHash  []byte
-	Lock      []byte
+	Lock      bool
 	CurrState string
 }
 
