@@ -160,11 +160,17 @@ func Test_Voting(t *testing.T) {
 		cid:     cid,
 		X:       dkgReply.Output.X,
 	}
+
 	executeVote(t, &d, "00100")
 	executeVote(t, &d, "01000")
 	executeVote(t, &d, "00001")
 	executeVote(t, &d, "00001")
+	executeVote(t, &d, "00100")
 	executeVote(t, &d, "10000")
+	executeVote(t, &d, "10000")
+	executeVote(t, &d, "01000")
+	executeVote(t, &d, "00100")
+	executeVote(t, &d, "00010")
 
 	// execute close txn
 	gcs, err = adminCl.Cl.GetState(cid)
@@ -323,6 +329,9 @@ func Test_Voting(t *testing.T) {
 	execReq.Index = 3
 	execReq.OpReceipts = execReply.Receipts
 	_, err = adminCl.Cl.UpdateState(tallyOut.WS, execReq, 5)
+	require.NoError(t, err)
+
+	gcs, err = adminCl.Cl.GetState(cid)
 	require.NoError(t, err)
 }
 

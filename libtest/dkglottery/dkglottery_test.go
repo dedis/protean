@@ -158,11 +158,9 @@ func Test_DKGLottery(t *testing.T) {
 		cid:     cid,
 	}
 	tickets := generateTickets(dkgReply.Output.X, 10)
-	executeJoin(t, &d, tickets[0])
-	executeJoin(t, &d, tickets[1])
-	executeJoin(t, &d, tickets[2])
-	executeJoin(t, &d, tickets[3])
-	executeJoin(t, &d, tickets[4])
+	for _, ticket := range tickets {
+		executeJoin(t, &d, ticket)
+	}
 
 	// execute close txn
 	gcs, err = adminCl.Cl.GetState(cid)

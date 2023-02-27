@@ -164,7 +164,12 @@ func Test_VotingPC(t *testing.T) {
 	executeVote(t, &d, "01000")
 	executeVote(t, &d, "00001")
 	executeVote(t, &d, "00001")
+	executeVote(t, &d, "00100")
 	executeVote(t, &d, "10000")
+	executeVote(t, &d, "10000")
+	executeVote(t, &d, "01000")
+	executeVote(t, &d, "00100")
+	executeVote(t, &d, "00010")
 
 	// execute lock txn
 	gcs, err = adminCl.Cl.GetState(cid)

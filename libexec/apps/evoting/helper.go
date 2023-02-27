@@ -44,7 +44,7 @@ func DemuxRequest(input *base.ExecuteInput,
 		if !ok {
 			return nil, nil, nil, xerrors.New("missing input: readset")
 		}
-		closeIn.BlkHeight = len(pr.Proof.Links)
+		closeIn.BlkHeight = pr.Proof.Latest.Index
 		vdata.InputHashes = getCloseHashes(input.FnName, &closeIn)
 		vdata.StateProofs = input.StateProofs
 		return CloseVote, &base.GenericInput{I: closeIn}, vdata, nil

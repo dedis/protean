@@ -123,11 +123,9 @@ func Test_RandLottery(t *testing.T) {
 	}
 
 	// execute join txns
-	executeJoin(t, &d, participants[0])
-	executeJoin(t, &d, participants[1])
-	executeJoin(t, &d, participants[2])
-	executeJoin(t, &d, participants[3])
-	executeJoin(t, &d, participants[4])
+	for _, p := range participants {
+		executeJoin(t, &d, p)
+	}
 
 	// execute close txn
 	gcs, err = adminCl.Cl.GetState(cid)
@@ -168,7 +166,7 @@ func Test_RandLottery(t *testing.T) {
 	_, err = adminCl.Cl.UpdateState(closeOut.WS, execReq, 10)
 	require.NoError(t, err)
 
-	//time.Sleep(3 * time.Second)
+	time.Sleep(3 * time.Second)
 
 	//finalize txn
 	gcs, err = adminCl.Cl.GetState(cid)
