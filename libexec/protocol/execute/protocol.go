@@ -71,6 +71,7 @@ func (p *Execute) Start() error {
 		p.finish(false)
 		return err
 	}
+	vdata.CodeHash = utils.GetCodeHash()
 	err = p.ExecReq.Verify(vdata)
 	if err != nil {
 		log.Errorf("%s failed to verify the execution request: %v", p.Name(), err)
@@ -124,6 +125,7 @@ func (p *Execute) execute(r StructRequest) error {
 		return cothority.ErrorOrNil(p.SendToParent(&Response{}),
 			"sending Response to parent")
 	}
+	vdata.CodeHash = utils.GetCodeHash()
 	err = p.ExecReq.Verify(vdata)
 	if err != nil {
 		log.Errorf("%s failed to verify the execution request: %v", p.Name(), err)

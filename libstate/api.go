@@ -1,6 +1,7 @@
 package libstate
 
 import (
+	"bytes"
 	"github.com/dedis/protean/contracts"
 	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/libstate/base"
@@ -152,4 +153,32 @@ func (c *AdminClient) SpawnDarc(newSigner darc.Signer, gDarc darc.Darc, wait int
 	_, err = c.Cl.bcClient.AddTransactionAndWait(ctx, wait)
 	c.Cl.ctr++
 	return d, cothority.ErrorOrNil(err, "adding txn")
+}
+
+func (c *AdminClient) WaitProof(id []byte, currRoot []byte, interval int) (
+	*byzcoin.Proof, error) {
+	var pr byzcoin.Proof
+	for i := 0; i < 10; i++ {
+		// try to get the darc back, we should get the genesis back instead
+		resp, err := c.Cl.bcClient.GetProof(id)
+		if err != nil {
+			log.Warnf("Error while getting proof: %+v", err)
+			continue
+		}
+		pr = resp.Proof
+		ok, err := pr.InclusionProof.Exists(id)
+		if err != nil {
+			return nil, xerrors.Errorf(
+				"inclusion proof couldn't be checked: %+v", err)
+		}
+		if ok {
+			if !bytes.Equal(currRoot, pr.InclusionProof.GetRoot()) {
+				return &pr, nil
+			}
+		}
+
+		// wait for the block to be processed
+		time.Sleep((time.Duration(interval) * time.Second) / 5)
+	}
+	return nil, xerrors.New("timeout reached and proof not found")
 }

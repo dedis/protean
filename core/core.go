@@ -6,7 +6,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/dedis/protean/contracts"
-	"github.com/dedis/protean/utils"
 	"sort"
 	"strings"
 
@@ -25,6 +24,7 @@ var suite = pairing.NewSuiteBn256()
 type VerificationData struct {
 	UID        string
 	OpcodeName string
+	CodeHash   []byte
 	// key: input variable, value: H(output) from parent opcode.
 	InputHashes map[string][]byte
 	StateProofs map[string]*StateProof
@@ -53,9 +53,10 @@ func (r *ExecutionRequest) Verify(data *VerificationData) error {
 		return xerrors.Errorf("cannot verify signature on the execution plan: %v", err)
 	}
 	// 3) Check that the hash of code-to-be-executed matches H(code) of the execution request
-	codeHash := utils.GetCodeHash()
-	if !bytes.Equal(codeHash, r.EP.CodeHash) {
-		return xerrors.New("code hashes do not match")
+	if len(data.CodeHash) > 0 {
+		if !bytes.Equal(data.CodeHash, r.EP.CodeHash) {
+			return xerrors.New("code hashes do not match")
+		}
 	}
 	// 4) Check dependencies
 	for inputName, dep := range opcode.Dependencies {

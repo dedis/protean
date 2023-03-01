@@ -2,6 +2,7 @@ package libstate
 
 import (
 	"bytes"
+	"encoding/hex"
 	"github.com/dedis/protean/contracts"
 	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/libstate/base"
@@ -29,7 +30,7 @@ func init() {
 	stateID, err = onet.RegisterNewServiceWithSuite(ServiceName, suite, newService)
 	network.RegisterMessages(&InitUnitRequest{}, &InitUnitReply{},
 		&InitContractRequest{}, &InitContractReply{}, &GetStateRequest{},
-		&GetStateReply{})
+		&GetStateReply{}, &storage{})
 	if err != nil {
 		panic(err)
 	}
@@ -38,13 +39,14 @@ func init() {
 
 type Service struct {
 	*onet.ServiceProcessor
-	suite  pairing.SuiteBn256
-	bc     *byzcoin.Client
-	byzID  skipchain.SkipBlockID
-	signer darc.Signer
-	darc   *darc.Darc
-	ctr    uint64
-	roster *onet.Roster
+	storage *storage
+	suite   pairing.SuiteBn256
+	bc      *byzcoin.Client
+	byzID   skipchain.SkipBlockID
+	signer  darc.Signer
+	darc    *darc.Darc
+	ctr     uint64
+	roster  *onet.Roster
 }
 
 func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
@@ -136,12 +138,20 @@ func (s *Service) GetState(req *GetStateRequest) (*GetStateReply, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("failed to get proof from byzcoin: %v", err)
 	}
-	//TODO: Check this
 	proof := core.StateProof{Proof: pr.Proof, Genesis: *s.bc.Genesis}
 	return &GetStateReply{Proof: proof}, nil
 }
 
 func (s *Service) UpdateState(req *UpdateStateRequest) (*UpdateStateReply, error) {
+	root := hex.EncodeToString(req.ExecReq.EP.StateRoot)
+	s.storage.Lock()
+	_, ok := s.storage.CurrState[root]
+	if ok {
+		s.storage.Unlock()
+		return nil, xerrors.New("another update state request is in progress")
+	}
+	s.storage.CurrState[root] = true
+	s.storage.Unlock()
 	// Verify the execution request
 	err := s.runVerification(req)
 	if err != nil {
@@ -263,6 +273,10 @@ func newService(c *onet.Context) (onet.Service, error) {
 	if err := s.RegisterHandlers(s.InitUnit, s.InitContract, s.GetState,
 		s.UpdateState); err != nil {
 		return nil, xerrors.New("couldn't register messages")
+	}
+	if err := s.tryLoad(); err != nil {
+		log.Error(err)
+		return nil, xerrors.Errorf("loading configuration: %v", err)
 	}
 	return s, nil
 }
