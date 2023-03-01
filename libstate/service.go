@@ -138,7 +138,7 @@ func (s *Service) GetState(req *GetStateRequest) (*GetStateReply, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("failed to get proof from byzcoin: %v", err)
 	}
-	proof := core.StateProof{Proof: pr.Proof, Genesis: *s.bc.Genesis}
+	proof := core.StateProof{Proof: &pr.Proof, Genesis: s.bc.Genesis}
 	return &GetStateReply{Proof: proof}, nil
 }
 

@@ -13,8 +13,8 @@ const (
 
 type ByzData struct {
 	IID     byzcoin.InstanceID
-	Proof   byzcoin.Proof
-	Genesis skipchain.SkipBlock
+	Proof   *byzcoin.Proof
+	Genesis *skipchain.SkipBlock
 }
 
 type InitTxnInput struct {

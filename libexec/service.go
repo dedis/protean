@@ -136,12 +136,12 @@ func (s *Service) generateExecutionPlan(input *base.InitTxnInput) (*core.Executi
 
 func verifyInitTxn(input *base.InitTxnInput) (*core.DFURegistry, *core.ContractRaw, *core.ContractHeader, error) {
 	// Verify Byzcoin proofs
-	err := input.RData.Proof.VerifyFromBlock(&input.RData.Genesis)
+	err := input.RData.Proof.VerifyFromBlock(input.RData.Genesis)
 	if err != nil {
 		return nil, nil, nil, xerrors.Errorf("cannot verify byzcoin proof ("+
 			"registry): %v", err)
 	}
-	err = input.CData.Proof.VerifyFromBlock(&input.CData.Genesis)
+	err = input.CData.Proof.VerifyFromBlock(input.CData.Genesis)
 	if err != nil {
 		return nil, nil, nil, xerrors.Errorf("cannot verify byzcoin proof (contract): %v", err)
 	}

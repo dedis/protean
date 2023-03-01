@@ -134,8 +134,8 @@ type ContractHeader struct {
 }
 
 type StateProof struct {
-	Proof   byzcoin.Proof
-	Genesis skipchain.SkipBlock
+	Proof   *byzcoin.Proof
+	Genesis *skipchain.SkipBlock
 }
 
 type KVDict struct {
