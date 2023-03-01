@@ -11,55 +11,6 @@ import (
 	"os"
 )
 
-//func GetTransaction(contract *Contract, wfName string, txnName string) (*Transaction, error) {
-//	if wf, ok := contract.Workflows[wfName]; ok {
-//		if txn, ok := wf.Txns[txnName]; ok {
-//			size := len(txn.Opcodes)
-//			opcodes := make([]*Opcode, size)
-//			for i, op := range txn.Opcodes {
-//				opcodes[i] = &Opcode{
-//					Name:  op.Name,
-//					DFUID: op.DFUID,
-//				}
-//				if op.Dependencies != nil {
-//					deps := make(map[string]*DataDependency)
-//					for paramName, inputObj := range op.Dependencies {
-//						dataDep := &DataDependency{}
-//						switch inputObj.Src {
-//						case CONST:
-//							dataDep.Dep = ConstDependency{
-//								Value: inputObj.Value,
-//							}
-//						case KEYVALUE:
-//							kvDep := &KVDependency{}
-//							err := getKVDependency(kvDep, inputObj.Value)
-//							if err != nil {
-//								return nil, fmt.Errorf("error creating kv dependencies: %v", err)
-//							}
-//							dataDep.Dep = kvDep
-//						case OPCODE:
-//							dataDep.Dep = &OpcodeDependency{
-//								SrcName:   inputObj.SrcName,
-//								OpcodeIdx: inputObj.Idx,
-//							}
-//						}
-//						deps[paramName] = dataDep
-//					}
-//					opcodes[i].Deps = deps
-//				}
-//			}
-//			return &Transaction{
-//				Name:    txnName,
-//				Opcodes: opcodes,
-//			}, nil
-//		} else {
-//			return nil, fmt.Errorf("transaction: %s does not exist", txnName)
-//		}
-//	} else {
-//		return nil, fmt.Errorf("workflow: %s does not exist", wfName)
-//	}
-//}
-
 func ReadContractJSON(file *string) (*core.Contract, error) {
 	var contract core.Contract
 	fd, err := os.Open(*file)
