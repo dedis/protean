@@ -29,8 +29,8 @@ func (c *Client) InitUnit() (*InitUnitReply, error) {
 	return reply, nil
 }
 
-func (c *Client) InitTransaction(rdata base.ByzData, cdata base.ByzData, wf string,
-	txn string) (*InitTransactionReply, error) {
+func (c *Client) InitTransaction(rdata *base.ByzData, cdata *base.ByzData,
+	wf string, txn string) (*InitTransactionReply, error) {
 	reply := &InitTransactionReply{}
 	req := &InitTransaction{
 		Input: base.InitTxnInput{

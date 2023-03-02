@@ -1,2 +1,6 @@
 conode/conode
 .idea
+/experiments/dkglottery/simulation/simulation
+/experiments/dkglottery/dkglottery
+/experiments/dkglottery/build/
+/experiments/dkglottery/test_data/

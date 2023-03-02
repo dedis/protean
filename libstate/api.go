@@ -17,27 +17,26 @@ import (
 )
 
 type AdminClient struct {
-	Cl   *Client
-	GMsg *byzcoin.CreateGenesisBlock
+	Cl     *Client
+	GMsg   *byzcoin.CreateGenesisBlock
+	signer darc.Signer
+	ctr    uint64
 }
 
 type Client struct {
 	bcClient *byzcoin.Client
 	c        *onet.Client
-	signer   darc.Signer
-	ctr      uint64
 }
 
 func NewAdminClient(byzcoin *byzcoin.Client, signer darc.Signer,
 	gMsg *byzcoin.CreateGenesisBlock) *AdminClient {
 	return &AdminClient{Cl: &Client{bcClient: byzcoin,
-		c: onet.NewClient(cothority.Suite, ServiceName), signer: signer,
-		ctr: uint64(1)}, GMsg: gMsg}
+		c: onet.NewClient(cothority.Suite, ServiceName)}, signer: signer,
+		ctr: uint64(1), GMsg: gMsg}
 }
 
-func NewClient(byzcoin *byzcoin.Client, signer darc.Signer) *Client {
-	return &Client{bcClient: byzcoin, c: onet.NewClient(cothority.Suite,
-		ServiceName), signer: signer, ctr: uint64(1)}
+func NewClient(byzcoin *byzcoin.Client) *Client {
+	return &Client{bcClient: byzcoin, c: onet.NewClient(cothority.Suite, ServiceName)}
 }
 
 func SetupByzcoin(r *onet.Roster, blockTime int) (*AdminClient,
@@ -143,24 +142,24 @@ func (c *AdminClient) SpawnDarc(newSigner darc.Signer, gDarc darc.Darc, wait int
 					Value: darcBuf,
 				}},
 			},
-			SignerCounter: []uint64{c.Cl.ctr},
+			SignerCounter: []uint64{c.ctr},
 		},
 	)
-	err = ctx.FillSignersAndSignWith(c.Cl.signer)
+	err = ctx.FillSignersAndSignWith(c.signer)
 	if err != nil {
 		return nil, xerrors.Errorf("signing txn: %v", err)
 	}
 	_, err = c.Cl.bcClient.AddTransactionAndWait(ctx, wait)
-	c.Cl.ctr++
+	c.ctr++
 	return d, cothority.ErrorOrNil(err, "adding txn")
 }
 
-func (c *AdminClient) WaitProof(id []byte, currRoot []byte, interval int) (
+func (c *Client) WaitProof(id []byte, currRoot []byte, interval int) (
 	*byzcoin.Proof, error) {
 	var pr byzcoin.Proof
 	for i := 0; i < 10; i++ {
 		// try to get the darc back, we should get the genesis back instead
-		resp, err := c.Cl.bcClient.GetProof(id)
+		resp, err := c.bcClient.GetProof(id)
 		if err != nil {
 			log.Warnf("Error while getting proof: %+v", err)
 			continue
@@ -181,4 +180,8 @@ func (c *AdminClient) WaitProof(id []byte, currRoot []byte, interval int) (
 		time.Sleep((time.Duration(interval) * time.Second) / 5)
 	}
 	return nil, xerrors.New("timeout reached and proof not found")
+}
+
+func (c *Client) Close() error {
+	return c.c.Close()
 }

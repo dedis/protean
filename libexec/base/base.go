@@ -18,8 +18,8 @@ type ByzData struct {
 }
 
 type InitTxnInput struct {
-	RData   ByzData
-	CData   ByzData
+	RData   *ByzData
+	CData   *ByzData
 	WfName  string
 	TxnName string
 }

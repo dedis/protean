@@ -132,6 +132,7 @@ func (s *Service) InitContract(req *InitContractRequest) (*InitContractReply, er
 
 func (s *Service) GetState(req *GetStateRequest) (*GetStateReply, error) {
 	if s.bc == nil {
+		log.Info("In GS nil")
 		s.bc = byzcoin.NewClient(s.byzID, *s.roster)
 	}
 	pr, err := s.bc.GetProof(req.CID.Slice())

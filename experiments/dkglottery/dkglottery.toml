@@ -1,0 +1,16 @@
+Simulation = "DKGLottery"
+Servers = 10
+Bf = 9
+Rounds = 1
+RunWait = "30000s"
+Delay = 100
+Bandwidth = 100
+Suite = "Ed25519"
+BlockTime = 5
+BlockWait = 5
+ContractFile = "../input/contract.json"
+FSMFile = "../input/fsm.json"
+DFUFile = "../../../units.json"
+
+Hosts, NumParticipants, NumBlocks
+10, 10, 15
