@@ -2,6 +2,8 @@ package commons
 
 import (
 	"crypto/rand"
+	"time"
+
 	"github.com/dedis/protean/libclient"
 	execbase "github.com/dedis/protean/libexec/base"
 	"github.com/dedis/protean/libstate"
@@ -11,7 +13,6 @@ import (
 	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/onet/v3"
-	"time"
 )
 
 func SetupStateUnit(roster *onet.Roster, blockTime int) (skipchain.SkipBlockID, error) {
@@ -72,12 +73,16 @@ func SetupRegistry(regRoster *onet.Roster, dfile *string, keyMap map[string][]ky
 	}, nil
 }
 
-func GenerateTickets(X kyber.Point, count int) []utils.ElGamalPair {
-	tickets := make([]utils.ElGamalPair, count)
+func GenerateTicket(X kyber.Point) utils.ElGamalPair {
+	randBytes := make([]byte, 24)
+	rand.Read(randBytes)
+	return utils.ElGamalEncrypt(X, randBytes)
+}
+
+func GenerateWriters(count int) []darc.Signer {
+	writers := make([]darc.Signer, count)
 	for i := 0; i < count; i++ {
-		randBytes := make([]byte, 24)
-		rand.Read(randBytes)
-		tickets[i] = utils.ElGamalEncrypt(X, randBytes)
+		writers[i] = darc.NewSignerEd25519(nil, nil)
 	}
-	return tickets
+	return writers
 }

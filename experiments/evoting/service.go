@@ -2,15 +2,13 @@ package main
 
 import (
 	"fmt"
-	"sync"
-	"time"
-
 	"github.com/BurntSushi/toml"
 	"github.com/dedis/protean/core"
+	"github.com/dedis/protean/easyneff"
 	"github.com/dedis/protean/experiments/commons"
 	"github.com/dedis/protean/libclient"
 	"github.com/dedis/protean/libexec"
-	"github.com/dedis/protean/libexec/apps/dkglottery"
+	evotingpc "github.com/dedis/protean/libexec/apps/evoting_pc"
 	execbase "github.com/dedis/protean/libexec/base"
 	"github.com/dedis/protean/libstate"
 	"github.com/dedis/protean/threshold"
@@ -23,6 +21,8 @@ import (
 	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/onet/v3/simul/monitor"
 	"go.dedis.ch/protobuf"
+	"sync"
+	"time"
 )
 
 type SimulationService struct {
@@ -38,9 +38,11 @@ type SimulationService struct {
 	byzID        skipchain.SkipBlockID
 	stRoster     *onet.Roster
 	execRoster   *onet.Roster
+	shufRoster   *onet.Roster
 	threshRoster *onet.Roster
 	stCl         *libstate.Client
 	execCl       *libexec.Client
+	shCl         *easyneff.Client
 	thCl         *threshold.Client
 
 	rdata       *execbase.ByzData
@@ -50,10 +52,10 @@ type SimulationService struct {
 }
 
 func init() {
-	onet.SimulationRegister("DKGLottery", NewDKGLotteryService)
+	onet.SimulationRegister("Evoting", NewEvotingService)
 }
 
-func NewDKGLotteryService(config string) (onet.Simulation, error) {
+func NewEvotingService(config string) (onet.Simulation, error) {
 	ss := &SimulationService{}
 	_, err := toml.Decode(config, ss)
 	if err != nil {
@@ -87,6 +89,12 @@ func (s *SimulationService) initDFUs() error {
 	_, err := s.execCl.InitUnit()
 	if err != nil {
 		log.Errorf("initializing execution unit: %v", err)
+		return err
+	}
+	s.shCl = easyneff.NewClient(s.shufRoster)
+	_, err = s.shCl.InitUnit()
+	if err != nil {
+		log.Errorf("initializing shuffle unit: %v", err)
 		return err
 	}
 	s.thCl = threshold.NewClient(s.threshRoster)
@@ -123,13 +131,13 @@ func (s *SimulationService) initContract() error {
 		Lock:      false,
 		CurrState: fsm.InitialState,
 	}
-	encTickets := dkglottery.EncTickets{}
-	buf, err := protobuf.Encode(&encTickets)
+	encBallots := evotingpc.EncBallots{}
+	buf, err := protobuf.Encode(&encBallots)
 	if err != nil {
 		log.Error(err)
 		return err
 	}
-	args := byzcoin.Arguments{{Name: "enc_tickets", Value: buf}}
+	args := byzcoin.Arguments{{Name: "enc_ballots", Value: buf}}
 	reply, err := s.stCl.InitContract(raw, hdr, args, 10)
 	if err != nil {
 		log.Error(err)
@@ -169,7 +177,7 @@ func (s *SimulationService) executeSetup() error {
 		return err
 	}
 	// Step 2: exec
-	setupInput := dkglottery.SetupInput{Pk: dkgReply.Output.X}
+	setupInput := evotingpc.SetupInput{Pk: dkgReply.Output.X}
 	data, err := protobuf.Encode(&setupInput)
 	if err != nil {
 		log.Error(err)
@@ -178,7 +186,7 @@ func (s *SimulationService) executeSetup() error {
 	sp := make(map[string]*core.StateProof)
 	sp["readset"] = &gcs.Proof
 	execInput := execbase.ExecuteInput{
-		FnName:      "setup_dkglot",
+		FnName:      "setup_vote_pc",
 		Data:        data,
 		StateProofs: sp,
 	}
@@ -190,7 +198,7 @@ func (s *SimulationService) executeSetup() error {
 		return err
 	}
 	// Step 3: update_state
-	var setupOut dkglottery.SetupOutput
+	var setupOut evotingpc.SetupOutput
 	err = protobuf.Decode(execReply.Output.Data, &setupOut)
 	if err != nil {
 		log.Error(err)
@@ -211,36 +219,36 @@ func (s *SimulationService) executeSetup() error {
 	return err
 }
 
-func (s *SimulationService) executeJoin(idx int) error {
+func (s *SimulationService) executeVote(ballot string, idx int) error {
 	execCl := libexec.NewClient(s.execRoster)
 	stCl := libstate.NewClient(byzcoin.NewClient(s.byzID, *s.stRoster))
 	defer execCl.Close()
 	defer stCl.Close()
 
-	label := fmt.Sprintf("p%d_join", idx)
-	joinMonitor := monitor.NewTimeMeasure(label)
-	ticket := commons.GenerateTicket(s.X)
+	label := fmt.Sprintf("p%d_vote", idx)
+
+	voteMonitor := monitor.NewTimeMeasure(label)
 	gcs, err := stCl.GetState(s.CID)
 	if err != nil {
 		log.Errorf("getting state: %v", err)
 		return err
 	}
+	lastRoot := gcs.Proof.Proof.InclusionProof.GetRoot()
 	cdata := &execbase.ByzData{IID: s.CID, Proof: gcs.Proof.Proof,
 		Genesis: s.contractGen}
-	input := dkglottery.JoinInput{
-		Ticket: dkglottery.Ticket{
-			Data: ticket,
-		},
+	// Prepare input
+	encBallot := utils.ElGamalEncrypt(s.X, []byte(ballot))
+	input := evotingpc.VoteInput{
+		Ballot: evotingpc.Ballot{Data: encBallot},
 	}
 	data, err := protobuf.Encode(&input)
 	if err != nil {
 		log.Errorf("encoding input: %v", err)
 		return err
 	}
-	lastRoot := gcs.Proof.Proof.InclusionProof.GetRoot()
 	done := false
 	for !done {
-		itReply, err := execCl.InitTransaction(s.rdata, cdata, "joinwf", "join")
+		itReply, err := execCl.InitTransaction(s.rdata, cdata, "votewf", "vote")
 		if err != nil {
 			log.Errorf("initializing txn: %v", err)
 			return err
@@ -249,7 +257,7 @@ func (s *SimulationService) executeJoin(idx int) error {
 		sp := make(map[string]*core.StateProof)
 		sp["readset"] = &gcs.Proof
 		execInput := execbase.ExecuteInput{
-			FnName:      "join_dkglot",
+			FnName:      "vote_pc",
 			Data:        data,
 			StateProofs: sp,
 		}
@@ -259,19 +267,19 @@ func (s *SimulationService) executeJoin(idx int) error {
 		}
 		execReply, err := execCl.Execute(execInput, execReq)
 		if err != nil {
-			log.Errorf("executing join_dkglot: %v", err)
+			log.Errorf("executing vote_pc: %v", err)
 			return err
 		}
 		// Step 2: update_state
-		var joinOut dkglottery.JoinOutput
-		err = protobuf.Decode(execReply.Output.Data, &joinOut)
+		var voteOut evotingpc.VoteOutput
+		err = protobuf.Decode(execReply.Output.Data, &voteOut)
 		if err != nil {
-			log.Errorf("decoding join output: %v", err)
+			log.Errorf("decoding vote output: %v", err)
 			return err
 		}
 		execReq.Index = 1
 		execReq.OpReceipts = execReply.Receipts
-		_, err = stCl.UpdateState(joinOut.WS, execReq, 5)
+		_, err = stCl.UpdateState(voteOut.WS, execReq, 5)
 		if err != nil {
 			pr, err := stCl.WaitProof(s.CID[:], lastRoot, s.BlockTime)
 			if err != nil {
@@ -290,11 +298,11 @@ func (s *SimulationService) executeJoin(idx int) error {
 			done = true
 		}
 	}
-	joinMonitor.Record()
+	voteMonitor.Record()
 	return nil
 }
 
-func (s *SimulationService) executeClose() error {
+func (s *SimulationService) executeLock() error {
 	// Get state
 	gcs, err := s.stCl.GetState(s.CID)
 	if err != nil {
@@ -305,26 +313,34 @@ func (s *SimulationService) executeClose() error {
 		Genesis: s.contractGen}
 
 	// Initialize transaction
-	itReply, err := s.execCl.InitTransaction(s.rdata, cdata, "closewf", "close")
+	itReply, err := s.execCl.InitTransaction(s.rdata, cdata, "finalizewf", "lock")
 	if err != nil {
 		log.Errorf("initializing txn: %v", err)
 		return err
 	}
 	// Step 1: exec
-	closeInput := dkglottery.CloseInput{
+	lockInput := evotingpc.LockInput{
 		Barrier: 0,
 	}
-	data, err := protobuf.Encode(&closeInput)
+	data, err := protobuf.Encode(&lockInput)
 	if err != nil {
 		log.Errorf("encoding close input: %v", err)
 		return err
 	}
+	hBuf, err := s.X.MarshalBinary()
+	if err != nil {
+		log.Errorf("marshaling point: %v", err)
+		return err
+	}
+	pc := &core.KVDict{Data: make(map[string][]byte)}
+	pc.Data["h"] = hBuf
 	sp := make(map[string]*core.StateProof)
 	sp["readset"] = &gcs.Proof
 	execInput := execbase.ExecuteInput{
-		FnName:      "close_dkglot",
+		FnName:      "lock",
 		Data:        data,
 		StateProofs: sp,
+		Precommits:  pc,
 	}
 	execReq := &core.ExecutionRequest{
 		Index: 0,
@@ -332,20 +348,20 @@ func (s *SimulationService) executeClose() error {
 	}
 	execReply, err := s.execCl.Execute(execInput, execReq)
 	if err != nil {
-		log.Errorf("executing close_dkglot: %v", err)
+		log.Errorf("executing lock: %v", err)
 		return err
 	}
 
 	// Step 2: update_state
-	var closeOut dkglottery.CloseOutput
-	err = protobuf.Decode(execReply.Output.Data, &closeOut)
+	var lockOut evotingpc.LockOutput
+	err = protobuf.Decode(execReply.Output.Data, &lockOut)
 	if err != nil {
 		log.Errorf("protobuf decode: %v", err)
 		return err
 	}
 	execReq.Index = 1
 	execReq.OpReceipts = execReply.Receipts
-	_, err = s.stCl.UpdateState(closeOut.WS, execReq, 5)
+	_, err = s.stCl.UpdateState(lockOut.WS, execReq, 5)
 	if err != nil {
 		log.Errorf("updating state: %v", err)
 		return err
@@ -359,7 +375,7 @@ func (s *SimulationService) executeClose() error {
 	return err
 }
 
-func (s *SimulationService) executeFinalize() error {
+func (s *SimulationService) executeShuffle() error {
 	// Get state
 	gcs, err := s.stCl.GetState(s.CID)
 	if err != nil {
@@ -370,54 +386,143 @@ func (s *SimulationService) executeFinalize() error {
 		Genesis: s.contractGen}
 
 	// Initialize transaction
-	itReply, err := s.execCl.InitTransaction(s.rdata, cdata, "finalizewf",
-		"finalize")
+	itReply, err := s.execCl.InitTransaction(s.rdata, cdata, "finalizewf", "shuffle")
 	if err != nil {
 		log.Errorf("initializing txn: %v", err)
 		return err
 	}
 
 	// Step 1: exec
-	sp := make(map[string]*core.StateProof)
-	sp["readset"] = &gcs.Proof
-	execInput := execbase.ExecuteInput{
-		FnName:      "prepare_decrypt_dkglot",
-		StateProofs: sp,
-	}
 	execReq := &core.ExecutionRequest{
 		Index: 0,
 		EP:    &itReply.Plan,
 	}
+	sp := make(map[string]*core.StateProof)
+	sp["readset"] = &gcs.Proof
+	execInput := execbase.ExecuteInput{
+		FnName:      "prepare_shuffle_pc",
+		StateProofs: sp,
+	}
 	execReply, err := s.execCl.Execute(execInput, execReq)
 	if err != nil {
-		log.Errorf("executing prepare_decrypt_dkglot: %v", err)
+		log.Errorf("executing prepare_shuffle_pc: %v", err)
 		return err
 	}
 
-	// Step 2: decrypt
-	var prepOut dkglottery.PrepDecOutput
-	err = protobuf.Decode(execReply.Output.Data, &prepOut)
+	// Step 2: shuffle
+	var prepShOut evotingpc.PrepShufOutput
+	err = protobuf.Decode(execReply.Output.Data, &prepShOut)
 	if err != nil {
 		log.Errorf("protobuf decode: %v", err)
 		return err
 	}
 	execReq.Index = 1
 	execReq.OpReceipts = execReply.Receipts
-	decReply, err := s.thCl.Decrypt(&prepOut.Input, execReq)
+	shReply, err := s.shCl.Shuffle(prepShOut.Input.Pairs, prepShOut.Input.H, execReq)
+	if err != nil {
+		log.Errorf("shuffle: %v", err)
+		return err
+	}
+
+	// Step 3: exec
+	prepPrInput := evotingpc.PrepProofsInput{ShProofs: shReply.Proofs}
+	data, err := protobuf.Encode(&prepPrInput)
+	if err != nil {
+		log.Errorf("protobuf encode: %v", err)
+		return err
+	}
+	execInput = execbase.ExecuteInput{
+		FnName:      "prepare_proofs_pc",
+		Data:        data,
+		StateProofs: sp,
+	}
+	execReq.Index = 2
+	execReq.OpReceipts = shReply.Receipts
+	execReply, err = s.execCl.Execute(execInput, execReq)
+	if err != nil {
+		log.Errorf("executing prepare_proofs_pc: %v", err)
+		return err
+	}
+
+	// Step 4: update_state
+	var prepPrOut evotingpc.PrepProofsOutput
+	err = protobuf.Decode(execReply.Output.Data, &prepPrOut)
+	if err != nil {
+		log.Errorf("protpbuf decode: %v", err)
+		return err
+	}
+	execReq.Index = 3
+	execReq.OpReceipts = execReply.Receipts
+	_, err = s.stCl.UpdateState(prepPrOut.WS, execReq, 5)
+
+	_, err = s.stCl.WaitProof(execReq.EP.CID, execReq.EP.StateRoot, 5)
+	if err != nil {
+		log.Errorf("wait proof: %v", err)
+	}
+	return err
+}
+
+func (s *SimulationService) executeTally() error {
+	// Get state
+	gcs, err := s.stCl.GetState(s.CID)
+	if err != nil {
+		log.Errorf("getting state: %v", err)
+		return err
+	}
+	cdata := &execbase.ByzData{IID: s.CID, Proof: gcs.Proof.Proof,
+		Genesis: s.contractGen}
+
+	// Initialize transaction
+	itReply, err := s.execCl.InitTransaction(s.rdata, cdata, "finalizewf", "tally")
+	if err != nil {
+		log.Errorf("initializing txn: %v", err)
+		return err
+	}
+
+	// Step 1: exec
+	execReq := &core.ExecutionRequest{
+		Index: 0,
+		EP:    &itReply.Plan,
+	}
+	sp := make(map[string]*core.StateProof)
+	sp["readset"] = &gcs.Proof
+	execInput := execbase.ExecuteInput{
+		FnName:      "prepare_decrypt_vote_pc",
+		StateProofs: sp,
+	}
+	execReply, err := s.execCl.Execute(execInput, execReq)
+	if err != nil {
+		log.Errorf("executing prepare_decrypt_vote_pc: %v", err)
+		return err
+	}
+
+	// Step 2: decrypt
+	var prepDecOut evotingpc.PrepDecOutput
+	err = protobuf.Decode(execReply.Output.Data, &prepDecOut)
+	if err != nil {
+		log.Errorf("protobuf decode: %v", err)
+		return err
+	}
+	execReq.Index = 1
+	execReq.OpReceipts = execReply.Receipts
+	decReply, err := s.thCl.Decrypt(&prepDecOut.Input, execReq)
 	if err != nil {
 		log.Errorf("decrypting: %v", err)
 		return err
 	}
 
 	// Step 3: exec
-	finalInput := dkglottery.FinalizeInput{Ps: decReply.Output.Ps}
-	data, err := protobuf.Encode(&finalInput)
+	tallyIn := evotingpc.TallyInput{
+		CandCount: 5,
+		Ps:        decReply.Output.Ps,
+	}
+	data, err := protobuf.Encode(&tallyIn)
 	if err != nil {
 		log.Errorf("protobuf encode: %v", err)
 		return err
 	}
 	execInput = execbase.ExecuteInput{
-		FnName:      "finalize_dkglot",
+		FnName:      "tally_pc",
 		Data:        data,
 		StateProofs: sp,
 	}
@@ -425,20 +530,20 @@ func (s *SimulationService) executeFinalize() error {
 	execReq.OpReceipts = decReply.Receipts
 	execReply, err = s.execCl.Execute(execInput, execReq)
 	if err != nil {
-		log.Errorf("executing finalize_dkglot: %v", err)
+		log.Errorf("executing tally_pc: %v", err)
 		return err
 	}
 
 	// Step 4: update_state
-	var finalOut dkglottery.FinalizeOutput
-	err = protobuf.Decode(execReply.Output.Data, &finalOut)
+	var tallyOut evotingpc.TallyOutput
+	err = protobuf.Decode(execReply.Output.Data, &tallyOut)
 	if err != nil {
 		log.Errorf("protobuf decode: %v", err)
 		return err
 	}
 	execReq.Index = 3
 	execReq.OpReceipts = execReply.Receipts
-	_, err = s.stCl.UpdateState(finalOut.WS, execReq, 5)
+	_, err = s.stCl.UpdateState(tallyOut.WS, execReq, 5)
 	if err != nil {
 		log.Errorf("updating state: %v", err)
 		return err
@@ -452,7 +557,7 @@ func (s *SimulationService) executeFinalize() error {
 	return err
 }
 
-func (s *SimulationService) runDKGLottery() error {
+func (s *SimulationService) runEvoting() error {
 	err := s.initDFUs()
 	if err != nil {
 		return err
@@ -467,10 +572,11 @@ func (s *SimulationService) runDKGLottery() error {
 	if err != nil {
 		return err
 	}
-	//times := make([]time.Duration, s.NumParticipants)
 	var wg sync.WaitGroup
 	schedule := []int{0, 1, 0, 2, 1, 0, 1, 0, 2, 1, 0, 0, 1, 1, 0}
 	//schedule := []int{0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 1, 1, 1}
+	ballots := []string{"01000", "10000", "10000", "01000", "00001", "00100",
+		"01000", "00001", "00010", "10000"}
 	ctr := 0
 	for i := 0; i < len(schedule); i++ {
 		pCount := schedule[i]
@@ -479,7 +585,7 @@ func (s *SimulationService) runDKGLottery() error {
 			for j := 0; j < pCount; j++ {
 				go func(idx int) {
 					defer wg.Done()
-					err = s.executeJoin(idx)
+					err = s.executeVote(ballots[idx], idx)
 				}(ctr)
 				ctr++
 			}
@@ -487,41 +593,18 @@ func (s *SimulationService) runDKGLottery() error {
 		time.Sleep(time.Duration(s.BlockTime) * time.Second)
 	}
 	wg.Wait()
-	err = s.executeClose()
+	err = s.executeLock()
 	if err != nil {
 		return err
 	}
-	err = s.executeFinalize()
+	err = s.executeShuffle()
 	if err != nil {
 		return err
 	}
-
-	//gcs, _ := s.stCl.GetState(s.CID)
-	//v, _, _, err := gcs.Proof.Proof.Get(s.CID.Slice())
-	//if err != nil {
-	//	log.Error(err)
-	//	return err
-	//}
-	//
-	//kvStore := &contracts.Storage{}
-	//err = protobuf.Decode(v, kvStore)
-	//if err != nil {
-	//	log.Error(err)
-	//	return err
-	//}
-	//for _, kv := range kvStore.Store {
-	//	if kv.Key == "enc_tickets" {
-	//		encTickets := &dkglottery.EncTickets{}
-	//		err = protobuf.Decode(kv.Value, encTickets)
-	//		if err != nil {
-	//			log.Error(err)
-	//			return err
-	//		}
-	//		for _, p := range encTickets.Data.Pairs {
-	//			fmt.Printf("Data: %s %s\n", p.C.String(), p.K.String())
-	//		}
-	//	}
-	//}
+	err = s.executeTally()
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -531,17 +614,19 @@ func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 	regRoster := onet.NewRoster(config.Roster.List[0:4])
 	s.stRoster = onet.NewRoster(config.Roster.List[4:])
 	s.execRoster = s.stRoster
+	s.shufRoster = s.stRoster
 	s.threshRoster = s.stRoster
 
 	keyMap := make(map[string][]kyber.Point)
 	keyMap["state"] = s.stRoster.ServicePublics(skipchain.ServiceName)
 	keyMap["codeexec"] = s.execRoster.ServicePublics(libexec.ServiceName)
+	keyMap["easyneff"] = s.shufRoster.ServicePublics(blscosi.ServiceName)
 	keyMap["threshold"] = s.threshRoster.ServicePublics(blscosi.ServiceName)
 	s.rdata, err = commons.SetupRegistry(regRoster, &s.DFUFile, keyMap)
 	if err != nil {
 		log.Error(err)
 	}
-	err = s.runDKGLottery()
+	err = s.runEvoting()
 	if err != nil {
 		return err
 	}

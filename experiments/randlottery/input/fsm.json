@@ -1,0 +1,18 @@
+{
+  "initial_state": "lottery_open",
+  "states": ["lottery_open", "lottery_closed", "lottery_finalized"],
+  "transitions": {
+    "join": {
+      "from": "lottery_open",
+      "to": "lottery_open"
+    },
+    "close": {
+      "from": "lottery_open",
+      "to": "lottery_closed"
+    },
+    "finalize": {
+      "from": "lottery_closed",
+      "to": "lottery_finalized"
+    }
+  }
+}

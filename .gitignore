@@ -1,6 +1,11 @@
 conode/conode
 .idea
-/experiments/dkglottery/simulation/simulation
 /experiments/dkglottery/dkglottery
 /experiments/dkglottery/build/
 /experiments/dkglottery/test_data/
+/experiments/evoting/evoting
+/experiments/evoting/build/
+/experiments/evoting/test_data/
+/experiments/randlottery/randlottery
+/experiments/randlottery/build/
+/experiments/randlottery/test_data/

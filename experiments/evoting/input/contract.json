@@ -1,0 +1,253 @@
+{
+	"workflows": {
+		"setupwf": {
+			"txns": {
+				"setup": {
+					"opcodes": [
+						{
+							"name": "init_dkg",
+							"dfu_id":"threshold"
+						},
+						{
+							"name": "exec",
+							"dfu_id": "codeexec",
+							"inputs": {
+								"fnname": {
+									"src": "CONST",
+									"value": "setup_vote_pc"
+								},
+								"pk": {
+									"src": "OPCODE",
+									"src_name": "X",
+									"idx": 0
+								},
+								"readset": {
+									"src": "KEYVALUE",
+									"value": "header"
+								}
+							}
+						},
+						{
+							"name": "update_state",
+							"dfu_id": "state",
+							"inputs": {
+								"ws": {
+									"src": "OPCODE",
+									"src_name": "writeset",
+									"idx": 1
+								}
+							}
+						}
+					]
+				}
+			}
+		},
+		"votewf": {
+			"txns": {
+				"vote": {
+					"opcodes": [
+						{
+							"name": "exec",
+							"dfu_id": "codeexec",
+							"inputs": {
+								"fnname": {
+									"src": "CONST",
+									"value": "vote_pc"
+								},
+								"readset": {
+									"src": "KEYVALUE",
+									"value": "enc_ballots,header"
+								}
+							}
+						},
+						{
+							"name": "update_state",
+							"dfu_id": "state",
+							"inputs": {
+								"ws": {
+									"src": "OPCODE",
+									"src_name": "writeset",
+									"idx": 0
+								}
+							}
+						}
+					]
+				}
+			}
+		},
+		"finalizewf": {
+			"txns": {
+				"lock": {
+					"opcodes": [
+						{
+							"name": "exec",
+							"dfu_id": "codeexec",
+							"inputs": {
+								"fnname": {
+									"src": "CONST",
+									"value": "lock"
+								},
+								"barrier": {
+									"src": "CONST",
+									"value": 0
+								},
+								"readset": {
+									"src": "KEYVALUE",
+									"value": "header"
+								},
+								"h": {
+									"src": "PRECOMMIT",
+									"value": "h"
+								}
+							}
+						},
+						{
+							"name": "update_state",
+							"dfu_id": "state",
+							"inputs": {
+								"ws": {
+									"src": "OPCODE",
+									"src_name": "writeset",
+									"idx": 0
+								}
+							}
+						}
+					]
+				},
+				"shuffle": {
+					"opcodes": [
+						{
+							"name": "exec",
+							"dfu_id": "codeexec",
+							"inputs": {
+								"fnname": {
+									"src": "CONST",
+									"value": "prepare_shuffle_pc"
+								},
+								"readset": {
+									"src": "KEYVALUE",
+									"value": "enc_ballots,h"
+								}
+							}
+						},
+						{
+							"name": "shuffle",
+							"dfu_id": "easyneff",
+							"inputs": {
+								"pairs": {
+									"src": "OPCODE",
+									"src_name": "pairs",
+									"idx": 0
+								},
+								"h": {
+									"src": "OPCODE",
+									"src_name": "h",
+									"idx": 0
+								}
+							}
+						},
+						{
+							"name": "exec",
+							"dfu_id": "codeexec",
+							"inputs": {
+								"fnname": {
+									"src": "CONST",
+									"value": "prepare_proofs_pc"
+								},
+								"readset": {
+									"src": "KEYVALUE",
+									"value": "header"
+								},
+								"proofs": {
+									"src": "OPCODE",
+									"src_name": "proofs",
+									"idx": 1
+								}
+							}
+						},
+						{
+							"name": "update_state",
+							"dfu_id": "state",
+							"inputs": {
+								"ws": {
+									"src": "OPCODE",
+									"src_name": "writeset",
+									"idx": 2
+								}
+							}
+						}
+					]
+				},
+				"tally": {
+					"opcodes": [
+						{
+							"name": "exec",
+							"dfu_id": "codeexec",
+							"inputs": {
+								"fnname": {
+									"src": "CONST",
+									"value": "prepare_decrypt_vote_pc"
+								},
+								"readset": {
+									"src": "KEYVALUE",
+									"value": "proofs"
+								}
+							}
+						},
+						{
+							"name": "decrypt",
+							"dfu_id": "threshold",
+							"inputs": {
+								"ciphertexts": {
+									"src": "OPCODE",
+									"src_name": "ciphertexts",
+									"idx": 0
+								}
+							}
+						},
+						{
+							"name": "exec",
+							"dfu_id": "codeexec",
+							"inputs": {
+								"fnname": {
+									"src": "CONST",
+									"value": "tally_pc"
+								},
+								"readset": {
+									"src": "KEYVALUE",
+									"value": "header"
+								},
+								"plaintexts": {
+									"src": "OPCODE",
+									"src_name": "plaintexts",
+									"idx": 1
+								},
+								"candidate_count": {
+									"src": "CONST",
+									"value": 5
+								}
+							}
+						},
+						{
+							"name": "update_state",
+							"dfu_id": "state",
+							"inputs": {
+								"ws": {
+									"src": "OPCODE",
+									"src_name": "writeset",
+									"idx": 2
+								}
+							}
+						}
+					]
+				}
+			}
+		}
+	},
+	"dfus": [
+		"codeexec",
+		"state",
+		"easyneff",
+		"threshold"
+	]
+}
