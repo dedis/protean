@@ -52,15 +52,15 @@ func SetupRegistry(dfuFile *string, regRoster *onet.Roster,
 	return cl, reply.IID, pr, nil
 }
 
-func SetupStateUnit(roster *onet.Roster, blockTime int) (*libstate.AdminClient, error) {
+func SetupStateUnit(roster *onet.Roster, blockTime int) (*libstate.AdminClient, skipchain.SkipBlockID, error) {
 	adminCl, byzID, err := libstate.SetupByzcoin(roster, blockTime)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	signer := darc.NewSignerEd25519(nil, nil)
 	spawnDarc, err := adminCl.SpawnDarc(signer, adminCl.GMsg.GenesisDarc, 5)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	req := &libstate.InitUnitRequest{
 		ByzID:  byzID,
@@ -70,9 +70,9 @@ func SetupStateUnit(roster *onet.Roster, blockTime int) (*libstate.AdminClient, 
 	}
 	_, err = adminCl.Cl.InitUnit(req)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return adminCl, nil
+	return adminCl, byzID, nil
 }
 
 func GenerateWriters(count int) []darc.Signer {

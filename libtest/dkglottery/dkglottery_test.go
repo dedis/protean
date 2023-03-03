@@ -1,12 +1,16 @@
 package dkglottery
 
 import (
+	"crypto/rand"
 	"flag"
+	"fmt"
+	"testing"
+	"time"
+
 	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/libclient"
 	"github.com/dedis/protean/libexec"
 	"github.com/dedis/protean/libexec/apps/dkglottery"
-	"github.com/dedis/protean/libexec/apps/randlottery"
 	execbase "github.com/dedis/protean/libexec/base"
 	"github.com/dedis/protean/libstate"
 	"github.com/dedis/protean/libtest"
@@ -20,9 +24,6 @@ import (
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/protobuf"
-	"math/rand"
-	"testing"
-	"time"
 )
 
 var contractFile string
@@ -62,7 +63,7 @@ func Test_DKGLottery(t *testing.T) {
 	require.NoError(t, err)
 
 	// Initialize DFUs
-	adminCl, err := libtest.SetupStateUnit(dfuRoster, 5)
+	adminCl, byzID, err := libtest.SetupStateUnit(dfuRoster, 5)
 	require.NoError(t, err)
 	execCl := libexec.NewClient(dfuRoster)
 	_, err = execCl.InitUnit()
@@ -92,24 +93,26 @@ func Test_DKGLottery(t *testing.T) {
 	require.NoError(t, err)
 	args := byzcoin.Arguments{{Name: "enc_tickets", Value: buf}}
 	reply, err := adminCl.Cl.InitContract(raw, hdr, args, 10)
-	time.Sleep(5 * time.Second)
-	cid := reply.CID
+	require.NotNil(t, reply.TxResp.Proof)
 	require.NoError(t, err)
+
+	cid := reply.CID
 	stGenesis, err := adminCl.Cl.FetchGenesisBlock(reply.TxResp.Proof.
 		Latest.SkipChainID())
 	require.NoError(t, err)
-	require.NotNil(t, reply.TxResp.Proof)
+	time.Sleep(3 * time.Second)
+
 	gcs, err := adminCl.Cl.GetState(cid)
 	require.NoError(t, err)
-	rdata := execbase.ByzData{
+	rdata := &execbase.ByzData{
 		IID:     rid,
-		Proof:   *regPr,
-		Genesis: *regGenesis,
+		Proof:   regPr,
+		Genesis: regGenesis,
 	}
-	cdata := execbase.ByzData{
+	cdata := &execbase.ByzData{
 		IID:     cid,
 		Proof:   gcs.Proof.Proof,
-		Genesis: *stGenesis,
+		Genesis: stGenesis,
 	}
 
 	// Execute setup txn
@@ -147,14 +150,15 @@ func Test_DKGLottery(t *testing.T) {
 	execReq.OpReceipts = execReply.Receipts
 	_, err = adminCl.Cl.UpdateState(setupOut.WS, execReq, 5)
 	require.NoError(t, err)
-	time.Sleep(3 * time.Second)
+	_, err = adminCl.Cl.WaitProof(execReq.EP.CID, execReq.EP.StateRoot, 5)
+	require.NoError(t, err)
 
 	// execute join txns
 	d := JoinData{
 		adminCl: adminCl,
 		execCl:  execCl,
-		rdata:   &rdata,
-		cdata:   &cdata,
+		rdata:   rdata,
+		cdata:   cdata,
 		cid:     cid,
 	}
 	tickets := generateTickets(dkgReply.Output.X, 10)
@@ -198,15 +202,23 @@ func Test_DKGLottery(t *testing.T) {
 
 	execReq.Index = 1
 	execReq.OpReceipts = execReply.Receipts
-	_, err = adminCl.Cl.UpdateState(closeOut.WS, execReq, 5)
+
+	// CEY
+	adminCl.Cl.Close()
+	newCl := libstate.NewClient(byzcoin.NewClient(byzID, *dfuRoster))
+
+	//_, err = adminCl.Cl.UpdateState(closeOut.WS, execReq, 5)
+	_, err = newCl.UpdateState(closeOut.WS, execReq, 5)
 	require.NoError(t, err)
 
-	time.Sleep(3 * time.Second)
+	pr, err := adminCl.Cl.WaitProof(execReq.EP.CID, execReq.EP.StateRoot, 5)
+	require.NoError(t, err)
 
 	// execute finalize txn
-	gcs, err = adminCl.Cl.GetState(cid)
-	require.NoError(t, err)
-	cdata.Proof = gcs.Proof.Proof
+	//gcs, err = adminCl.Cl.GetState(cid)
+	//require.NoError(t, err)
+	//cdata.Proof = gcs.Proof.Proof
+	cdata.Proof = pr
 
 	itReply, err = execCl.InitTransaction(rdata, cdata, "finalizewf", "finalize")
 	require.NoError(t, err)
@@ -218,6 +230,7 @@ func Test_DKGLottery(t *testing.T) {
 
 	// Step 1: exec
 	sp = make(map[string]*core.StateProof)
+	gcs.Proof.Proof = pr
 	sp["readset"] = &gcs.Proof
 	execInput = execbase.ExecuteInput{
 		FnName:      "prepare_decrypt_dkglot",
@@ -247,29 +260,29 @@ func Test_DKGLottery(t *testing.T) {
 	execReply, err = execCl.Execute(execInput, execReq)
 	require.NoError(t, err)
 	// Step 4: update_state
-	var finalOut randlottery.FinalizeOutput
+	var finalOut dkglottery.FinalizeOutput
 	err = protobuf.Decode(execReply.Output.Data, &finalOut)
 	require.NoError(t, err)
 
 	execReq.Index = 3
 	execReq.OpReceipts = execReply.Receipts
-	_, err = adminCl.Cl.UpdateState(finalOut.WS, execReq, 5)
+	//_, err = adminCl.Cl.UpdateState(finalOut.WS, execReq, 5)
+	_, err = newCl.UpdateState(finalOut.WS, execReq, 5)
 	require.NoError(t, err)
-
-	//time.Sleep(3 * time.Second)
 }
 
 func executeJoin(t *testing.T, d *JoinData, ticket utils.ElGamalPair) {
 	gcs, err := d.adminCl.Cl.GetState(d.cid)
 	require.NoError(t, err)
 
+	fmt.Printf("after gs: %x\n", gcs.Proof.Proof.InclusionProof.GetRoot())
+
 	d.cdata.Proof = gcs.Proof.Proof
-	itReply, err := d.execCl.InitTransaction(*d.rdata, *d.cdata, "joinwf", "join")
+	itReply, err := d.execCl.InitTransaction(d.rdata, d.cdata, "joinwf", "join")
 	require.NoError(t, err)
 	require.NotNil(t, itReply)
 
 	// Step 1: execute
-
 	input := dkglottery.JoinInput{
 		Ticket: dkglottery.Ticket{
 			Data: ticket,
@@ -292,7 +305,7 @@ func executeJoin(t *testing.T, d *JoinData, ticket utils.ElGamalPair) {
 	require.NoError(t, err)
 
 	// Step 2: update_state
-	var joinOut randlottery.JoinOutput
+	var joinOut dkglottery.JoinOutput
 	err = protobuf.Decode(execReply.Output.Data, &joinOut)
 	require.NoError(t, err)
 
@@ -301,7 +314,9 @@ func executeJoin(t *testing.T, d *JoinData, ticket utils.ElGamalPair) {
 	_, err = d.adminCl.Cl.UpdateState(joinOut.WS, execReq, 5)
 	require.NoError(t, err)
 
-	time.Sleep(3 * time.Second)
+	wp, err := d.adminCl.Cl.WaitProof(execReq.EP.CID, execReq.EP.StateRoot, 10)
+	require.NoError(t, err)
+	fmt.Printf("after wp: %x\n", wp.InclusionProof.GetRoot())
 }
 
 func generateTickets(X kyber.Point, count int) []utils.ElGamalPair {

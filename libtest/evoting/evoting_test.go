@@ -48,6 +48,7 @@ type JoinData struct {
 func TestMain(m *testing.M) {
 	log.MainTest(m)
 }
+
 func Test_Voting(t *testing.T) {
 	log.SetDebugVisible(1)
 	l := onet.NewTCPTest(cothority.Suite)
@@ -62,7 +63,7 @@ func Test_Voting(t *testing.T) {
 	require.NoError(t, err)
 
 	// Initialize DFUs
-	adminCl, err := libtest.SetupStateUnit(dfuRoster, 5)
+	adminCl, _, err := libtest.SetupStateUnit(dfuRoster, 5)
 	require.NoError(t, err)
 	execCl := libexec.NewClient(dfuRoster)
 	_, err = execCl.InitUnit()
@@ -94,24 +95,26 @@ func Test_Voting(t *testing.T) {
 	require.NoError(t, err)
 	args := byzcoin.Arguments{{Name: "enc_ballots", Value: buf}}
 	reply, err := adminCl.Cl.InitContract(raw, hdr, args, 10)
-	time.Sleep(5 * time.Second)
-	cid := reply.CID
 	require.NoError(t, err)
+	require.NotNil(t, reply.TxResp.Proof)
+
+	cid := reply.CID
 	stGenesis, err := adminCl.Cl.FetchGenesisBlock(reply.TxResp.Proof.
 		Latest.SkipChainID())
 	require.NoError(t, err)
-	require.NotNil(t, reply.TxResp.Proof)
+	time.Sleep(3 * time.Second)
+
 	gcs, err := adminCl.Cl.GetState(cid)
 	require.NoError(t, err)
-	rdata := execbase.ByzData{
+	rdata := &execbase.ByzData{
 		IID:     rid,
-		Proof:   *regPr,
-		Genesis: *regGenesis,
+		Proof:   regPr,
+		Genesis: regGenesis,
 	}
-	cdata := execbase.ByzData{
+	cdata := &execbase.ByzData{
 		IID:     cid,
 		Proof:   gcs.Proof.Proof,
-		Genesis: *stGenesis,
+		Genesis: stGenesis,
 	}
 
 	// Execute setup txn
@@ -150,13 +153,15 @@ func Test_Voting(t *testing.T) {
 	execReq.OpReceipts = execReply.Receipts
 	_, err = adminCl.Cl.UpdateState(setupOut.WS, execReq, 5)
 	require.NoError(t, err)
-	time.Sleep(3 * time.Second)
+
+	_, err = adminCl.Cl.WaitProof(execReq.EP.CID, execReq.EP.StateRoot, 5)
+	require.NoError(t, err)
 
 	d := JoinData{
 		adminCl: adminCl,
 		execCl:  execCl,
-		rdata:   &rdata,
-		cdata:   &cdata,
+		rdata:   rdata,
+		cdata:   cdata,
 		cid:     cid,
 		X:       dkgReply.Output.X,
 	}
@@ -211,12 +216,15 @@ func Test_Voting(t *testing.T) {
 	_, err = adminCl.Cl.UpdateState(closeOut.WS, execReq, 5)
 	require.NoError(t, err)
 
-	time.Sleep(3 * time.Second)
+	pr, err := adminCl.Cl.WaitProof(execReq.EP.CID, execReq.EP.StateRoot, 5)
+	require.NoError(t, err)
 
 	// execute shuffle txn
-	gcs, err = adminCl.Cl.GetState(cid)
-	require.NoError(t, err)
-	cdata.Proof = gcs.Proof.Proof
+	//gcs, err = adminCl.Cl.GetState(cid)
+	//require.NoError(t, err)
+	//cdata.Proof = gcs.Proof.Proof
+	gcs.Proof.Proof = pr
+	cdata.Proof = pr
 
 	itReply, err = execCl.InitTransaction(rdata, cdata, "finalizewf", "shuffle")
 	require.NoError(t, err)
@@ -269,12 +277,15 @@ func Test_Voting(t *testing.T) {
 	execReq.OpReceipts = execReply.Receipts
 	_, err = adminCl.Cl.UpdateState(prepPrOut.WS, execReq, 5)
 
-	time.Sleep(3 * time.Second)
+	pr, err = adminCl.Cl.WaitProof(execReq.EP.CID, execReq.EP.StateRoot, 5)
+	require.NoError(t, err)
 
 	// execute tally txn
-	gcs, err = adminCl.Cl.GetState(cid)
-	require.NoError(t, err)
-	cdata.Proof = gcs.Proof.Proof
+	//gcs, err = adminCl.Cl.GetState(cid)
+	//require.NoError(t, err)
+	//cdata.Proof = gcs.Proof.Proof
+	cdata.Proof = pr
+	gcs.Proof.Proof = pr
 
 	itReply, err = execCl.InitTransaction(rdata, cdata, "finalizewf", "tally")
 	require.NoError(t, err)
@@ -330,9 +341,6 @@ func Test_Voting(t *testing.T) {
 	execReq.OpReceipts = execReply.Receipts
 	_, err = adminCl.Cl.UpdateState(tallyOut.WS, execReq, 5)
 	require.NoError(t, err)
-
-	gcs, err = adminCl.Cl.GetState(cid)
-	require.NoError(t, err)
 }
 
 func executeVote(t *testing.T, d *JoinData, ballot string) {
@@ -340,7 +348,7 @@ func executeVote(t *testing.T, d *JoinData, ballot string) {
 	require.NoError(t, err)
 
 	d.cdata.Proof = gcs.Proof.Proof
-	itReply, err := d.execCl.InitTransaction(*d.rdata, *d.cdata, "votewf",
+	itReply, err := d.execCl.InitTransaction(d.rdata, d.cdata, "votewf",
 		"vote")
 	require.NoError(t, err)
 	require.NotNil(t, itReply)
@@ -376,5 +384,6 @@ func executeVote(t *testing.T, d *JoinData, ballot string) {
 	_, err = d.adminCl.Cl.UpdateState(voteOut.WS, execReq, 5)
 	require.NoError(t, err)
 
-	time.Sleep(3 * time.Second)
+	_, err = d.adminCl.Cl.WaitProof(execReq.EP.CID, execReq.EP.StateRoot, 5)
+	require.NoError(t, err)
 }

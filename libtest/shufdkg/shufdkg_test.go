@@ -56,7 +56,7 @@ func Test_ShufDKG(t *testing.T) {
 	require.NoError(t, err)
 
 	// Initialize DFUs
-	adminCl, err := libtest.SetupStateUnit(dfuRoster, 5)
+	adminCl, _, err := libtest.SetupStateUnit(dfuRoster, 5)
 	require.NoError(t, err)
 	execCl := libexec.NewClient(dfuRoster)
 	_, err = execCl.InitUnit()
@@ -93,15 +93,15 @@ func Test_ShufDKG(t *testing.T) {
 	require.NotNil(t, reply.TxResp.Proof)
 	gcs, err := adminCl.Cl.GetState(cid)
 	require.NoError(t, err)
-	rdata := execbase.ByzData{
+	rdata := &execbase.ByzData{
 		IID:     rid,
-		Proof:   *regPr,
-		Genesis: *regGenesis,
+		Proof:   regPr,
+		Genesis: regGenesis,
 	}
-	cdata := execbase.ByzData{
+	cdata := &execbase.ByzData{
 		IID:     cid,
 		Proof:   gcs.Proof.Proof,
-		Genesis: *stGenesis,
+		Genesis: stGenesis,
 	}
 
 	// Step 0: Initialize transaction
