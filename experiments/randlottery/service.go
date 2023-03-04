@@ -99,6 +99,10 @@ func (s *SimulationService) initDFUs() error {
 		log.Errorf("initializing DKG: %v", err)
 		return err
 	}
+	s.randCl.CreateRandomness()
+	s.randCl.CreateRandomness()
+	s.randCl.CreateRandomness()
+	s.randCl.CreateRandomness()
 	// Setup the state unit
 	s.byzID, err = commons.SetupStateUnit(s.stRoster, s.BlockTime)
 	if err != nil {
@@ -324,13 +328,13 @@ func (s *SimulationService) executeFinalize() error {
 		log.Errorf("initializing txn: %v", err)
 		return err
 	}
-
+	round := uint64(2)
 	// Step 1: randomness
 	execReq := &core.ExecutionRequest{
 		Index: 0,
 		EP:    &itReply.Plan,
 	}
-	randReply, err := s.randCl.Randomness(0, execReq)
+	randReply, err := s.randCl.GetRandomness(round, execReq)
 	if err != nil {
 		log.Errorf("getting randomness: %v", err)
 		return err
@@ -338,7 +342,7 @@ func (s *SimulationService) executeFinalize() error {
 
 	// Step 2: exec
 	finalizeInput := randlottery.FinalizeInput{
-		Round:      0,
+		Round:      round,
 		Randomness: randReply.Output,
 	}
 	data, err := protobuf.Encode(&finalizeInput)

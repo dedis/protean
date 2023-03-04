@@ -35,12 +35,20 @@ func (c *Client) InitDKG() (*InitDKGReply, error) {
 	return reply, err
 }
 
-func (c *Client) Randomness(round uint64, execReq *core.ExecutionRequest) (*RandomnessReply, error) {
-	req := &RandomnessRequest{
+func (c *Client) CreateRandomness() (*CreateRandomnessReply, error) {
+	req := &CreateRandomnessRequest{}
+	reply := &CreateRandomnessReply{}
+	err := c.SendProtobuf(c.roster.List[0], req, reply)
+	return reply, err
+}
+
+func (c *Client) GetRandomness(round uint64,
+	execReq *core.ExecutionRequest) (*GetRandomnessReply, error) {
+	req := &GetRandomnessRequest{
 		Input:   base.RandomnessInput{Round: round},
 		ExecReq: *execReq,
 	}
-	reply := &RandomnessReply{}
+	reply := &GetRandomnessReply{}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)
 	return reply, err
 }

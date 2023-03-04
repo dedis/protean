@@ -33,10 +33,10 @@ func Test_Simple(t *testing.T) {
 	require.NoError(t, err)
 
 	// Dummy call
-	cl.Randomness(0)
-	cl.Randomness(1)
-	cl.Randomness(2)
-	randReply, err := cl.Randomness(3)
+	cl.CreateRandomness(0)
+	cl.CreateRandomness(1)
+	cl.CreateRandomness(2)
+	randReply, err := cl.CreateRandomness(3)
 	require.NoError(t, err)
 	require.NotNil(t, randReply.Value)
 

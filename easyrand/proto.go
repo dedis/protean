@@ -10,8 +10,8 @@ import (
 
 func init() {
 	network.RegisterMessages(&InitUnitRequest{}, &InitUnitReply{},
-		&InitDKGRequest{}, &InitDKGReply{}, &RandomnessRequest{},
-		&RandomnessReply{})
+		&InitDKGRequest{}, &InitDKGReply{}, &CreateRandomnessRequest{},
+		&CreateRandomnessReply{}, &GetRandomnessRequest{}, &GetRandomnessReply{})
 }
 
 type InitUnitRequest struct {
@@ -27,14 +27,18 @@ type InitDKGReply struct {
 	Public kyber.Point
 }
 
-// RandomnessRequest is a request to get the public randomness.
-type RandomnessRequest struct {
+// CreateRandomnessRequest is a request to get the public randomness.
+type CreateRandomnessRequest struct{}
+
+// CreateRandomnessReply is the returned public randomness.
+type CreateRandomnessReply struct{}
+
+type GetRandomnessRequest struct {
 	Input   base.RandomnessInput
 	ExecReq core.ExecutionRequest
 }
 
-// RandomnessReply is the returned public randomness.
-type RandomnessReply struct {
+type GetRandomnessReply struct {
 	Output   base.RandomnessOutput
 	Receipts map[string]*core.OpcodeReceipt
 }

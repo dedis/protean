@@ -84,8 +84,8 @@ func (s *EasyRand) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
 	return &InitDKGReply{Public: s.pubPoly.Commit()}, nil
 }
 
-// Randomness returns the public randomness.
-func (s *EasyRand) Randomness(req *RandomnessRequest) (*RandomnessReply, error) {
+// CreateRandomness generates a new public randomness.
+func (s *EasyRand) CreateRandomness(req *CreateRandomnessRequest) (*CreateRandomnessReply, error) {
 	// Generate randomness
 	nodeCount := len(s.roster.List)
 	threshold := nodeCount - (nodeCount-1)/3
@@ -96,13 +96,6 @@ func (s *EasyRand) Randomness(req *RandomnessRequest) (*RandomnessReply, error) 
 		return nil, err
 	}
 	signPi := pi.(*protocol.SignProtocol)
-	signPi.InputHashes, err = req.Input.PrepareHashes()
-	if err != nil {
-		log.Errorf("failed to prepare the input hashes: %v", err)
-		return nil, err
-	}
-	signPi.Input = &req.Input
-	signPi.ExecReq = &req.ExecReq
 	signPi.Msg = createNextMsg(s.blocks)
 	signPi.Threshold = threshold
 	err = signPi.Start()
@@ -113,45 +106,68 @@ func (s *EasyRand) Randomness(req *RandomnessRequest) (*RandomnessReply, error) 
 	select {
 	case sig := <-signPi.FinalSignature:
 		s.blocks = append(s.blocks, sig)
-		round := uint64(len(s.blocks) - 1)
-		prev := s.getRoundBlock(round)
-		public := s.pubPoly.Commit()
-		// Start verify protocol
-		tree := s.roster.GenerateNaryTreeWithRoot(nodeCount-1, s.ServerIdentity())
-		pi, err := s.CreateProtocol(protocol.VerifyProtoName, tree)
-		if err != nil {
-			return nil, err
-		}
-		randOutput := base.RandomnessOutput{Public: public, Round: round,
-			Prev: prev, Value: sig}
-		verifyPi := pi.(*protocol.RandomnessVerify)
-		verifyPi.Threshold = nodeCount - (nodeCount-1)/3
-		verifyPi.ExecReq = &req.ExecReq
-		verifyPi.RandOutput = &randOutput
-		verifyPi.KP = protean.GetBLSKeyPair(s.ServerIdentity())
-		err = verifyPi.Start()
-		if err != nil {
-			return nil, xerrors.Errorf("Failed to start the verification protocol: " + err.Error())
-		}
-		if !<-verifyPi.Verified {
-			return nil, xerrors.New("randomness verify failed")
-		}
-		return &RandomnessReply{Output: randOutput, Receipts: verifyPi.Receipts}, nil
-	case <-time.After(1 * time.Second):
+		//round := uint64(len(s.blocks) - 1)
+		//prev := s.getRoundBlock(round)
+		//public := s.pubPoly.Commit()
+		return &CreateRandomnessReply{}, nil
+	case <-time.After(2 * time.Second):
 		log.Errorf("Timed out waiting for the final signature")
 		return nil, xerrors.New("timeout waiting for final signature")
 	}
 }
 
-func (s *EasyRand) getRoundBlock(round uint64) []byte {
-	if round > uint64(len(s.blocks)) {
-		return nil
+func (s *EasyRand) GetRandomness(req *GetRandomnessRequest) (*GetRandomnessReply, error) {
+	if req.Input.Round > uint64(len(s.blocks)-1) {
+		return nil, xerrors.Errorf("round %d has not been reached yet",
+			req.Input.Round)
 	}
+	round := req.Input.Round
+	rBuf := make([]byte, 8)
+	binary.LittleEndian.PutUint64(rBuf, round)
+
+	nodeCount := len(s.roster.List)
+	threshold := nodeCount - (nodeCount-1)/3
+	tree := s.roster.GenerateNaryTreeWithRoot(nodeCount-1, s.ServerIdentity())
+	pi, err := s.CreateProtocol(protocol.VerifyProtoName, tree)
+	if err != nil {
+		log.Errorf("Create protocol error: %v", err)
+		return nil, err
+	}
+	verifyPi := pi.(*protocol.RandomnessVerify)
+	verifyPi.Threshold = threshold
+	verifyPi.InputHashes, err = req.Input.PrepareHashes()
+	if err != nil {
+		log.Errorf("failed to prepare the input hashes: %v", err)
+		return nil, err
+	}
+	verifyPi.Input = &req.Input
+	verifyPi.ExecReq = &req.ExecReq
+	prev := s.getRoundBlock(round)
+	randOutput := base.RandomnessOutput{Public: s.pubPoly.Commit(),
+		Round: round, Prev: prev, Value: s.blocks[round]}
+	verifyPi.RandOutput = &randOutput
+	verifyPi.KP = protean.GetBLSKeyPair(s.ServerIdentity())
+	err = verifyPi.SetConfig(&onet.GenericConfig{Data: rBuf})
+	if err != nil {
+		return nil, xerrors.Errorf(
+			"failed to set config for verify protocol: %v", err)
+	}
+	err = verifyPi.Start()
+	if err != nil {
+		return nil, xerrors.Errorf("Failed to start the verification protocol: " + err.Error())
+	}
+	if !<-verifyPi.Verified {
+		return nil, xerrors.New("randomness verify failed")
+	}
+	return &GetRandomnessReply{Output: randOutput, Receipts: verifyPi.Receipts}, nil
+}
+
+func (s *EasyRand) getRoundBlock(round uint64) []byte {
 	if round == 0 {
 		return []byte(genesisMsg)
 	}
 	rBuf := make([]byte, 8)
-	binary.LittleEndian.PutUint64(rBuf, uint64(round))
+	binary.LittleEndian.PutUint64(rBuf, round)
 	buf := append(rBuf, s.blocks[round-1]...)
 	return buf
 }
@@ -208,13 +224,13 @@ func (s *EasyRand) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConf
 		}()
 		return pi, nil
 	case protocol.SignProtoName:
-		pi, err := protocol.NewSignProtocol(tn, s.verifyRoundMsg, s.distKeyStore.PriShare(), s.pubPoly, suite)
+		pi, err := protocol.NewSignProtocol(tn, s.distKeyStore.PriShare(), s.pubPoly, suite)
 		if err != nil {
 			log.Errorf("Cannot initialize the signing protocol: %v", err)
 			return nil, err
 		}
-		signProto := pi.(*protocol.SignProtocol)
 		nodeCount := len(s.roster.List)
+		signProto := pi.(*protocol.SignProtocol)
 		signProto.Threshold = nodeCount - (nodeCount-1)/3
 		go func() {
 			select {
@@ -226,9 +242,13 @@ func (s *EasyRand) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConf
 		}()
 		return pi, nil
 	case protocol.VerifyProtoName:
-		round := uint64(len(s.blocks) - 1)
+		round := binary.LittleEndian.Uint64(conf.Data)
+		if round > uint64(len(s.blocks)-1) {
+			return nil, xerrors.Errorf("round %d has not been reached yet",
+				round)
+		}
 		prev := s.getRoundBlock(round)
-		value := s.blocks[len(s.blocks)-1]
+		value := s.blocks[round]
 		pi, err := protocol.NewRandomnessVerify(tn)
 		if err != nil {
 			return nil, err
@@ -260,13 +280,13 @@ func newService(c *onet.Context) (onet.Service, error) {
 	_, err = s.ProtocolRegister(protocol.SignProtoName, func(n *onet.TreeNodeInstance) (
 		onet.ProtocolInstance, error) {
 		// TODO giving NewSignProtocol to pointers isn't so nice because these mutate
-		return protocol.NewSignProtocol(n, s.verifyRoundMsg, s.distKeyStore.PriShare(), s.pubPoly, suite)
+		return protocol.NewSignProtocol(n, s.distKeyStore.PriShare(), s.pubPoly, suite)
 	})
 	if err != nil {
 		log.Errorf("Registering protocol %s failed: %v", protocol.SignProtoName, err)
 		return nil, err
 	}
-	err = s.RegisterHandlers(s.InitUnit, s.InitDKG, s.Randomness)
+	err = s.RegisterHandlers(s.InitUnit, s.InitDKG, s.CreateRandomness, s.GetRandomness)
 	if err != nil {
 		log.Errorf("Registering handlers failed: %v", err)
 		return nil, err

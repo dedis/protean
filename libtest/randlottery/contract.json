@@ -75,12 +75,12 @@
 				"finalize": {
 					"opcodes": [
 						{
-							"name": "randomness",
+							"name": "get_randomness",
 							"dfu_id": "easyrand",
 							"inputs": {
 								"round": {
 									"src": "CONST",
-									"value": 0
+									"value": 2
 								}
 							}
 						},
@@ -94,7 +94,7 @@
 								},
 								"round": {
 									"src": "CONST",
-									"value": 0
+									"value": 2
 								},
 								"readset": {
 									"src": "KEYVALUE",

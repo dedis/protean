@@ -31,8 +31,11 @@ func init() {
 type RandomnessVerify struct {
 	*onet.TreeNodeInstance
 
+	Input       *base.RandomnessInput
+	ExecReq     *core.ExecutionRequest
+	InputHashes map[string][]byte
+
 	RandOutput *base.RandomnessOutput
-	ExecReq    *core.ExecutionRequest
 	KP         *key.Pair
 	Receipts   map[string]*core.OpcodeReceipt
 
@@ -66,6 +69,16 @@ func (rv *RandomnessVerify) Start() error {
 		rv.finish(false)
 		return xerrors.New("initialize Data first")
 	}
+	if rv.ExecReq == nil {
+		rv.finish(false)
+		return xerrors.New("missing execution request")
+	}
+	err := rv.runVerification()
+	if err != nil {
+		log.Errorf("%s failed to verify request: %v", rv.Name(), err)
+		rv.finish(false)
+		return err
+	}
 	resp, err := rv.generateResponse()
 	if err != nil {
 		log.Errorf("%s failed to generate response: %v", rv.Name(), err)
@@ -84,7 +97,7 @@ func (rv *RandomnessVerify) Start() error {
 		log.Lvl1("RandomnessVerify protocol timeout")
 		rv.finish(false)
 	})
-	errs := rv.Broadcast(&VerifyRand{ExecReq: rv.ExecReq})
+	errs := rv.Broadcast(&VerifyRand{Input: rv.Input, ExecReq: rv.ExecReq})
 	if len(errs) > (len(rv.Roster().List) - rv.Threshold) {
 		log.Errorf("some nodes failed with error(s) %v", errs)
 		return xerrors.New("too many nodes failed in broadcast")
@@ -94,7 +107,21 @@ func (rv *RandomnessVerify) Start() error {
 
 func (rv *RandomnessVerify) verifyRandomness(r structVerifyRand) error {
 	defer rv.Done()
+	var err error
+	rv.Input = r.Input
 	rv.ExecReq = r.ExecReq
+	rv.InputHashes, err = rv.Input.PrepareHashes()
+	if err != nil {
+		log.Errorf("%s couldn't prepare input hashes: %v", rv.Name(), err)
+		return cothority.ErrorOrNil(rv.SendToParent(&VerifyResponse{}),
+			"sending VerifyResponse to parent")
+	}
+	err = rv.runVerification()
+	if err != nil {
+		log.Errorf("%s couldn't verify the request: %v", rv.Name(), err)
+		return cothority.ErrorOrNil(rv.SendToParent(&VerifyResponse{}),
+			"sending VerifyResponse to parent")
+	}
 	resp, err := rv.generateResponse()
 	if err != nil {
 		log.Errorf("%s couldn't generate response: %v", rv.Name(), err)
@@ -161,6 +188,15 @@ func (rv *RandomnessVerify) generateResponse() (*VerifyResponse, error) {
 	sigs := make(map[string]blsproto.BlsSignature)
 	sigs["randomness"] = sig
 	return &VerifyResponse{Signatures: sigs}, nil
+}
+
+func (rv *RandomnessVerify) runVerification() error {
+	vData := &core.VerificationData{
+		UID:         base.UID,
+		OpcodeName:  base.GET_RAND,
+		InputHashes: rv.InputHashes,
+	}
+	return rv.ExecReq.Verify(vData)
 }
 
 func (rv *RandomnessVerify) finish(result bool) {

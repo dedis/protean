@@ -71,6 +71,13 @@ func Test_RandLottery(t *testing.T) {
 	randCl.InitUnit()
 	_, err = randCl.InitDKG()
 	require.NoError(t, err)
+	_, err = randCl.CreateRandomness()
+	require.NoError(t, err)
+	_, err = randCl.CreateRandomness()
+	require.NoError(t, err)
+	_, err = randCl.CreateRandomness()
+	require.NoError(t, err)
+	_, err = randCl.CreateRandomness()
 
 	// Client-side operations: read JSON files
 	contract, err := libclient.ReadContractJSON(&contractFile)
@@ -184,12 +191,13 @@ func Test_RandLottery(t *testing.T) {
 	}
 
 	// Step 1: randomness
-	randReply, err := randCl.Randomness(0, execReq)
+	round := uint64(2)
+	randReply, err := randCl.GetRandomness(round, execReq)
 	require.NoError(t, err)
 
 	// Step 2: exec
 	finalizeInput := randlottery.FinalizeInput{
-		Round:      0,
+		Round:      round,
 		Randomness: randReply.Output,
 	}
 	data, err = protobuf.Encode(&finalizeInput)
