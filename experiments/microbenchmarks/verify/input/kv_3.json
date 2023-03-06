@@ -1,0 +1,48 @@
+{
+	"workflows": {
+		"verifywf": {
+			"txns": {
+				"verify": {
+					"opcodes": [
+						{
+							"name": "exec",
+							"dfu_id": "codeexec"
+						},
+						{
+							"name": "update_state",
+							"dfu_id": "state"
+						},
+						{
+							"name": "sign",
+							"dfu_id": "signer"
+						},
+						{
+							"name": "verify",
+							"dfu_id": "verifier",
+							"inputs": {
+								"data0": {
+									"src": "KEYVALUE",
+									"value": "key0"
+								},
+								"data1": {
+									"src": "KEYVALUE",
+									"value": "key1"
+								},
+								"data2": {
+									"src": "KEYVALUE",
+									"value": "key2"
+								}
+							}
+						}
+					]
+				}
+			}
+		}
+	},
+	"dfus": [
+		"state",
+		"codeexec",
+		"signer",
+		"verifier"
+	]
+}

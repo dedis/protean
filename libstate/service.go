@@ -30,7 +30,8 @@ func init() {
 	stateID, err = onet.RegisterNewServiceWithSuite(ServiceName, suite, newService)
 	network.RegisterMessages(&InitUnitRequest{}, &InitUnitReply{},
 		&InitContractRequest{}, &InitContractReply{}, &GetStateRequest{},
-		&GetStateReply{}, &storage{})
+		&GetStateReply{}, &UpdateStateRequest{}, &UpdateStateReply{},
+		&DummyRequest{}, &DummyReply{}, &storage{})
 	if err != nil {
 		panic(err)
 	}
@@ -183,6 +184,32 @@ func (s *Service) UpdateState(req *UpdateStateRequest) (*UpdateStateReply, error
 	return &UpdateStateReply{TxResp: txResp}, nil
 }
 
+func (s *Service) DummyUpdate(req *DummyRequest) (*DummyReply, error) {
+	if s.bc == nil {
+		s.bc = byzcoin.NewClient(s.byzID, *s.roster)
+	}
+	ctx := byzcoin.NewClientTransaction(byzcoin.CurrentVersion,
+		byzcoin.Instruction{
+			InstanceID: req.CID,
+			Invoke: &byzcoin.Invoke{
+				ContractID: contracts.ContractKeyValueID,
+				Command:    "update",
+				Args:       req.Input.Args,
+			},
+			SignerCounter: []uint64{s.ctr},
+		})
+	err := ctx.FillSignersAndSignWith(s.signer)
+	if err != nil {
+		return nil, xerrors.Errorf("signing transaction: %v", err)
+	}
+	txResp, err := s.bc.AddTransactionAndWait(ctx, req.Wait)
+	if err != nil {
+		return nil, err
+	}
+	s.ctr++
+	return &DummyReply{TxResp: txResp}, nil
+}
+
 func (s *Service) runVerification(req *UpdateStateRequest) error {
 	nodeCount := len(s.roster.List)
 	threshold := nodeCount - (nodeCount-1)/3
@@ -272,7 +299,7 @@ func newService(c *onet.Context) (onet.Service, error) {
 		suite:            *suite,
 	}
 	if err := s.RegisterHandlers(s.InitUnit, s.InitContract, s.GetState,
-		s.UpdateState); err != nil {
+		s.UpdateState, s.DummyUpdate); err != nil {
 		return nil, xerrors.New("couldn't register messages")
 	}
 	if err := s.tryLoad(); err != nil {

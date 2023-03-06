@@ -1,0 +1,10 @@
+{
+  "initial_state": "open",
+  "states": ["open"],
+  "transitions": {
+    "sign": {
+      "from": "open",
+      "to": "open"
+    }
+  }
+}

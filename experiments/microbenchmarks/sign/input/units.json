@@ -1,0 +1,27 @@
+{
+        "registry": {
+                "signer": {
+                        "num_nodes": 19,
+                        "threshold": 13,
+                        "opcodes": [
+                                "sign"
+                        ]
+                },
+                "codeexec": {
+                        "num_nodes": 19,
+                        "threshold": 13,
+                        "opcodes": [
+                                "init_txn",
+                                "exec"
+                        ]
+                },
+                "state": {
+                        "num_nodes": 19,
+                        "threshold": 13,
+                        "opcodes": [
+                                "init_contract",
+                                "update_state"
+                        ]
+                }
+        }
+}

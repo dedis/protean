@@ -108,6 +108,21 @@ func (c *Client) UpdateState(args byzcoin.Arguments,
 	return reply, nil
 }
 
+func (c *Client) DummyUpdate(cid byzcoin.InstanceID, args byzcoin.Arguments,
+	wait int) (*DummyReply, error) {
+	reply := &DummyReply{}
+	req := &DummyRequest{
+		CID:   cid,
+		Input: base.UpdateInput{Args: args},
+		Wait:  wait,
+	}
+	err := c.c.SendProtobuf(c.bcClient.Roster.List[0], req, reply)
+	if err != nil {
+		return nil, xerrors.Errorf("dummy update: %v", err)
+	}
+	return reply, nil
+}
+
 // FetchGenesisBlock requires the hash of the genesis block. To retrieve,
 // use proof.Latest.SkipchainID()
 func (c *Client) FetchGenesisBlock(scID skipchain.SkipBlockID) (*skipchain.

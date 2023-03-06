@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/dedis/protean/core"
-	"github.com/dedis/protean/easyrand/base"
 	"go.dedis.ch/kyber/v3/util/key"
 
 	"go.dedis.ch/cothority/v3"
@@ -144,8 +143,8 @@ func (v *Verify) prepareInputHashes() {
 
 func (v *Verify) runVerification() error {
 	vData := &core.VerificationData{
-		UID:         base.UID,
-		OpcodeName:  base.GET_RAND,
+		UID:         "verifier",
+		OpcodeName:  "verify",
 		InputHashes: v.InputHashes,
 	}
 	return v.ExecReq.Verify(vData)

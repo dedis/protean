@@ -1,0 +1,10 @@
+{
+  "initial_state": "open",
+  "states": ["open"],
+  "transitions": {
+    "verify": {
+      "from": "open",
+      "to": "open"
+    }
+  }
+}

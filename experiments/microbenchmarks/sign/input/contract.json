@@ -1,0 +1,29 @@
+{
+	"workflows": {
+		"signwf": {
+			"txns": {
+				"sign": {
+					"opcodes": [
+						{
+							"name": "sign",
+							"dfu_id": "signer"
+						},
+						{
+							"name": "exec",
+							"dfu_id": "codeexec"
+						},
+						{
+							"name": "update_state",
+							"dfu_id": "state"
+						}
+					]
+				}
+			}
+		}
+	},
+	"dfus": [
+		"signer",
+		"state",
+		"codeexec"
+	]
+}

@@ -31,8 +31,10 @@ type SimulationService struct {
 	ContractFile    string
 	FSMFile         string
 	DFUFile         string
-	NumParticipants int
 	BlockTime       int
+	NumParticipants int
+	NumSlots        int
+	Seed            int
 
 	// internal structs
 	byzID      skipchain.SkipBlockID
@@ -49,10 +51,10 @@ type SimulationService struct {
 }
 
 func init() {
-	onet.SimulationRegister("Microbenchmarks", NewMicrobenchmark)
+	onet.SimulationRegister("RandLottery", NewRandLottery)
 }
 
-func NewMicrobenchmark(config string) (onet.Simulation, error) {
+func NewRandLottery(config string) (onet.Simulation, error) {
 	ss := &SimulationService{}
 	_, err := toml.Decode(config, ss)
 	if err != nil {
@@ -410,8 +412,9 @@ func (s *SimulationService) runRandLottery() error {
 	participants := commons.GenerateWriters(s.NumParticipants)
 	var wg sync.WaitGroup
 	times := make([]time.Duration, s.NumParticipants)
-	schedule := []int{1, 1, 0, 2, 1, 0, 1, 0, 2, 1, 0, 0, 0, 1, 0}
-	//schedule := []int{0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 1, 1, 1}
+	//schedule := []int{1, 1, 0, 2, 1, 0, 1, 0, 2, 1, 0, 0, 0, 1, 0}
+	schedule := commons.GenerateSchedule(s.Seed, s.NumParticipants, s.NumSlots)
+	log.Info(schedule)
 	var ongoing int64
 	ctr := 0
 	for i := 0; i < len(schedule); i++ {
@@ -439,16 +442,13 @@ func (s *SimulationService) runRandLottery() error {
 		time.Sleep(time.Duration(s.BlockTime) * time.Second)
 	}
 	wg.Wait()
+	log.Info(times)
 	err = s.executeClose()
 	if err != nil {
 		return err
 	}
 	err = s.executeFinalize()
-	if err != nil {
-		return err
-	}
-	log.Info(times)
-	return nil
+	return err
 }
 
 func (s *SimulationService) Run(config *onet.SimulationConfig) error {
@@ -467,8 +467,5 @@ func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 		log.Error(err)
 	}
 	err = s.runRandLottery()
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }

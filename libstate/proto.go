@@ -51,3 +51,13 @@ type UpdateStateRequest struct {
 type UpdateStateReply struct {
 	TxResp *byzcoin.AddTxResponse
 }
+
+type DummyRequest struct {
+	CID   byzcoin.InstanceID
+	Input base.UpdateInput
+	Wait  int
+}
+
+type DummyReply struct {
+	TxResp *byzcoin.AddTxResponse
+}

@@ -1,6 +1,7 @@
 package commons
 
 import (
+	"fmt"
 	"math/rand"
 	"time"
 
@@ -105,4 +106,18 @@ func GenerateSchedule(seed int, numTxns int, numSlots int) []int {
 		slots[slot]++
 	}
 	return slots
+}
+
+func PrepareData(numData int, size int) map[string][]byte {
+	data := make(map[string][]byte)
+	for i := 0; i < numData; i++ {
+		buf := make([]byte, size)
+		sz, err := rand.Read(buf)
+		if sz != size {
+			panic(err)
+		}
+		name := fmt.Sprintf("data%d", i)
+		data[name] = buf
+	}
+	return data
 }

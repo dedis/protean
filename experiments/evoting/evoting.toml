@@ -1,5 +1,6 @@
 Simulation = "Evoting"
 Servers = 14
+Hosts = 14
 Bf = 13
 Rounds = 1
 RunWait = "30000s"
@@ -11,6 +12,5 @@ ContractFile = "../input/contract.json"
 FSMFile = "../input/fsm.json"
 DFUFile = "../../../units.json"
 
-Hosts, NumParticipants, NumBlocks
-14, 15, 15
-#20, 15, 15
+NumParticipants, NumSlots, Seed
+10, 15, 5

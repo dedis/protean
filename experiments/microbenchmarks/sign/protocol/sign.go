@@ -84,7 +84,7 @@ func (s *Sign) Start() error {
 		s.finish(false)
 		return err
 	}
-	s.timeout = time.AfterFunc(2*time.Minute, func() {
+	s.timeout = time.AfterFunc(5*time.Minute, func() {
 		log.Lvl1("Sign protocol timeout")
 		s.finish(false)
 	})
@@ -99,6 +99,7 @@ func (s *Sign) Start() error {
 func (s *Sign) sign(r structSign) error {
 	defer s.Done()
 	var err error
+	s.ExecReq = r.ExecReq
 	s.OutputData = r.OutputData
 	resp, err := s.generateResponse()
 	if err != nil {
@@ -119,7 +120,6 @@ func (s *Sign) signResponse(r structSignResponse) error {
 		}
 		return nil
 	}
-
 	s.mask.SetBit(index, true)
 	s.responses = append(s.responses, &r.SignResponse)
 	if len(s.responses) == s.Threshold {
@@ -165,7 +165,6 @@ func (s *Sign) generateResponse() (*SignResponse, error) {
 			return &SignResponse{}, err
 		}
 		sigs[varName] = sig
-
 	}
 	return &SignResponse{Signatures: sigs}, nil
 }

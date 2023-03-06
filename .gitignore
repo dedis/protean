@@ -9,3 +9,9 @@ conode/conode
 /experiments/randlottery/randlottery
 /experiments/randlottery/build/
 /experiments/randlottery/test_data/
+/experiments/microbenchmarks/sign/sign
+/experiments/microbenchmarks/verify/verify
+/experiments/microbenchmarks/verify/test_data/
+/experiments/microbenchmarks/sign/test_data/
+/experiments/microbenchmarks/sign/build/
+/experiments/microbenchmarks/verify/build/

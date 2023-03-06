@@ -1,0 +1,56 @@
+{
+	"workflows": {
+		"verifywf": {
+			"txns": {
+				"verify": {
+					"opcodes": [
+						{
+							"name": "exec",
+							"dfu_id": "codeexec"
+						},
+						{
+							"name": "update_state",
+							"dfu_id": "state"
+						},
+						{
+							"name": "sign",
+							"dfu_id": "signer"
+						},
+						{
+							"name": "verify",
+							"dfu_id": "verifier",
+							"inputs": {
+								"data0": {
+									"src": "OPCODE",
+									"src_name": "data0",
+									"idx": 2
+								},
+								"data1": {
+									"src": "OPCODE",
+									"src_name": "data1",
+									"idx": 2
+								},
+								"data2": {
+									"src": "OPCODE",
+									"src_name": "data2",
+									"idx": 2
+								},
+								"data3": {
+									"src": "OPCODE",
+									"src_name": "data3",
+									"idx": 2
+								}
+							}
+						}
+					]
+				}
+			}
+		}
+	},
+	"dfus": [
+		"verifier",
+		"state",
+		"codeexec",
+		"signer"
+	]
+}

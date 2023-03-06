@@ -1,6 +1,7 @@
 Simulation = "SignMicrobenchmark"
-Servers = 14
-Bf = 13
+Servers = 19
+Hosts = 19
+Bf = 18
 Rounds = 1
 RunWait = "30000s"
 Delay = 100
@@ -9,7 +10,22 @@ Suite = "Ed25519"
 BlockTime = 5
 ContractFile = "../input/contract.json"
 FSMFile = "../input/fsm.json"
-DFUFile = "../../../units.json"
+DFUFile = "../input/units.json"
 
-Hosts, NumParticipants, NumBlocks
-14, 10, 15
+NumOutput, Size
+1,8192
+#1,65536
+#1,524288
+#1,4194304
+#2,8192
+#2,65536
+#2,524288
+#2,4194304
+#3,8192
+#3,65536
+#3,524288
+#3,4194304
+#4,8192
+#4,65536
+#4,524288
+#4,4194304
