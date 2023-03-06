@@ -2,6 +2,9 @@ package main
 
 import (
 	"fmt"
+	"sync"
+	"time"
+
 	"github.com/BurntSushi/toml"
 	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/easyneff"
@@ -21,8 +24,6 @@ import (
 	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/onet/v3/simul/monitor"
 	"go.dedis.ch/protobuf"
-	"sync"
-	"time"
 )
 
 type SimulationService struct {
@@ -575,8 +576,11 @@ func (s *SimulationService) runEvoting() error {
 	var wg sync.WaitGroup
 	schedule := []int{0, 1, 0, 2, 1, 0, 1, 0, 2, 1, 0, 0, 1, 1, 0}
 	//schedule := []int{0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 1, 1, 1}
-	ballots := []string{"01000", "10000", "10000", "01000", "00001", "00100",
-		"01000", "00001", "00010", "10000"}
+	//schedule := make([]int, s.NumParticipants)
+	//for i := 0; i < s.NumParticipants; i++ {
+	//	schedule[i] = 1
+	//}
+	ballots := commons.GenerateBallots(s.NumParticipants)
 	ctr := 0
 	for i := 0; i < len(schedule); i++ {
 		pCount := schedule[i]
@@ -612,6 +616,10 @@ func (s *SimulationService) runEvoting() error {
 func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 	var err error
 	regRoster := onet.NewRoster(config.Roster.List[0:4])
+	//s.stRoster = onet.NewRoster(config.Roster.List[10:])
+	//s.execRoster = s.stRoster
+	//s.shufRoster = onet.NewRoster(config.Roster.List[4:])
+	//s.threshRoster = s.stRoster
 	s.stRoster = onet.NewRoster(config.Roster.List[4:])
 	s.execRoster = s.stRoster
 	s.shufRoster = s.stRoster
@@ -626,9 +634,10 @@ func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 	if err != nil {
 		log.Error(err)
 	}
-	err = s.runEvoting()
-	if err != nil {
-		return err
-	}
+	fmt.Println(commons.GenerateBallots(s.NumParticipants))
+	//err = s.runEvoting()
+	//if err != nil {
+	//	return err
+	//}
 	return nil
 }

@@ -97,7 +97,7 @@ func (p *NeffShuffle) Dispatch() error {
 	if err := p.SendTo(p.Root(), &signedPrf); err != nil {
 		return err
 	}
-	// Nothing more to do if Input'm a child.
+	// Nothing more to do if I'm a child.
 	if p.IsLeaf() {
 		return nil
 	}

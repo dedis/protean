@@ -22,6 +22,7 @@ import (
 	"go.dedis.ch/onet/v3/simul/monitor"
 	"go.dedis.ch/protobuf"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -169,6 +170,10 @@ func (s *SimulationService) executeJoin(signer darc.Signer, idx int) error {
 		log.Errorf("getting state: %v", err)
 		return err
 	}
+
+	log.Infof("before execute join [%d]: %d", idx,
+		gcs.Proof.Proof.Latest.Index)
+
 	cdata := &execbase.ByzData{IID: s.CID, Proof: gcs.Proof.Proof,
 		Genesis: s.contractGen}
 	// Prepare input
@@ -234,11 +239,15 @@ func (s *SimulationService) executeJoin(signer darc.Signer, idx int) error {
 			cdata.Proof = gcs.Proof.Proof
 			lastRoot = pr.InclusionProof.GetRoot()
 		} else {
-			_, err := stCl.WaitProof(s.CID[:], lastRoot, s.BlockTime)
+			log.Infof("after update state (before WP) [%d]: %d", idx,
+				gcs.Proof.Proof.Latest.Index)
+			wp, err := stCl.WaitProof(s.CID[:], lastRoot, s.BlockTime)
 			if err != nil {
 				log.Errorf("wait proof: %v", err)
 				return err
 			}
+			log.Infof("after update state (after WP) [%d]: %d", idx,
+				wp.Latest.Index)
 			done = true
 		}
 	}
@@ -401,8 +410,10 @@ func (s *SimulationService) runRandLottery() error {
 	}
 	participants := commons.GenerateWriters(s.NumParticipants)
 	var wg sync.WaitGroup
-	schedule := []int{0, 1, 0, 2, 1, 0, 1, 0, 2, 1, 0, 0, 1, 1, 0}
-	//schedule := []int{0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 1, 1, 1}
+	times := make([]time.Duration, s.NumParticipants)
+	//schedule := []int{1, 1, 0, 2, 1, 0, 1, 0, 2, 1, 0, 0, 0, 1, 0}
+	schedule := []int{0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 1, 1, 1}
+	var ongoing int64
 	ctr := 0
 	for i := 0; i < len(schedule); i++ {
 		pCount := schedule[i]
@@ -411,9 +422,19 @@ func (s *SimulationService) runRandLottery() error {
 			for j := 0; j < pCount; j++ {
 				go func(idx int) {
 					defer wg.Done()
+					atomic.AddInt64(&ongoing, 1)
+					start := time.Now()
 					err = s.executeJoin(participants[idx], idx)
+					times[idx] = time.Since(start)
+					atomic.AddInt64(&ongoing, -1)
 				}(ctr)
 				ctr++
+			}
+		} else {
+			count := atomic.LoadInt64(&ongoing)
+			if count == 0 {
+				log.Infof("continue @ %d\n", i)
+				continue
 			}
 		}
 		time.Sleep(time.Duration(s.BlockTime) * time.Second)
@@ -427,15 +448,16 @@ func (s *SimulationService) runRandLottery() error {
 	if err != nil {
 		return err
 	}
+	log.Info(times)
 	return nil
 }
 
 func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 	var err error
-	regRoster := config.Roster
-	s.stRoster = config.Roster
-	s.execRoster = config.Roster
-	s.randRoster = config.Roster
+	regRoster := onet.NewRoster(config.Roster.List[0:4])
+	s.stRoster = onet.NewRoster(config.Roster.List[4:])
+	s.execRoster = s.stRoster
+	s.randRoster = s.stRoster
 
 	keyMap := make(map[string][]kyber.Point)
 	keyMap["state"] = s.stRoster.ServicePublics(skipchain.ServiceName)

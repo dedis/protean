@@ -1,7 +1,7 @@
 package commons
 
 import (
-	"crypto/rand"
+	"math/rand"
 	"time"
 
 	"github.com/dedis/protean/libclient"
@@ -73,6 +73,16 @@ func SetupRegistry(regRoster *onet.Roster, dfile *string, keyMap map[string][]ky
 	}, nil
 }
 
+func GenerateBallots(count int) []string {
+	ballots := make([]string, count)
+	for i := 0; i < count; i++ {
+		base := "0000000000"
+		idx := rand.Intn(len(base))
+		ballots[i] = base[:idx] + "1" + base[idx+1:]
+	}
+	return ballots
+}
+
 func GenerateTicket(X kyber.Point) utils.ElGamalPair {
 	randBytes := make([]byte, 24)
 	rand.Read(randBytes)
@@ -85,4 +95,14 @@ func GenerateWriters(count int) []darc.Signer {
 		writers[i] = darc.NewSignerEd25519(nil, nil)
 	}
 	return writers
+}
+
+func GenerateSchedule(seed int, numTxns int, numSlots int) []int {
+	rand.Seed(int64(seed))
+	slots := make([]int, numSlots)
+	for i := 0; i < numTxns; i++ {
+		slot := rand.Intn(numSlots)
+		slots[slot]++
+	}
+	return slots
 }

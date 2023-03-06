@@ -75,7 +75,7 @@
 				"finalize": {
 					"opcodes": [
 						{
-							"name": "randomness",
+							"name": "get_randomness",
 							"dfu_id": "easyrand",
 							"inputs": {
 								"round": {

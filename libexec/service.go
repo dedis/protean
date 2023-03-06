@@ -116,11 +116,14 @@ func (s *Service) generateExecutionPlan(input *base.InitTxnInput) (*core.Executi
 		if !ok {
 			return nil, xerrors.Errorf("cannot find dfu information for dfu %s", opcode.DFUID)
 		}
-		dfuID := core.DFUIdentity{
-			Threshold: dfu.Threshold,
-			Keys:      dfu.Keys,
+		_, ok = dfuData[opcode.DFUID]
+		if !ok {
+			dfuID := core.DFUIdentity{
+				Threshold: dfu.Threshold,
+				Keys:      dfu.Keys,
+			}
+			dfuData[opcode.DFUID] = &dfuID
 		}
-		dfuData[opcode.DFUID] = &dfuID
 	}
 	plan := &core.ExecutionPlan{
 		CID:       header.CID.Slice(),
