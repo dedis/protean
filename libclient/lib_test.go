@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dedis/protean/contracts"
 	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/libstate"
 	"github.com/dedis/protean/registry"
@@ -145,7 +144,7 @@ func Test_ReadDFUJson(t *testing.T) {
 	pr, err := adminCl.Cl.WaitProof(reply.IID, 2*time.Second, nil)
 	require.NoError(t, err)
 	v, _, _, err := pr.Get(reply.IID.Slice())
-	kvStore := &contracts.Storage{}
+	kvStore := &core.Storage{}
 	err = protobuf.Decode(v, kvStore)
 	require.NoError(t, err)
 	for _, kv := range kvStore.Store {
@@ -165,7 +164,7 @@ func Test_ReadDFUJson(t *testing.T) {
 	require.NoError(t, err)
 	v, _, _, err = pr2.Get(reply.IID.Slice())
 
-	kvStore = &contracts.Storage{}
+	kvStore = &core.Storage{}
 	err = protobuf.Decode(v, kvStore)
 	require.NoError(t, err)
 	for _, kv := range kvStore.Store {
@@ -189,11 +188,11 @@ func nchars(b byte, n int) string {
 }
 
 type Foo struct {
-	Data []contracts.KV
+	Data []core.KV
 }
 
 func BenchmarkPBHashing(b *testing.B) {
-	kvs := make([]contracts.KV, 100)
+	kvs := make([]core.KV, 100)
 	for i := 0; i < 100; i++ {
 		kvs[i].Key = nchars(byte(124), 32)
 		kvs[i].Value = bytes.Repeat([]byte("1"), 1024)
@@ -218,7 +217,7 @@ func (f *Foo) Hash() {
 }
 
 func BenchmarkHashing(b *testing.B) {
-	kvs := make([]contracts.KV, 100)
+	kvs := make([]core.KV, 100)
 	for i := 0; i < 100; i++ {
 		kvs[i].Key = nchars(byte(124), 32)
 		kvs[i].Value = bytes.Repeat([]byte("1"), 1024)

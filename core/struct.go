@@ -138,6 +138,19 @@ type StateProof struct {
 	Genesis *skipchain.SkipBlock
 }
 
+type KV struct {
+	Key   string
+	Value []byte
+}
+
+// Storage holds the contract state. Store[0] stores the raw contract data,
+// and Store[1] stores the contract header. (i.e. Store[0].Key == "raw",
+// Store[1].Key == "header"). The stored value is a protobuf-encoded
+// core.ContractRaw and core.ContractHeader struct.
+type Storage struct {
+	Store []KV
+}
+
 type KVDict struct {
 	Data map[string][]byte
 }

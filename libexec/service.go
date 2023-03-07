@@ -1,7 +1,6 @@
 package libexec
 
 import (
-	"github.com/dedis/protean/contracts"
 	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/libexec/base"
 	"github.com/dedis/protean/libexec/protocol/execute"
@@ -153,7 +152,7 @@ func verifyInitTxn(input *base.InitTxnInput) (*core.DFURegistry, *core.ContractR
 	if err != nil {
 		return nil, nil, nil, xerrors.Errorf("cannot get data from registry proof: %v", err)
 	}
-	store := contracts.Storage{}
+	store := core.Storage{}
 	err = protobuf.Decode(v, &store)
 	if err != nil {
 		return nil, nil, nil, xerrors.Errorf("cannot decode registry contract storage: %v", err)
@@ -168,7 +167,7 @@ func verifyInitTxn(input *base.InitTxnInput) (*core.DFURegistry, *core.ContractR
 	if err != nil {
 		return nil, nil, nil, xerrors.Errorf("cannot get data from state proof: %v", err)
 	}
-	store = contracts.Storage{}
+	store = core.Storage{}
 	err = protobuf.Decode(v, &store)
 	if err != nil {
 		return nil, nil, nil, xerrors.Errorf("cannot decode state contract storage: %v", err)

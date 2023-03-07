@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
-	"github.com/dedis/protean/contracts"
 	"sort"
 	"strings"
 
@@ -156,7 +155,7 @@ func PrepareKVDicts(r *ExecutionRequest, proofs map[string]*StateProof) (map[str
 }
 
 func getStorageMap(v []byte) (map[string][]byte, error) {
-	kvStore := contracts.Storage{}
+	kvStore := Storage{}
 	err := protobuf.Decode(v, &kvStore)
 	if err != nil {
 		return nil, err

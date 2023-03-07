@@ -43,7 +43,8 @@ func NewClient(byzcoin *byzcoin.Client) *Client {
 func SetupByzcoin(r *onet.Roster, blockTime int) (*AdminClient,
 	skipchain.SkipBlockID, error) {
 	signer := darc.NewSignerEd25519(nil, nil)
-	gMsg, err := byzcoin.DefaultGenesisMsg(byzcoin.CurrentVersion, r, []string{"spawn:keyValue", "invoke:keyValue.update"}, signer.Identity())
+	//gMsg, err := byzcoin.DefaultGenesisMsg(byzcoin.CurrentVersion, r, []string{"spawn:keyValue", "invoke:keyValue.update"}, signer.Identity())
+	gMsg, err := byzcoin.DefaultGenesisMsg(byzcoin.CurrentVersion, r, []string{"spawn:keyValue", "invoke:keyValue.init_contract", "invoke:keyValue.update", "invoke:keyValue.dummy"}, signer.Identity())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -139,10 +140,14 @@ func (c *Client) FetchGenesisBlock(scID skipchain.SkipBlockID) (*skipchain.
 func (c *AdminClient) SpawnDarc(newSigner darc.Signer, gDarc darc.Darc, wait int) (*darc.Darc, error) {
 	d := darc.NewDarc(darc.InitRules([]darc.Identity{newSigner.Identity()},
 		[]darc.Identity{newSigner.Identity()}), []byte("stateroot"))
-	d.Rules.AddRule(darc.Action("spawn:"+contracts.ContractKeyValueID),
+	d.Rules.AddRule("spawn:"+contracts.ContractKeyValueID,
 		expression.InitOrExpr(newSigner.Identity().String()))
-	d.Rules.AddRule(darc.Action("invoke:"+contracts.ContractKeyValueID+"."+
-		"update"), expression.InitOrExpr(newSigner.Identity().String()))
+	d.Rules.AddRule("invoke:"+contracts.ContractKeyValueID+"."+
+		"init_contract", expression.InitOrExpr(newSigner.Identity().String()))
+	d.Rules.AddRule("invoke:"+contracts.ContractKeyValueID+"."+
+		"update", expression.InitOrExpr(newSigner.Identity().String()))
+	d.Rules.AddRule("invoke:"+contracts.ContractKeyValueID+"."+
+		"dummy", expression.InitOrExpr(newSigner.Identity().String()))
 	darcBuf, err := d.ToProto()
 	if err != nil {
 		log.Errorf("serializing darc to protobuf: %v", err)

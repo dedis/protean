@@ -3,7 +3,6 @@ package libstate
 import (
 	"flag"
 	"fmt"
-	"github.com/dedis/protean/contracts"
 	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/libclient"
 	"github.com/dedis/protean/libexec"
@@ -169,7 +168,7 @@ func Test_AddKV(t *testing.T) {
 
 	fmt.Println("After gcs:", gcs.Proof.Proof.InclusionProof.GetRoot())
 
-	kvStore := &contracts.Storage{}
+	kvStore := &core.Storage{}
 	err = protobuf.Decode(v, kvStore)
 	require.NoError(t, err)
 	for _, kv := range kvStore.Store {
