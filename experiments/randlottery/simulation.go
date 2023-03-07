@@ -172,9 +172,6 @@ func (s *SimulationService) executeJoin(signer darc.Signer, idx int) error {
 		return err
 	}
 
-	log.Infof("before execute join [%d]: %d", idx,
-		gcs.Proof.Proof.Latest.Index)
-
 	cdata := &execbase.ByzData{IID: s.CID, Proof: gcs.Proof.Proof,
 		Genesis: s.contractGen}
 	// Prepare input
@@ -229,8 +226,9 @@ func (s *SimulationService) executeJoin(signer darc.Signer, idx int) error {
 		}
 		execReq.Index = 1
 		execReq.OpReceipts = execReply.Receipts
-		_, err = stCl.UpdateState(joinOut.WS, execReq, 5)
+		_, err = stCl.UpdateState(joinOut.WS, execReq, 0)
 		if err != nil {
+			log.Errorf("[simulation] update state: %v", err)
 			pr, err := stCl.WaitProof(s.CID[:], lastRoot, s.BlockTime)
 			if err != nil {
 				log.Errorf("wait proof: %v", err)
@@ -240,15 +238,12 @@ func (s *SimulationService) executeJoin(signer darc.Signer, idx int) error {
 			cdata.Proof = gcs.Proof.Proof
 			lastRoot = pr.InclusionProof.GetRoot()
 		} else {
-			log.Infof("after update state (before WP) [%d]: %d", idx,
-				gcs.Proof.Proof.Latest.Index)
 			wp, err := stCl.WaitProof(s.CID[:], lastRoot, s.BlockTime)
 			if err != nil {
 				log.Errorf("wait proof: %v", err)
 				return err
 			}
-			log.Infof("after update state (after WP) [%d]: %d", idx,
-				wp.Latest.Index)
+			log.Infof("[%d] index: %d %d", idx, wp.Latest.Index, len(wp.Links))
 			done = true
 		}
 	}

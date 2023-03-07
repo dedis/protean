@@ -3,6 +3,7 @@ package randlottery
 import (
 	"crypto/sha256"
 	"encoding/binary"
+
 	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/libexec/base"
 	"github.com/dedis/protean/utils"
@@ -41,6 +42,7 @@ func JoinLottery(genInput *base.GenericInput) (*base.GenericOutput, error) {
 	}
 	tickets.Data = append(tickets.Data, ticket)
 	buf, err := protobuf.Encode(tickets)
+	//log.Infof("Tickets size: %d", len(buf))
 	if err != nil {
 		return nil, xerrors.Errorf("couldn't encode tickets: %v", err)
 	}
@@ -127,6 +129,7 @@ func FinalizeLottery(genInput *base.GenericInput) (*base.GenericOutput, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("couldn't encode randomness: %v", err)
 	}
+	//log.Infof("randomness size: %d", len(randBuf))
 	winnerBuf, err := protobuf.Encode(&winner)
 	if err != nil {
 		return nil, xerrors.Errorf("couldn't encode winner data: %v", err)

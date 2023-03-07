@@ -2,6 +2,7 @@ package dkglottery
 
 import (
 	"encoding/binary"
+
 	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/libexec/base"
 	threshold "github.com/dedis/protean/threshold/base"
@@ -58,6 +59,7 @@ func JoinLottery(genInput *base.GenericInput) (*base.GenericOutput, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("couldn't encode tickets: %v", err)
 	}
+	//log.Infof("enc_tickets size: %d", len(buf))
 	args := byzcoin.Arguments{{Name: "enc_tickets", Value: buf}}
 	return &base.GenericOutput{O: JoinOutput{WS: args}}, nil
 }

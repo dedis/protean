@@ -10,7 +10,7 @@ Bandwidth = 100
 Suite = "Ed25519"
 BlockTime = 5
 FSMFile = "../input/fsm.json"
-DFUFile = "../input/units_opc.json"
+DFUFile = "../input/units.json"
 
 NumInput,Size,ContractFile
 #1,8192,"../input/opc_1.json"

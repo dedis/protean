@@ -2,6 +2,8 @@ package libstate
 
 import (
 	"bytes"
+	"time"
+
 	"github.com/dedis/protean/contracts"
 	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/libstate/base"
@@ -13,7 +15,6 @@ import (
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
 	"golang.org/x/xerrors"
-	"time"
 )
 
 type AdminClient struct {

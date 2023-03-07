@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/rand"
 	"fmt"
 	"github.com/BurntSushi/toml"
 	"github.com/dedis/protean/core"
@@ -30,6 +31,7 @@ type SimulationService struct {
 	DFUFile      string
 	BlockTime    int
 	NumInput     int
+	NumBlocks    int
 	Size         int
 
 	// internal structs
@@ -179,7 +181,43 @@ func (s *SimulationService) executeVerifyOpc(config *onet.SimulationConfig) erro
 }
 
 func (s *SimulationService) executeVerifyKv(config *onet.SimulationConfig) error {
+	execCl := libexec.NewClient(s.execRoster)
+	stCl := libstate.NewClient(byzcoin.NewClient(s.byzID, *s.stRoster))
+	defer execCl.Close()
+	defer stCl.Close()
 
+	s.generateBlocks()
+	//time.Sleep(time.Duration(s.BlockTime) * time.Second)
+	// Get state
+	gcs, err := stCl.GetState(s.CID)
+	if err != nil {
+		log.Errorf("getting state: %v", err)
+		return err
+	}
+	log.Info("Link count:", len(gcs.Proof.Proof.Links))
+	log.Info("Block index", gcs.Proof.Proof.Latest.Index)
+	//cdata := &execbase.ByzData{IID: s.CID, Proof: gcs.Proof.Proof,
+	//	Genesis: s.contractGen}
+	//itReply, err := execCl.InitTransaction(s.rdata, cdata, "verifywf", "verify")
+	//execReq := &core.ExecutionRequest{
+	//	Index: 2,
+	//	EP:    &itReply.Plan,
+	//}
+
+	return nil
+}
+
+func (s *SimulationService) generateBlocks() error {
+	buf := make([]byte, 128)
+	for i := 0; i < s.NumBlocks; i++ {
+		rand.Read(buf)
+		args := byzcoin.Arguments{{Name: "data0", Value: buf}}
+		_, err := s.stCl.DummyUpdate(s.CID, args, 2)
+		if err != nil {
+			log.Error(err)
+			return err
+		}
+	}
 	return nil
 }
 
@@ -197,6 +235,7 @@ func (s *SimulationService) runMicrobenchmark(config *onet.SimulationConfig) err
 	if s.DepType == "OPC" {
 		err = s.executeVerifyOpc(config)
 	} else {
+		s.generateBlocks()
 		err = s.executeVerifyKv(config)
 	}
 	return nil
@@ -212,11 +251,10 @@ func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 		s.verifierRoster = config.Roster
 
 		keyMap := make(map[string][]kyber.Point)
-		//keyMap["verifier"] = config.Roster.ServicePublics(blscosi.ServiceName)
-		keyMap["verifier"] = config.Roster.ServicePublics(verifysvc.ServiceName)
-		keyMap["signer"] = config.Roster.ServicePublics(blscosi.ServiceName)
 		keyMap["state"] = config.Roster.ServicePublics(skipchain.ServiceName)
 		keyMap["codeexec"] = config.Roster.ServicePublics(libexec.ServiceName)
+		keyMap["verifier"] = config.Roster.ServicePublics(verifysvc.ServiceName)
+		keyMap["signer"] = config.Roster.ServicePublics(blscosi.ServiceName)
 		s.rdata, err = commons.SetupRegistry(regRoster, &s.DFUFile, keyMap)
 		if err != nil {
 			log.Error(err)
@@ -229,10 +267,10 @@ func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 		s.verifierRoster = config.Roster
 
 		keyMap := make(map[string][]kyber.Point)
-		keyMap["verifier"] = config.Roster.ServicePublics(verifysvc.ServiceName)
-		keyMap["signer"] = config.Roster.ServicePublics(blscosi.ServiceName)
 		keyMap["state"] = config.Roster.ServicePublics(skipchain.ServiceName)
 		keyMap["codeexec"] = config.Roster.ServicePublics(libexec.ServiceName)
+		keyMap["verifier"] = config.Roster.ServicePublics(verifysvc.ServiceName)
+		keyMap["signer"] = config.Roster.ServicePublics(blscosi.ServiceName)
 		s.rdata, err = commons.SetupRegistry(regRoster, &s.DFUFile, keyMap)
 		if err != nil {
 			log.Error(err)

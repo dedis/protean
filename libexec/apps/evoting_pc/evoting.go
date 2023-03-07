@@ -226,6 +226,7 @@ func getBallots(kvDict *core.KVDict) (*EncBallots, error) {
 	if !ok {
 		return nil, xerrors.New("missing key: enc_ballots")
 	}
+	//log.Infof("enc_ballots size: %d", len(buf))
 	tickets := &EncBallots{}
 	err := protobuf.Decode(buf, tickets)
 	if err != nil {
@@ -235,11 +236,11 @@ func getBallots(kvDict *core.KVDict) (*EncBallots, error) {
 }
 
 func getPoint(kvDict *core.KVDict) (kyber.Point, error) {
-	//buf, ok := kvDict.Data["pk"]
 	buf, ok := kvDict.Data["h"]
 	if !ok {
 		return nil, xerrors.New("missing key: h")
 	}
+	//log.Infof("point size: %d", len(buf))
 	h := cothority.Suite.Point()
 	err := h.UnmarshalBinary(buf)
 	if err != nil {
@@ -253,6 +254,7 @@ func getProofs(kvDict *core.KVDict) ([]easyneff.Proof, error) {
 	if !ok {
 		return nil, xerrors.New("missing key: proofs")
 	}
+	//log.Infof("proofs size: %d", len(buf))
 	shOut := &easyneff.ShuffleOutput{}
 	err := protobuf.Decode(buf, shOut)
 	if err != nil {
