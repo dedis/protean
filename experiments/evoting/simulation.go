@@ -207,7 +207,7 @@ func (s *SimulationService) executeSetup() error {
 		return err
 	}
 	execReq.Index = 2
-	execReq.OpReceipts = execReply.Receipts
+	execReq.OpReceipts = execReply.OutputReceipts
 	_, err = s.stCl.UpdateState(setupOut.WS, execReq, 5)
 	if err != nil {
 		log.Error(err)
@@ -280,7 +280,7 @@ func (s *SimulationService) executeVote(ballot string, idx int) error {
 			return err
 		}
 		execReq.Index = 1
-		execReq.OpReceipts = execReply.Receipts
+		execReq.OpReceipts = execReply.OutputReceipts
 		_, err = stCl.UpdateState(voteOut.WS, execReq, 5)
 		if err != nil {
 			pr, err := stCl.WaitProof(s.CID[:], lastRoot, s.BlockTime)
@@ -362,7 +362,7 @@ func (s *SimulationService) executeLock() error {
 		return err
 	}
 	execReq.Index = 1
-	execReq.OpReceipts = execReply.Receipts
+	execReq.OpReceipts = execReply.OutputReceipts
 	_, err = s.stCl.UpdateState(lockOut.WS, execReq, 5)
 	if err != nil {
 		log.Errorf("updating state: %v", err)
@@ -419,7 +419,7 @@ func (s *SimulationService) executeShuffle() error {
 		return err
 	}
 	execReq.Index = 1
-	execReq.OpReceipts = execReply.Receipts
+	execReq.OpReceipts = execReply.OutputReceipts
 	shReply, err := s.shCl.Shuffle(prepShOut.Input.Pairs, prepShOut.Input.H, execReq)
 	if err != nil {
 		log.Errorf("shuffle: %v", err)
@@ -439,7 +439,7 @@ func (s *SimulationService) executeShuffle() error {
 		StateProofs: sp,
 	}
 	execReq.Index = 2
-	execReq.OpReceipts = shReply.Receipts
+	execReq.OpReceipts = shReply.OutputReceipts
 	execReply, err = s.execCl.Execute(execInput, execReq)
 	if err != nil {
 		log.Errorf("executing prepare_proofs_pc: %v", err)
@@ -454,7 +454,7 @@ func (s *SimulationService) executeShuffle() error {
 		return err
 	}
 	execReq.Index = 3
-	execReq.OpReceipts = execReply.Receipts
+	execReq.OpReceipts = execReply.OutputReceipts
 	_, err = s.stCl.UpdateState(prepPrOut.WS, execReq, 5)
 
 	_, err = s.stCl.WaitProof(execReq.EP.CID, execReq.EP.StateRoot, 5)
@@ -506,7 +506,7 @@ func (s *SimulationService) executeTally() error {
 		return err
 	}
 	execReq.Index = 1
-	execReq.OpReceipts = execReply.Receipts
+	execReq.OpReceipts = execReply.OutputReceipts
 	decReply, err := s.thCl.Decrypt(&prepDecOut.Input, execReq)
 	if err != nil {
 		log.Errorf("decrypting: %v", err)
@@ -529,7 +529,7 @@ func (s *SimulationService) executeTally() error {
 		StateProofs: sp,
 	}
 	execReq.Index = 2
-	execReq.OpReceipts = decReply.Receipts
+	execReq.OpReceipts = decReply.OutputReceipts
 	execReply, err = s.execCl.Execute(execInput, execReq)
 	if err != nil {
 		log.Errorf("executing tally_pc: %v", err)
@@ -544,7 +544,7 @@ func (s *SimulationService) executeTally() error {
 		return err
 	}
 	execReq.Index = 3
-	execReq.OpReceipts = execReply.Receipts
+	execReq.OpReceipts = execReply.OutputReceipts
 	_, err = s.stCl.UpdateState(tallyOut.WS, execReq, 5)
 	if err != nil {
 		log.Errorf("updating state: %v", err)

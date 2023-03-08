@@ -170,7 +170,7 @@ func Test_RandLottery(t *testing.T) {
 	require.NoError(t, err)
 
 	execReq.Index = 1
-	execReq.OpReceipts = execReply.Receipts
+	execReq.OpReceipts = execReply.OutputReceipts
 	_, err = adminCl.Cl.UpdateState(closeOut.WS, execReq, 10)
 	require.NoError(t, err)
 
@@ -221,7 +221,7 @@ func Test_RandLottery(t *testing.T) {
 	require.NoError(t, err)
 
 	execReq.Index = 2
-	execReq.OpReceipts = execReply.Receipts
+	execReq.OpReceipts = execReply.OutputReceipts
 	_, err = adminCl.Cl.UpdateState(finalOut.WS, execReq, 10)
 	require.NoError(t, err)
 }
@@ -266,7 +266,7 @@ func executeJoin(t *testing.T, d *JoinData, p darc.Signer) {
 	require.NoError(t, err)
 
 	execReq.Index = 1
-	execReq.OpReceipts = execReply.Receipts
+	execReq.OpReceipts = execReply.OutputReceipts
 	_, err = d.adminCl.Cl.UpdateState(joinOut.WS, execReq, 5)
 	require.NoError(t, err)
 

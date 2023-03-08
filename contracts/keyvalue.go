@@ -197,3 +197,27 @@ func prepareHashes(args byzcoin.Arguments) map[string][]byte {
 	hashes["ws"] = h.Sum(nil)
 	return hashes
 }
+
+type pair struct {
+	idx  int
+	name string
+}
+
+func createInputMap(execReq *core.ExecutionRequest) map[pair][]pair {
+	depMap := make(map[pair][]pair)
+	for opIdx, opcode := range execReq.EP.Txn.Opcodes {
+		for depName, dep := range opcode.Dependencies {
+			if dep.Src == core.OPCODE {
+				pKey := pair{idx: dep.Idx, name: dep.SrcName}
+				pVal := pair{idx: opIdx, name: depName}
+				pairs, ok := depMap[pKey]
+				if ok {
+					pairs = append(pairs, pVal)
+				} else {
+					depMap[pKey] = []pair{pVal}
+				}
+			}
+		}
+	}
+	return depMap
+}

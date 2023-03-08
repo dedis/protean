@@ -28,6 +28,7 @@ type Execute struct {
 }
 
 type ExecuteReply struct {
-	Output   base.ExecuteOutput
-	Receipts map[string]*core.OpcodeReceipt
+	Output         base.ExecuteOutput
+	InputReceipts  map[string]*core.OpcodeReceipt
+	OutputReceipts map[string]*core.OpcodeReceipt
 }

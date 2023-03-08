@@ -31,7 +31,8 @@ type structVerifyProofs struct {
 }
 
 type VerifyProofsResponse struct {
-	Signatures map[string]blscosi.BlsSignature
+	InSignatures  map[string]blscosi.BlsSignature
+	OutSignatures map[string]blscosi.BlsSignature
 }
 
 type structVerifyProofsResponse struct {

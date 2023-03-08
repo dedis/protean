@@ -96,12 +96,14 @@ func (c *Client) GetState(cid byzcoin.InstanceID) (*GetStateReply,
 }
 
 func (c *Client) UpdateState(args byzcoin.Arguments,
-	execReq *core.ExecutionRequest, wait int) (*UpdateStateReply, error) {
+	execReq *core.ExecutionRequest, wait int,
+	inReceipts map[int]map[string]*core.OpcodeReceipt) (*UpdateStateReply, error) {
 	reply := &UpdateStateReply{}
 	req := &UpdateStateRequest{
-		Input:   base.UpdateInput{Args: args},
-		ExecReq: *execReq,
-		Wait:    wait,
+		Input:         base.UpdateInput{Args: args},
+		ExecReq:       *execReq,
+		Wait:          wait,
+		InputReceipts: inReceipts,
 	}
 	err := c.c.SendProtobuf(c.bcClient.Roster.List[0], req, reply)
 	if err != nil {

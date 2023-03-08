@@ -199,7 +199,7 @@ func (s *SimulationService) executeSetup() error {
 		return err
 	}
 	execReq.Index = 2
-	execReq.OpReceipts = execReply.Receipts
+	execReq.OpReceipts = execReply.OutputReceipts
 	_, err = s.stCl.UpdateState(setupOut.WS, execReq, 5)
 	if err != nil {
 		log.Error(err)
@@ -272,7 +272,7 @@ func (s *SimulationService) executeJoin(idx int) error {
 			return err
 		}
 		execReq.Index = 1
-		execReq.OpReceipts = execReply.Receipts
+		execReq.OpReceipts = execReply.OutputReceipts
 		_, err = stCl.UpdateState(joinOut.WS, execReq, 5)
 		if err != nil {
 			pr, err := stCl.WaitProof(s.CID[:], lastRoot, s.BlockTime)
@@ -346,7 +346,7 @@ func (s *SimulationService) executeClose() error {
 		return err
 	}
 	execReq.Index = 1
-	execReq.OpReceipts = execReply.Receipts
+	execReq.OpReceipts = execReply.OutputReceipts
 	_, err = s.stCl.UpdateState(closeOut.WS, execReq, 5)
 	if err != nil {
 		log.Errorf("updating state: %v", err)
@@ -404,7 +404,7 @@ func (s *SimulationService) executeFinalize() error {
 		return err
 	}
 	execReq.Index = 1
-	execReq.OpReceipts = execReply.Receipts
+	execReq.OpReceipts = execReply.OutputReceipts
 	decReply, err := s.thCl.Decrypt(&prepOut.Input, execReq)
 	if err != nil {
 		log.Errorf("decrypting: %v", err)
@@ -424,7 +424,7 @@ func (s *SimulationService) executeFinalize() error {
 		StateProofs: sp,
 	}
 	execReq.Index = 2
-	execReq.OpReceipts = decReply.Receipts
+	execReq.OpReceipts = decReply.OutputReceipts
 	execReply, err = s.execCl.Execute(execInput, execReq)
 	if err != nil {
 		log.Errorf("executing finalize_dkglot: %v", err)
@@ -439,7 +439,7 @@ func (s *SimulationService) executeFinalize() error {
 		return err
 	}
 	execReq.Index = 3
-	execReq.OpReceipts = execReply.Receipts
+	execReq.OpReceipts = execReply.OutputReceipts
 	_, err = s.stCl.UpdateState(finalOut.WS, execReq, 5)
 	if err != nil {
 		log.Errorf("updating state: %v", err)

@@ -225,7 +225,7 @@ func (s *SimulationService) executeJoin(signer darc.Signer, idx int) error {
 			return err
 		}
 		execReq.Index = 1
-		execReq.OpReceipts = execReply.Receipts
+		execReq.OpReceipts = execReply.OutputReceipts
 		_, err = stCl.UpdateState(joinOut.WS, execReq, 0)
 		if err != nil {
 			log.Errorf("[simulation] update state: %v", err)
@@ -301,7 +301,7 @@ func (s *SimulationService) executeClose() error {
 		return err
 	}
 	execReq.Index = 1
-	execReq.OpReceipts = execReply.Receipts
+	execReq.OpReceipts = execReply.OutputReceipts
 	_, err = s.stCl.UpdateState(closeOut.WS, execReq, 5)
 	if err != nil {
 		log.Errorf("updating state: %v", err)
@@ -378,7 +378,7 @@ func (s *SimulationService) executeFinalize() error {
 		return err
 	}
 	execReq.Index = 2
-	execReq.OpReceipts = execReply.Receipts
+	execReq.OpReceipts = execReply.OutputReceipts
 	_, err = s.stCl.UpdateState(finalOut.WS, execReq, 5)
 	if err != nil {
 		log.Errorf("updating state: %v", err)

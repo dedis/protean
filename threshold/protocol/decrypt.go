@@ -39,12 +39,13 @@ type ThreshDecrypt struct {
 	Shared *dkgprotocol.SharedSecret
 	Poly   *share.PubPoly
 
-	DecInput    *base.DecryptInput
-	ExecReq     *core.ExecutionRequest
-	InputHashes map[string][]byte
-	KP          *key.Pair
-	Ps          []kyber.Point
-	Receipts    map[string]*core.OpcodeReceipt
+	DecInput       *base.DecryptInput
+	ExecReq        *core.ExecutionRequest
+	InputHashes    map[string][]byte
+	KP             *key.Pair
+	Ps             []kyber.Point
+	InputReceipts  map[string]*core.OpcodeReceipt
+	OutputReceipts map[string]*core.OpcodeReceipt
 
 	Threshold int
 	Failures  int
@@ -66,7 +67,8 @@ func NewThreshDecrypt(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
 	d := &ThreshDecrypt{
 		TreeNodeInstance: n,
 		Decrypted:        make(chan bool, 1),
-		Receipts:         make(map[string]*core.OpcodeReceipt),
+		InputReceipts:    make(map[string]*core.OpcodeReceipt),
+		OutputReceipts:   make(map[string]*core.OpcodeReceipt),
 		suite:            pairing.NewSuiteBn256(),
 	}
 	err := d.RegisterHandlers(d.decryptShare, d.decryptShareResponse,
@@ -261,7 +263,7 @@ func (d *ThreshDecrypt) reconstruct(r structReconstruct) error {
 
 func (d *ThreshDecrypt) reconstructResponse(r structReconstructResponse) error {
 	index := utils.SearchPublicKey(d.TreeNodeInstance, r.ServerIdentity)
-	if len(r.Signatures) == 0 || index < 0 {
+	if len(r.OutSignatures) == 0 || index < 0 {
 		log.Lvl2(r.ServerIdentity, "refused to send back reconstruct response")
 		d.Failures++
 		if d.Failures > (len(d.Roster().List) - d.Threshold) {
@@ -274,10 +276,27 @@ func (d *ThreshDecrypt) reconstructResponse(r structReconstructResponse) error {
 	d.mask.SetBit(index, true)
 	d.reconstructResponses = append(d.reconstructResponses, &r.ReconstructResponse)
 	if len(d.reconstructResponses) == d.Threshold {
-		for name, receipt := range d.Receipts {
+		for name, receipt := range d.OutputReceipts {
 			aggSignature := d.suite.G1().Point()
 			for _, resp := range d.reconstructResponses {
-				sig, err := resp.Signatures[name].Point(d.suite)
+				sig, err := resp.OutSignatures[name].Point(d.suite)
+				if err != nil {
+					d.finish(false)
+					return err
+				}
+				aggSignature = aggSignature.Add(aggSignature, sig)
+			}
+			sig, err := aggSignature.MarshalBinary()
+			if err != nil {
+				d.finish(false)
+				return err
+			}
+			receipt.Sig = append(sig, d.mask.Mask()...)
+		}
+		for name, receipt := range d.InputReceipts {
+			aggSignature := d.suite.G1().Point()
+			for _, resp := range d.reconstructResponses {
+				sig, err := resp.InSignatures[name].Point(d.suite)
 				if err != nil {
 					d.finish(false)
 					return err
@@ -306,27 +325,47 @@ func (d *ThreshDecrypt) runVerification() error {
 }
 
 func (d *ThreshDecrypt) generateResponse() (*ReconstructResponse, error) {
+	inSigs := make(map[string]blsproto.BlsSignature)
+	outSigs := make(map[string]blsproto.BlsSignature)
+	epid := d.ExecReq.EP.Hash()
+	opIdx := d.ExecReq.Index
 	hash, err := utils.HashPoints(d.Ps)
 	if err != nil {
 		log.Errorf("calculating the hash of points: %v", err)
 		return &ReconstructResponse{}, err
 	}
 	r := &core.OpcodeReceipt{
-		EPID:      d.ExecReq.EP.Hash(),
-		OpIdx:     d.ExecReq.Index,
+		EPID:      epid,
+		OpIdx:     opIdx,
 		Name:      "plaintexts",
 		HashBytes: hash,
 	}
 	if d.IsRoot() {
-		d.Receipts["plaintexts"] = r
+		d.OutputReceipts["plaintexts"] = r
 	}
 	sig, err := bls.Sign(d.suite, d.KP.Private, r.Hash())
 	if err != nil {
 		return &ReconstructResponse{}, err
 	}
-	sigs := make(map[string]blsproto.BlsSignature)
-	sigs["plaintexts"] = sig
-	return &ReconstructResponse{Signatures: sigs}, nil
+	outSigs["plaintexts"] = sig
+	// Input receipts
+	for inputName, inputHash := range d.InputHashes {
+		r := core.OpcodeReceipt{
+			EPID:      epid,
+			OpIdx:     opIdx,
+			Name:      inputName,
+			HashBytes: inputHash,
+		}
+		sig, err := bls.Sign(d.suite, d.KP.Private, r.Hash())
+		if err != nil {
+			return &ReconstructResponse{}, err
+		}
+		inSigs[inputName] = sig
+		if d.IsRoot() {
+			d.InputReceipts[inputName] = &r
+		}
+	}
+	return &ReconstructResponse{InSignatures: inSigs, OutSignatures: outSigs}, nil
 }
 
 func (d *ThreshDecrypt) generateDecProof(u kyber.Point, sh kyber.Point) (kyber.Scalar, kyber.Scalar) {
