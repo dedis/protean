@@ -22,6 +22,9 @@ func DemuxRequest(input *base.ExecuteInput,
 		}
 		vdata.StateProofs = input.StateProofs
 		vdata.InputHashes, err = getSetupHashes(input.FnName, &setupIn)
+		if err != nil {
+			return nil, nil, nil, err
+		}
 		return Setup, &base.GenericInput{I: setupIn}, vdata, nil
 	case "vote_pc":
 		var voteIn VoteInput
