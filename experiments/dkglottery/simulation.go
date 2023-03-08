@@ -149,6 +149,8 @@ func (s *SimulationService) initContract() error {
 }
 
 func (s *SimulationService) executeSetup() error {
+	setupMonitor := monitor.NewTimeMeasure("setup")
+	// Get state
 	gcs, err := s.stCl.GetState(s.CID)
 	if err != nil {
 		return err
@@ -210,6 +212,7 @@ func (s *SimulationService) executeSetup() error {
 		log.Error(err)
 	}
 	s.X = dkgReply.Output.X
+	setupMonitor.Record()
 	return err
 }
 
@@ -221,14 +224,9 @@ func (s *SimulationService) executeJoin(idx int) error {
 
 	label := fmt.Sprintf("p%d_join", idx)
 	joinMonitor := monitor.NewTimeMeasure(label)
+
+	// Prepare ticket
 	ticket := commons.GenerateTicket(s.X)
-	gcs, err := stCl.GetState(s.CID)
-	if err != nil {
-		log.Errorf("getting state: %v", err)
-		return err
-	}
-	cdata := &execbase.ByzData{IID: s.CID, Proof: gcs.Proof.Proof,
-		Genesis: s.contractGen}
 	input := dkglottery.JoinInput{
 		Ticket: dkglottery.Ticket{
 			Data: ticket,
@@ -239,6 +237,14 @@ func (s *SimulationService) executeJoin(idx int) error {
 		log.Errorf("encoding input: %v", err)
 		return err
 	}
+	// Get state
+	gcs, err := stCl.GetState(s.CID)
+	if err != nil {
+		log.Errorf("getting state: %v", err)
+		return err
+	}
+	cdata := &execbase.ByzData{IID: s.CID, Proof: gcs.Proof.Proof,
+		Genesis: s.contractGen}
 	lastRoot := gcs.Proof.Proof.InclusionProof.GetRoot()
 	done := false
 	for !done {
@@ -297,6 +303,7 @@ func (s *SimulationService) executeJoin(idx int) error {
 }
 
 func (s *SimulationService) executeClose() error {
+	closeMonitor := monitor.NewTimeMeasure("close")
 	// Get state
 	gcs, err := s.stCl.GetState(s.CID)
 	if err != nil {
@@ -358,10 +365,12 @@ func (s *SimulationService) executeClose() error {
 	if err != nil {
 		log.Errorf("wait proof: %v", err)
 	}
+	closeMonitor.Record()
 	return err
 }
 
 func (s *SimulationService) executeFinalize() error {
+	finalizeMonitor := monitor.NewTimeMeasure("finalize")
 	// Get state
 	gcs, err := s.stCl.GetState(s.CID)
 	if err != nil {
@@ -451,58 +460,68 @@ func (s *SimulationService) executeFinalize() error {
 	if err != nil {
 		log.Errorf("wait proof: %v", err)
 	}
+	finalizeMonitor.Record()
 	return err
 }
 
 func (s *SimulationService) runDKGLottery() error {
+	schedule := commons.GenerateSchedule(s.Seed, s.NumParticipants, s.NumSlots)
+	// Initialize DFUs
 	err := s.initDFUs()
 	if err != nil {
 		return err
 	}
-	// Initialize contract
 	s.stCl = libstate.NewClient(byzcoin.NewClient(s.byzID, *s.stRoster))
-	err = s.initContract()
-	if err != nil {
-		return err
-	}
-	err = s.executeSetup()
-	if err != nil {
-		return err
-	}
-	var wg sync.WaitGroup
-	//schedule := []int{0, 1, 0, 2, 1, 0, 1, 0, 2, 1, 0, 0, 1, 1, 0}
-	schedule := commons.GenerateSchedule(s.Seed, s.NumParticipants, s.NumSlots)
-	log.Info(schedule)
-	var ongoing int64
-	ctr := 0
-	for i := 0; i < len(schedule); i++ {
-		pCount := schedule[i]
-		if pCount != 0 {
-			wg.Add(pCount)
-			for j := 0; j < pCount; j++ {
-				go func(idx int) {
-					defer wg.Done()
-					atomic.AddInt64(&ongoing, 1)
-					err = s.executeJoin(idx)
-					atomic.AddInt64(&ongoing, -1)
-				}(ctr)
-				ctr++
-			}
-		} else {
-			count := atomic.LoadInt64(&ongoing)
-			if count == 0 {
-				log.Infof("continue @ %d\n", i)
-			}
+
+	for round := 0; round < s.Rounds; round++ {
+		var wg sync.WaitGroup
+		var ongoing int64
+		ctr := 0
+		// Initialize contract
+		err = s.initContract()
+		if err != nil {
+			return err
 		}
-		time.Sleep(time.Duration(s.BlockTime) * time.Second)
+		// setup_txn
+		err = s.executeSetup()
+		if err != nil {
+			return err
+		}
+		// join_txn
+		for i := 0; i < len(schedule); i++ {
+			pCount := schedule[i]
+			if pCount != 0 {
+				wg.Add(pCount)
+				for j := 0; j < pCount; j++ {
+					go func(idx int) {
+						defer wg.Done()
+						atomic.AddInt64(&ongoing, 1)
+						err = s.executeJoin(idx)
+						atomic.AddInt64(&ongoing, -1)
+					}(ctr)
+					ctr++
+				}
+			} else {
+				count := atomic.LoadInt64(&ongoing)
+				if count == 0 {
+					continue
+				}
+			}
+			time.Sleep(time.Duration(s.BlockTime) * time.Second)
+		}
+		wg.Wait()
+		// close_txn
+		err = s.executeClose()
+		if err != nil {
+			return err
+		}
+		// finalize_txn
+		err = s.executeFinalize()
+		if err != nil {
+			return err
+		}
 	}
-	wg.Wait()
-	err = s.executeClose()
-	if err != nil {
-		return err
-	}
-	err = s.executeFinalize()
-	return err
+	return nil
 }
 
 func (s *SimulationService) Run(config *onet.SimulationConfig) error {

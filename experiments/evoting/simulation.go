@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -157,6 +158,7 @@ func (s *SimulationService) initContract() error {
 }
 
 func (s *SimulationService) executeSetup() error {
+	setupMonitor := monitor.NewTimeMeasure("setup")
 	gcs, err := s.stCl.GetState(s.CID)
 	if err != nil {
 		return err
@@ -218,6 +220,7 @@ func (s *SimulationService) executeSetup() error {
 		log.Error(err)
 	}
 	s.X = dkgReply.Output.X
+	setupMonitor.Record()
 	return err
 }
 
@@ -228,16 +231,8 @@ func (s *SimulationService) executeVote(ballot string, idx int) error {
 	defer stCl.Close()
 
 	label := fmt.Sprintf("p%d_vote", idx)
-
 	voteMonitor := monitor.NewTimeMeasure(label)
-	gcs, err := stCl.GetState(s.CID)
-	if err != nil {
-		log.Errorf("getting state: %v", err)
-		return err
-	}
-	lastRoot := gcs.Proof.Proof.InclusionProof.GetRoot()
-	cdata := &execbase.ByzData{IID: s.CID, Proof: gcs.Proof.Proof,
-		Genesis: s.contractGen}
+
 	// Prepare input
 	encBallot := utils.ElGamalEncrypt(s.X, []byte(ballot))
 	input := evotingpc.VoteInput{
@@ -248,6 +243,15 @@ func (s *SimulationService) executeVote(ballot string, idx int) error {
 		log.Errorf("encoding input: %v", err)
 		return err
 	}
+	// Get state
+	gcs, err := stCl.GetState(s.CID)
+	if err != nil {
+		log.Errorf("getting state: %v", err)
+		return err
+	}
+	cdata := &execbase.ByzData{IID: s.CID, Proof: gcs.Proof.Proof,
+		Genesis: s.contractGen}
+	lastRoot := gcs.Proof.Proof.InclusionProof.GetRoot()
 	done := false
 	for !done {
 		itReply, err := execCl.InitTransaction(s.rdata, cdata, "votewf", "vote")
@@ -305,6 +309,7 @@ func (s *SimulationService) executeVote(ballot string, idx int) error {
 }
 
 func (s *SimulationService) executeLock() error {
+	lockMonitor := monitor.NewTimeMeasure("lock")
 	// Get state
 	gcs, err := s.stCl.GetState(s.CID)
 	if err != nil {
@@ -374,10 +379,12 @@ func (s *SimulationService) executeLock() error {
 	if err != nil {
 		log.Errorf("wait proof: %v", err)
 	}
+	lockMonitor.Record()
 	return err
 }
 
 func (s *SimulationService) executeShuffle() error {
+	shuffleMonitor := monitor.NewTimeMeasure("shuffle")
 	// Get state
 	gcs, err := s.stCl.GetState(s.CID)
 	if err != nil {
@@ -461,10 +468,12 @@ func (s *SimulationService) executeShuffle() error {
 	if err != nil {
 		log.Errorf("wait proof: %v", err)
 	}
+	shuffleMonitor.Record()
 	return err
 }
 
 func (s *SimulationService) executeTally() error {
+	tallyMonitor := monitor.NewTimeMeasure("tally")
 	// Get state
 	gcs, err := s.stCl.GetState(s.CID)
 	if err != nil {
@@ -556,55 +565,74 @@ func (s *SimulationService) executeTally() error {
 	if err != nil {
 		log.Errorf("wait proof: %v", err)
 	}
+	tallyMonitor.Record()
 	return err
 }
 
 func (s *SimulationService) runEvoting() error {
+	ballots := commons.GenerateBallots(s.NumParticipants)
+	schedule := commons.GenerateSchedule(s.Seed, s.NumParticipants, s.NumSlots)
+	// Initialize DFUs
 	err := s.initDFUs()
 	if err != nil {
 		return err
 	}
-	// Initialize contract
 	s.stCl = libstate.NewClient(byzcoin.NewClient(s.byzID, *s.stRoster))
-	err = s.initContract()
-	if err != nil {
-		return err
-	}
-	err = s.executeSetup()
-	if err != nil {
-		return err
-	}
-	var wg sync.WaitGroup
-	//schedule := []int{0, 1, 0, 2, 1, 0, 1, 0, 2, 1, 0, 0, 1, 1, 0}
-	ballots := commons.GenerateBallots(s.NumParticipants)
-	schedule := commons.GenerateSchedule(s.Seed, s.NumParticipants, s.NumSlots)
-	log.Info(schedule)
-	ctr := 0
-	for i := 0; i < len(schedule); i++ {
-		pCount := schedule[i]
-		if pCount != 0 {
-			wg.Add(pCount)
-			for j := 0; j < pCount; j++ {
-				go func(idx int) {
-					defer wg.Done()
-					err = s.executeVote(ballots[idx], idx)
-				}(ctr)
-				ctr++
-			}
+
+	for round := 0; round < s.Rounds; round++ {
+		var wg sync.WaitGroup
+		var ongoing int64
+		ctr := 0
+		// Initialize contract
+		err = s.initContract()
+		if err != nil {
+			return err
 		}
-		time.Sleep(time.Duration(s.BlockTime) * time.Second)
+		// setup_txn
+		err = s.executeSetup()
+		if err != nil {
+			return err
+		}
+		// vote_txn
+		for i := 0; i < len(schedule); i++ {
+			pCount := schedule[i]
+			if pCount != 0 {
+				wg.Add(pCount)
+				for j := 0; j < pCount; j++ {
+					go func(idx int) {
+						defer wg.Done()
+						atomic.AddInt64(&ongoing, 1)
+						err = s.executeVote(ballots[idx], idx)
+						atomic.AddInt64(&ongoing, -1)
+					}(ctr)
+					ctr++
+				}
+			} else {
+				count := atomic.LoadInt64(&ongoing)
+				if count == 0 {
+					continue
+				}
+			}
+			time.Sleep(time.Duration(s.BlockTime) * time.Second)
+		}
+		wg.Wait()
+		// lock_txn
+		err = s.executeLock()
+		if err != nil {
+			return err
+		}
+		// shuffle_txn
+		err = s.executeShuffle()
+		if err != nil {
+			return err
+		}
+		// tally_txn
+		err = s.executeTally()
+		if err != nil {
+			return err
+		}
 	}
-	wg.Wait()
-	err = s.executeLock()
-	if err != nil {
-		return err
-	}
-	err = s.executeShuffle()
-	if err != nil {
-		return err
-	}
-	err = s.executeTally()
-	return err
+	return nil
 }
 
 func (s *SimulationService) Run(config *onet.SimulationConfig) error {
