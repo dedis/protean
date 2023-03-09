@@ -176,7 +176,8 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 	if !<-decProto.Decrypted {
 		return nil, xerrors.New("decryption got refused")
 	}
-	reply := &DecryptReply{Output: base.DecryptOutput{Ps: decProto.Ps}, Receipts: decProto.Receipts}
+	reply := &DecryptReply{Output: base.DecryptOutput{Ps: decProto.Ps},
+		InputReceipts: decProto.InputReceipts, OutputReceipts: decProto.OutputReceipts}
 	return reply, nil
 }
 

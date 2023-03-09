@@ -149,7 +149,7 @@ func Test_VotingPC(t *testing.T) {
 	require.NoError(t, err)
 
 	execReq.Index = 2
-	execReq.OpReceipts = execReply.Receipts
+	execReq.OpReceipts = execReply.OutputReceipts
 	_, err = adminCl.Cl.UpdateState(setupOut.WS, execReq, 5)
 	require.NoError(t, err)
 
@@ -215,7 +215,7 @@ func Test_VotingPC(t *testing.T) {
 	require.NoError(t, err)
 
 	execReq.Index = 1
-	execReq.OpReceipts = execReply.Receipts
+	execReq.OpReceipts = execReply.OutputReceipts
 	_, err = adminCl.Cl.UpdateState(lockOut.WS, execReq, 5)
 	require.NoError(t, err)
 
@@ -253,7 +253,7 @@ func Test_VotingPC(t *testing.T) {
 	require.NoError(t, err)
 
 	execReq.Index = 1
-	execReq.OpReceipts = execReply.Receipts
+	execReq.OpReceipts = execReply.OutputReceipts
 	shReply, err := neffCl.Shuffle(prepShOut.Input.Pairs, prepShOut.Input.H, execReq)
 	require.NoError(t, err)
 
@@ -267,7 +267,7 @@ func Test_VotingPC(t *testing.T) {
 		StateProofs: sp,
 	}
 	execReq.Index = 2
-	execReq.OpReceipts = shReply.Receipts
+	execReq.OpReceipts = shReply.OutputReceipts
 	execReply, err = execCl.Execute(execInput, execReq)
 	require.NoError(t, err)
 
@@ -277,7 +277,7 @@ func Test_VotingPC(t *testing.T) {
 	require.NoError(t, err)
 
 	execReq.Index = 3
-	execReq.OpReceipts = execReply.Receipts
+	execReq.OpReceipts = execReply.OutputReceipts
 	_, err = adminCl.Cl.UpdateState(prepPrOut.WS, execReq, 5)
 
 	pr, err = adminCl.Cl.WaitProof(execReq.EP.CID, execReq.EP.StateRoot, 5)
@@ -314,7 +314,7 @@ func Test_VotingPC(t *testing.T) {
 	require.NoError(t, err)
 
 	execReq.Index = 1
-	execReq.OpReceipts = execReply.Receipts
+	execReq.OpReceipts = execReply.OutputReceipts
 	decReply, err := thCl.Decrypt(&prepDecOut.Input, execReq)
 	require.NoError(t, err)
 
@@ -331,7 +331,7 @@ func Test_VotingPC(t *testing.T) {
 		StateProofs: sp,
 	}
 	execReq.Index = 2
-	execReq.OpReceipts = decReply.Receipts
+	execReq.OpReceipts = decReply.OutputReceipts
 	execReply, err = execCl.Execute(execInput, execReq)
 	require.NoError(t, err)
 
@@ -341,7 +341,7 @@ func Test_VotingPC(t *testing.T) {
 	require.NoError(t, err)
 
 	execReq.Index = 3
-	execReq.OpReceipts = execReply.Receipts
+	execReq.OpReceipts = execReply.OutputReceipts
 	_, err = adminCl.Cl.UpdateState(tallyOut.WS, execReq, 5)
 	require.NoError(t, err)
 }
@@ -383,7 +383,7 @@ func executeVote(t *testing.T, d *JoinData, ballot string) {
 	require.NoError(t, err)
 
 	execReq.Index = 1
-	execReq.OpReceipts = execReply.Receipts
+	execReq.OpReceipts = execReply.OutputReceipts
 	_, err = d.adminCl.Cl.UpdateState(voteOut.WS, execReq, 5)
 	require.NoError(t, err)
 

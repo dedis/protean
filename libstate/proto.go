@@ -43,9 +43,10 @@ type GetStateReply struct {
 }
 
 type UpdateStateRequest struct {
-	Input   base.UpdateInput
-	ExecReq core.ExecutionRequest
-	Wait    int
+	Input         base.UpdateInput
+	ExecReq       core.ExecutionRequest
+	Wait          int
+	InputReceipts map[int]map[string]*core.OpcodeReceipt
 }
 
 type UpdateStateReply struct {

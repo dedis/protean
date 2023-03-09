@@ -147,7 +147,7 @@ func Test_DKGLottery(t *testing.T) {
 	require.NoError(t, err)
 
 	execReq.Index = 2
-	execReq.OpReceipts = execReply.Receipts
+	execReq.OpReceipts = execReply.OutputReceipts
 	_, err = adminCl.Cl.UpdateState(setupOut.WS, execReq, 5)
 	require.NoError(t, err)
 	_, err = adminCl.Cl.WaitProof(execReq.EP.CID, execReq.EP.StateRoot, 5)
@@ -201,7 +201,7 @@ func Test_DKGLottery(t *testing.T) {
 	require.NoError(t, err)
 
 	execReq.Index = 1
-	execReq.OpReceipts = execReply.Receipts
+	execReq.OpReceipts = execReply.OutputReceipts
 
 	// CEY
 	adminCl.Cl.Close()
@@ -243,7 +243,7 @@ func Test_DKGLottery(t *testing.T) {
 	err = protobuf.Decode(execReply.Output.Data, &prepOut)
 	require.NoError(t, err)
 	execReq.Index = 1
-	execReq.OpReceipts = execReply.Receipts
+	execReq.OpReceipts = execReply.OutputReceipts
 	decReply, err := thCl.Decrypt(&prepOut.Input, execReq)
 	require.NoError(t, err)
 	// Step 3: exec
@@ -256,7 +256,7 @@ func Test_DKGLottery(t *testing.T) {
 		StateProofs: sp,
 	}
 	execReq.Index = 2
-	execReq.OpReceipts = decReply.Receipts
+	execReq.OpReceipts = decReply.OutputReceipts
 	execReply, err = execCl.Execute(execInput, execReq)
 	require.NoError(t, err)
 	// Step 4: update_state
@@ -265,7 +265,7 @@ func Test_DKGLottery(t *testing.T) {
 	require.NoError(t, err)
 
 	execReq.Index = 3
-	execReq.OpReceipts = execReply.Receipts
+	execReq.OpReceipts = execReply.OutputReceipts
 	//_, err = adminCl.Cl.UpdateState(finalOut.WS, execReq, 5)
 	_, err = newCl.UpdateState(finalOut.WS, execReq, 5)
 	require.NoError(t, err)
@@ -310,7 +310,7 @@ func executeJoin(t *testing.T, d *JoinData, ticket utils.ElGamalPair) {
 	require.NoError(t, err)
 
 	execReq.Index = 1
-	execReq.OpReceipts = execReply.Receipts
+	execReq.OpReceipts = execReply.OutputReceipts
 	_, err = d.adminCl.Cl.UpdateState(joinOut.WS, execReq, 5)
 	require.NoError(t, err)
 

@@ -10,84 +10,85 @@ import (
 	"golang.org/x/xerrors"
 )
 
-func DemuxRequest(input *base.ExecuteInput,
-	vdata *core.VerificationData) (base.ExecutionFn, *base.GenericInput,
-	*core.VerificationData, error) {
+func DemuxRequest(input *base.ExecuteInput, vdata *core.VerificationData) (
+	base.ExecutionFn, *base.GenericInput, *core.VerificationData,
+	map[string][]byte, error) {
+	var opHashes map[string][]byte
 	switch input.FnName {
 	case "setup_vote":
 		var setupIn SetupInput
 		err := protobuf.Decode(input.Data, &setupIn)
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, nil, nil, err
 		}
 		vdata.StateProofs = input.StateProofs
-		vdata.InputHashes, err = getSetupHashes(input.FnName, &setupIn)
-		return Setup, &base.GenericInput{I: setupIn}, vdata, nil
+		vdata.InputHashes, opHashes, err = getSetupHashes(input.FnName, &setupIn)
+		return Setup, &base.GenericInput{I: setupIn}, vdata, opHashes, nil
 	case "vote":
 		var voteIn VoteInput
 		err := protobuf.Decode(input.Data, &voteIn)
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, nil, nil, err
 		}
 		vdata.StateProofs = input.StateProofs
 		inputHashes := make(map[string][]byte)
 		inputHashes["fnname"] = utils.HashString(input.FnName)
 		vdata.InputHashes = inputHashes
-		return Vote, &base.GenericInput{I: voteIn}, vdata, nil
+		return Vote, &base.GenericInput{I: voteIn}, vdata, nil, nil
 	case "close_vote":
 		var closeIn CloseInput
 		err := protobuf.Decode(input.Data, &closeIn)
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, nil, nil, err
 		}
 		pr, ok := input.StateProofs["readset"]
 		if !ok {
-			return nil, nil, nil, xerrors.New("missing input: readset")
+			return nil, nil, nil, nil, xerrors.New("missing input: readset")
 		}
 		closeIn.BlkHeight = pr.Proof.Latest.Index
 		vdata.InputHashes = getCloseHashes(input.FnName, &closeIn)
 		vdata.StateProofs = input.StateProofs
-		return CloseVote, &base.GenericInput{I: closeIn}, vdata, nil
+		return CloseVote, &base.GenericInput{I: closeIn}, vdata, nil, nil
 	case "prepare_shuffle":
 		inputHashes := make(map[string][]byte)
 		inputHashes["fnname"] = utils.HashString(input.FnName)
 		vdata.InputHashes = inputHashes
 		vdata.StateProofs = input.StateProofs
-		return PrepareShuffle, &base.GenericInput{I: nil}, vdata, nil
+		return PrepareShuffle, &base.GenericInput{I: nil}, vdata, nil, nil
 	case "prepare_proofs":
 		var storeIn PrepProofsInput
 		err := protobuf.Decode(input.Data, &storeIn)
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, nil, nil, err
 		}
-		vdata.InputHashes, err = getPrepProofHashes(input.FnName, &storeIn)
+		vdata.InputHashes, opHashes, err = getPrepProofHashes(input.FnName, &storeIn)
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, nil, nil, err
 		}
 		vdata.StateProofs = input.StateProofs
-		return PrepareProofs, &base.GenericInput{I: storeIn}, vdata, nil
+		return PrepareProofs, &base.GenericInput{I: storeIn}, vdata, opHashes, nil
 	case "prepare_decrypt_vote":
 		inputHashes := make(map[string][]byte)
 		inputHashes["fnname"] = utils.HashString(input.FnName)
 		vdata.InputHashes = inputHashes
 		vdata.StateProofs = input.StateProofs
-		return PrepareDecrypt, &base.GenericInput{I: nil}, vdata, nil
+		return PrepareDecrypt, &base.GenericInput{I: nil}, vdata, nil, nil
 	case "tally":
 		var tallyIn TallyInput
 		err := protobuf.Decode(input.Data, &tallyIn)
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, nil, nil, err
 		}
-		vdata.InputHashes, err = getTallyHashes(input.FnName, &tallyIn)
+		vdata.InputHashes, opHashes, err = getTallyHashes(input.FnName, &tallyIn)
 		if err != nil {
 			log.Errorf("calculating tally hashes: %v", err)
-			return nil, nil, nil, err
+			return nil, nil, nil, nil, err
 		}
 		vdata.StateProofs = input.StateProofs
-		return Tally, &base.GenericInput{I: tallyIn}, vdata, nil
+		return Tally, &base.GenericInput{I: tallyIn}, vdata, opHashes, nil
 	default:
 	}
-	return nil, nil, nil, nil
+	return nil, nil, nil, nil, nil
 }
 
 func MuxRequest(fnName string, genericOut *base.GenericOutput) (*base.ExecuteOutput, map[string][]byte, error) {
@@ -199,17 +200,18 @@ func MuxRequest(fnName string, genericOut *base.GenericOutput) (*base.ExecuteOut
 	return nil, nil, nil
 }
 
-func getSetupHashes(fnName string, input *SetupInput) (map[string][]byte,
-	error) {
+func getSetupHashes(fnName string, input *SetupInput) (map[string][]byte, map[string][]byte, error) {
 	inputHashes := make(map[string][]byte)
+	receiptHashes := make(map[string][]byte)
 	inputHashes["fnname"] = utils.HashString(fnName)
 	buf, err := utils.HashPoint(input.Pk)
 	if err != nil {
 		log.Errorf("calculating the public key hash: %v", err)
-		return nil, err
+		return nil, nil, err
 	}
 	inputHashes["pk"] = buf
-	return inputHashes, nil
+	receiptHashes["pk"] = buf
+	return inputHashes, receiptHashes, nil
 }
 
 func getCloseHashes(fnName string, input *CloseInput) map[string][]byte {
@@ -219,29 +221,31 @@ func getCloseHashes(fnName string, input *CloseInput) map[string][]byte {
 	return inputHashes
 }
 
-func getPrepProofHashes(fnName string, input *PrepProofsInput) (
-	map[string][]byte, error) {
+func getPrepProofHashes(fnName string, input *PrepProofsInput) (map[string][]byte, map[string][]byte, error) {
 	var err error
 	inputHashes := make(map[string][]byte)
+	receiptHashes := make(map[string][]byte)
 	inputHashes["fnname"] = utils.HashString(fnName)
 	inputHashes["proofs"], err = input.ShProofs.Hash()
 	if err != nil {
 		log.Errorf("calculating the proofs hash: %v", err)
-		return nil, err
+		return nil, nil, err
 	}
-	return inputHashes, nil
+	receiptHashes["proofs"] = inputHashes["proofs"]
+	return inputHashes, receiptHashes, nil
 }
 
-func getTallyHashes(fnName string, input *TallyInput) (map[string][]byte,
-	error) {
+func getTallyHashes(fnName string, input *TallyInput) (map[string][]byte, map[string][]byte, error) {
 	inputHashes := make(map[string][]byte)
+	receiptHashes := make(map[string][]byte)
 	inputHashes["fnname"] = utils.HashString(fnName)
 	buf, err := utils.HashPoints(input.Ps)
 	if err != nil {
 		log.Errorf("calculating the dec_ballots hash: %v", err)
-		return nil, err
+		return nil, nil, err
 	}
 	inputHashes["candidate_count"] = utils.HashUint64(uint64(input.CandCount))
 	inputHashes["plaintexts"] = buf
-	return inputHashes, nil
+	receiptHashes["plaintexts"] = buf
+	return inputHashes, receiptHashes, nil
 }

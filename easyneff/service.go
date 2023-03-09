@@ -82,7 +82,8 @@ func (s *EasyNeff) Shuffle(req *ShuffleRequest) (*ShuffleReply, error) {
 		if !<-shufVerify.Verified {
 			return nil, xerrors.New("shuffle verify failed")
 		}
-		return &ShuffleReply{Proofs: shufProof, Receipts: shufVerify.Receipts}, nil
+		return &ShuffleReply{Proofs: shufProof, InputReceipts: shufVerify.
+			InputReceipts, OutputReceipts: shufVerify.OutputReceipts}, nil
 	case <-time.After(time.Second * time.Duration(len(s.roster.List))):
 		return nil, xerrors.New("timeout waiting for shuffle")
 	}

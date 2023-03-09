@@ -89,7 +89,9 @@ func (s *Service) Execute(req *Execute) (*ExecuteReply, error) {
 	if !<-proto.Executed {
 		return nil, xerrors.New("couldn't execute application code")
 	}
-	return &ExecuteReply{Output: *proto.Output, Receipts: proto.Receipts}, nil
+	return &ExecuteReply{Output: *proto.Output,
+		InputReceipts:  proto.InputReceipts,
+		OutputReceipts: proto.OutputReceipts}, nil
 }
 
 func (s *Service) getKeyPair() *key.Pair {

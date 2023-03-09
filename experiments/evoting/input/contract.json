@@ -224,7 +224,7 @@
 								},
 								"candidate_count": {
 									"src": "CONST",
-									"value": 5
+									"value": 10
 								}
 							}
 						},

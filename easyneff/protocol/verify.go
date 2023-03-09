@@ -36,8 +36,9 @@ type ShuffleVerify struct {
 	ExecReq     *core.ExecutionRequest
 	InputHashes map[string][]byte
 
-	KP       *key.Pair
-	Receipts map[string]*core.OpcodeReceipt
+	KP             *key.Pair
+	InputReceipts  map[string]*core.OpcodeReceipt
+	OutputReceipts map[string]*core.OpcodeReceipt
 
 	ShufVerify VerificationFn
 
@@ -56,7 +57,8 @@ func NewShuffleVerify(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
 	s := &ShuffleVerify{
 		TreeNodeInstance: n,
 		Verified:         make(chan bool, 1),
-		Receipts:         make(map[string]*core.OpcodeReceipt),
+		InputReceipts:    make(map[string]*core.OpcodeReceipt),
+		OutputReceipts:   make(map[string]*core.OpcodeReceipt),
 		suite:            pairing.NewSuiteBn256(),
 	}
 	err := s.RegisterHandlers(s.verifyProofs, s.verifyProofsResponse)
@@ -141,7 +143,7 @@ func (s *ShuffleVerify) verifyProofs(r structVerifyProofs) error {
 
 func (s *ShuffleVerify) verifyProofsResponse(r structVerifyProofsResponse) error {
 	index := utils.SearchPublicKey(s.TreeNodeInstance, r.ServerIdentity)
-	if len(r.Signatures) == 0 || index < 0 {
+	if len(r.OutSignatures) == 0 || index < 0 {
 		log.Lvl2(r.ServerIdentity, "refused to respond")
 		s.Failures++
 		if s.Failures > (len(s.Roster().List) - s.Threshold) {
@@ -154,10 +156,27 @@ func (s *ShuffleVerify) verifyProofsResponse(r structVerifyProofsResponse) error
 	s.mask.SetBit(index, true)
 	s.responses = append(s.responses, &r.VerifyProofsResponse)
 	if len(s.responses) == s.Threshold {
-		for name, receipt := range s.Receipts {
+		for name, receipt := range s.OutputReceipts {
 			aggSignature := s.suite.G1().Point()
 			for _, resp := range s.responses {
-				sig, err := resp.Signatures[name].Point(s.suite)
+				sig, err := resp.OutSignatures[name].Point(s.suite)
+				if err != nil {
+					s.finish(false)
+					return err
+				}
+				aggSignature = aggSignature.Add(aggSignature, sig)
+			}
+			sig, err := aggSignature.MarshalBinary()
+			if err != nil {
+				s.finish(false)
+				return err
+			}
+			receipt.Sig = append(sig, s.mask.Mask()...)
+		}
+		for name, receipt := range s.InputReceipts {
+			aggSignature := s.suite.G1().Point()
+			for _, resp := range s.responses {
+				sig, err := resp.InSignatures[name].Point(s.suite)
 				if err != nil {
 					s.finish(false)
 					return err
@@ -177,26 +196,47 @@ func (s *ShuffleVerify) verifyProofsResponse(r structVerifyProofsResponse) error
 }
 
 func (s *ShuffleVerify) generateResponse() (*VerifyProofsResponse, error) {
+	inSigs := make(map[string]blsproto.BlsSignature)
+	outSigs := make(map[string]blsproto.BlsSignature)
+	epid := s.ExecReq.EP.Hash()
+	opIdx := s.ExecReq.Index
 	hash, err := s.ShufOutput.Hash()
 	if err != nil {
 		return &VerifyProofsResponse{}, err
 	}
 	r := &core.OpcodeReceipt{
-		EPID:      s.ExecReq.EP.Hash(),
-		OpIdx:     s.ExecReq.Index,
+		EPID:      epid,
+		OpIdx:     opIdx,
 		Name:      "proofs",
 		HashBytes: hash,
 	}
 	if s.IsRoot() {
-		s.Receipts["proofs"] = r
+		s.OutputReceipts["proofs"] = r
 	}
 	sig, err := bls.Sign(s.suite, s.KP.Private, r.Hash())
 	if err != nil {
 		return &VerifyProofsResponse{}, err
 	}
-	sigs := make(map[string]blsproto.BlsSignature)
-	sigs["proofs"] = sig
-	return &VerifyProofsResponse{Signatures: sigs}, nil
+	outSigs["proofs"] = sig
+	// Input receipts
+	for inputName, inputHash := range s.InputHashes {
+		r := core.OpcodeReceipt{
+			EPID:      epid,
+			OpIdx:     opIdx,
+			Name:      inputName,
+			HashBytes: inputHash,
+		}
+		sig, err := bls.Sign(s.suite, s.KP.Private, r.Hash())
+		if err != nil {
+			return &VerifyProofsResponse{}, err
+		}
+		inSigs[inputName] = sig
+		if s.IsRoot() {
+			s.InputReceipts[inputName] = &r
+		}
+	}
+	return &VerifyProofsResponse{InSignatures: inSigs,
+		OutSignatures: outSigs}, nil
 }
 
 func (s *ShuffleVerify) finish(result bool) {

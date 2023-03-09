@@ -59,7 +59,8 @@ type structReconstruct struct {
 }
 
 type ReconstructResponse struct {
-	Signatures map[string]blscosi.BlsSignature
+	InSignatures  map[string]blscosi.BlsSignature
+	OutSignatures map[string]blscosi.BlsSignature
 }
 
 type structReconstructResponse struct {

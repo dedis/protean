@@ -35,8 +35,9 @@ type DecryptRequest struct {
 }
 
 type DecryptReply struct {
-	Output   base.DecryptOutput
-	Receipts map[string]*core.OpcodeReceipt
+	Output         base.DecryptOutput
+	InputReceipts  map[string]*core.OpcodeReceipt
+	OutputReceipts map[string]*core.OpcodeReceipt
 }
 
 // Internal structs

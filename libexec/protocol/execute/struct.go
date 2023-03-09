@@ -25,7 +25,8 @@ type StructRequest struct {
 }
 
 type Response struct {
-	Signatures map[string]protocol.BlsSignature
+	InSignatures  map[string]protocol.BlsSignature
+	OutSignatures map[string]protocol.BlsSignature
 }
 
 type StructResponse struct {
