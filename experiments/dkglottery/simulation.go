@@ -198,9 +198,11 @@ func (s *SimulationService) executeSetup() error {
 		log.Error(err)
 		return err
 	}
+	inReceipts := make(map[int]map[string]*core.OpcodeReceipt)
+	inReceipts[execReq.Index] = execReply.InputReceipts
 	execReq.Index = 2
 	execReq.OpReceipts = execReply.OutputReceipts
-	_, err = s.stCl.UpdateState(setupOut.WS, execReq, 5)
+	_, err = s.stCl.UpdateState(setupOut.WS, execReq, inReceipts, 5)
 	if err != nil {
 		log.Error(err)
 		return err
@@ -273,7 +275,7 @@ func (s *SimulationService) executeJoin(idx int) error {
 		}
 		execReq.Index = 1
 		execReq.OpReceipts = execReply.OutputReceipts
-		_, err = stCl.UpdateState(joinOut.WS, execReq, 5)
+		_, err = stCl.UpdateState(joinOut.WS, execReq, nil, 5)
 		if err != nil {
 			pr, err := stCl.WaitProof(s.CID[:], lastRoot, s.BlockTime)
 			if err != nil {
@@ -347,7 +349,7 @@ func (s *SimulationService) executeClose() error {
 	}
 	execReq.Index = 1
 	execReq.OpReceipts = execReply.OutputReceipts
-	_, err = s.stCl.UpdateState(closeOut.WS, execReq, 5)
+	_, err = s.stCl.UpdateState(closeOut.WS, execReq, nil, 5)
 	if err != nil {
 		log.Errorf("updating state: %v", err)
 		return err
@@ -423,6 +425,8 @@ func (s *SimulationService) executeFinalize() error {
 		Data:        data,
 		StateProofs: sp,
 	}
+	inReceipts := make(map[int]map[string]*core.OpcodeReceipt)
+	inReceipts[execReq.Index] = decReply.InputReceipts
 	execReq.Index = 2
 	execReq.OpReceipts = decReply.OutputReceipts
 	execReply, err = s.execCl.Execute(execInput, execReq)
@@ -438,9 +442,10 @@ func (s *SimulationService) executeFinalize() error {
 		log.Errorf("protobuf decode: %v", err)
 		return err
 	}
+	inReceipts[execReq.Index] = execReply.InputReceipts
 	execReq.Index = 3
 	execReq.OpReceipts = execReply.OutputReceipts
-	_, err = s.stCl.UpdateState(finalOut.WS, execReq, 5)
+	_, err = s.stCl.UpdateState(finalOut.WS, execReq, inReceipts, 5)
 	if err != nil {
 		log.Errorf("updating state: %v", err)
 		return err

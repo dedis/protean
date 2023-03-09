@@ -151,7 +151,8 @@ func (s *Service) UpdateState(req *UpdateStateRequest) (*UpdateStateReply, error
 	}
 	s.storage.CurrState[root] = true
 	s.storage.Unlock()
-	r := contracts.Request{ExecReq: &req.ExecReq, UID: base.UID,
+	r := contracts.Request{ExecReq: &req.ExecReq,
+		InReceipts: req.InputReceipts, UID: base.UID,
 		OpcodeName: base.UPDATE_STATE}
 	reqBuf, err := protobuf.Encode(&r)
 	if err != nil {

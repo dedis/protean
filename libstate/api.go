@@ -96,8 +96,8 @@ func (c *Client) GetState(cid byzcoin.InstanceID) (*GetStateReply,
 }
 
 func (c *Client) UpdateState(args byzcoin.Arguments,
-	execReq *core.ExecutionRequest, wait int,
-	inReceipts map[int]map[string]*core.OpcodeReceipt) (*UpdateStateReply, error) {
+	execReq *core.ExecutionRequest, inReceipts map[int]map[string]*core.
+		OpcodeReceipt, wait int) (*UpdateStateReply, error) {
 	reply := &UpdateStateReply{}
 	req := &UpdateStateRequest{
 		Input:         base.UpdateInput{Args: args},

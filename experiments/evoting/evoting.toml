@@ -13,4 +13,4 @@ FSMFile = "../input/fsm.json"
 DFUFile = "../../../units.json"
 
 NumParticipants, NumSlots, Seed
-10, 15, 5
+5, 10, 13

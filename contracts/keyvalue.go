@@ -6,15 +6,20 @@ import (
 	"github.com/dedis/protean/core"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/darc"
+	"go.dedis.ch/kyber/v3/pairing"
+	"go.dedis.ch/kyber/v3/sign"
 	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/protobuf"
 	"golang.org/x/xerrors"
 )
 
+var suite = pairing.NewSuiteBn256()
+
 const ContractKeyValueID = "keyValue"
 
 type Request struct {
 	ExecReq    *core.ExecutionRequest
+	InReceipts map[int]map[string]*core.OpcodeReceipt
 	UID        string
 	OpcodeName string
 }
@@ -167,6 +172,12 @@ func verifyRequest(iid []byte, contractRoot []byte, cs *core.Storage, args byzco
 		log.Errorf("verifying execution request: %v", err)
 		return err
 	}
+	// 5) verify input receipts
+	inputMap := createInputMap(req.ExecReq)
+	err = verifyInputReceipts(req.ExecReq, req.InReceipts, inputMap)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -220,4 +231,39 @@ func createInputMap(execReq *core.ExecutionRequest) map[pair][]pair {
 		}
 	}
 	return depMap
+}
+
+// Note: This function is NOT tested! None of the applications have a
+//transaction where an opcode output is passed to multiple opcode inputs.
+//Therefore, in our experiments, the code inside the if-statement is never executed.
+func verifyInputReceipts(execReq *core.ExecutionRequest,
+	inReceipts map[int]map[string]*core.OpcodeReceipt,
+	inputMap map[pair][]pair) error {
+
+	for _, destPairs := range inputMap {
+		if len(destPairs) > 1 {
+			for i := 0; i < len(destPairs)-1; i++ {
+				h1 := inReceipts[destPairs[i].idx][destPairs[i].name].HashBytes
+				h2 := inReceipts[destPairs[i+1].idx][destPairs[i+1].name].HashBytes
+				if !bytes.Equal(h1, h2) {
+					log.Errorf("hashes do not match %d:%s and %d:%s",
+						destPairs[i].idx, destPairs[i].name, destPairs[i+1].idx,
+						destPairs[i+1].name)
+					return xerrors.New("cannot verify input receipts")
+				}
+			}
+			for _, pair := range destPairs {
+				dfuid := execReq.EP.Txn.Opcodes[pair.idx].DFUID
+				dfuData := execReq.EP.DFUData[dfuid]
+				receipt := inReceipts[pair.idx][pair.name]
+				err := receipt.Sig.VerifyWithPolicy(suite, receipt.Hash(),
+					dfuData.Keys, sign.NewThresholdPolicy(dfuData.Threshold))
+				if err != nil {
+					log.Errorf("cannot verify sig: %v", err)
+					return err
+				}
+			}
+		}
+	}
+	return nil
 }
