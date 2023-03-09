@@ -43,8 +43,10 @@ func NewClient(byzcoin *byzcoin.Client) *Client {
 func SetupByzcoin(r *onet.Roster, blockTime int) (*AdminClient,
 	skipchain.SkipBlockID, error) {
 	signer := darc.NewSignerEd25519(nil, nil)
-	//gMsg, err := byzcoin.DefaultGenesisMsg(byzcoin.CurrentVersion, r, []string{"spawn:keyValue", "invoke:keyValue.update"}, signer.Identity())
-	gMsg, err := byzcoin.DefaultGenesisMsg(byzcoin.CurrentVersion, r, []string{"spawn:keyValue", "invoke:keyValue.init_contract", "invoke:keyValue.update", "invoke:keyValue.dummy"}, signer.Identity())
+	gMsg, err := byzcoin.DefaultGenesisMsg(byzcoin.CurrentVersion, r,
+		[]string{"spawn:keyValue", "invoke:keyValue.init_contract",
+			"invoke:keyValue.update", "invoke:keyValue.dummy"},
+		signer.Identity())
 	if err != nil {
 		return nil, nil, err
 	}

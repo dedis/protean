@@ -3,6 +3,7 @@ package commons
 import (
 	"fmt"
 	"math/rand"
+	"strings"
 	"time"
 
 	"github.com/dedis/protean/libclient"
@@ -74,10 +75,10 @@ func SetupRegistry(regRoster *onet.Roster, dfile *string, keyMap map[string][]ky
 	}, nil
 }
 
-func GenerateBallots(count int) []string {
+func GenerateBallots(numCandidates int, count int) []string {
 	ballots := make([]string, count)
 	for i := 0; i < count; i++ {
-		base := "0000000000"
+		base := strings.Repeat("0", numCandidates)
 		idx := rand.Intn(len(base))
 		ballots[i] = base[:idx] + "1" + base[idx+1:]
 	}

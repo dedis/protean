@@ -33,6 +33,7 @@ type SimulationService struct {
 	FSMFile         string
 	DFUFile         string
 	BlockTime       int
+	NumCandidates   int
 	NumParticipants int
 	NumSlots        int
 	Seed            int
@@ -158,6 +159,7 @@ func (s *SimulationService) initContract() error {
 }
 
 func (s *SimulationService) executeSetup() error {
+	inReceipts := make(map[int]map[string]*core.OpcodeReceipt)
 	setupMonitor := monitor.NewTimeMeasure("setup")
 	gcs, err := s.stCl.GetState(s.CID)
 	if err != nil {
@@ -208,7 +210,6 @@ func (s *SimulationService) executeSetup() error {
 		log.Error(err)
 		return err
 	}
-	inReceipts := make(map[int]map[string]*core.OpcodeReceipt)
 	inReceipts[execReq.Index] = execReply.InputReceipts
 	execReq.Index = 2
 	execReq.OpReceipts = execReply.OutputReceipts
@@ -386,6 +387,7 @@ func (s *SimulationService) executeLock() error {
 }
 
 func (s *SimulationService) executeShuffle() error {
+	inReceipts := make(map[int]map[string]*core.OpcodeReceipt)
 	shuffleMonitor := monitor.NewTimeMeasure("shuffle")
 	// Get state
 	gcs, err := s.stCl.GetState(s.CID)
@@ -447,7 +449,6 @@ func (s *SimulationService) executeShuffle() error {
 		Data:        data,
 		StateProofs: sp,
 	}
-	inReceipts := make(map[int]map[string]*core.OpcodeReceipt)
 	inReceipts[execReq.Index] = shReply.InputReceipts
 	execReq.Index = 2
 	execReq.OpReceipts = shReply.OutputReceipts
@@ -478,6 +479,7 @@ func (s *SimulationService) executeShuffle() error {
 }
 
 func (s *SimulationService) executeTally() error {
+	inReceipts := make(map[int]map[string]*core.OpcodeReceipt)
 	tallyMonitor := monitor.NewTimeMeasure("tally")
 	// Get state
 	gcs, err := s.stCl.GetState(s.CID)
@@ -529,7 +531,7 @@ func (s *SimulationService) executeTally() error {
 
 	// Step 3: exec
 	tallyIn := evotingpc.TallyInput{
-		CandCount: 10,
+		CandCount: s.NumCandidates,
 		Ps:        decReply.Output.Ps,
 	}
 	data, err := protobuf.Encode(&tallyIn)
@@ -542,7 +544,6 @@ func (s *SimulationService) executeTally() error {
 		Data:        data,
 		StateProofs: sp,
 	}
-	inReceipts := make(map[int]map[string]*core.OpcodeReceipt)
 	inReceipts[execReq.Index] = decReply.InputReceipts
 	execReq.Index = 2
 	execReq.OpReceipts = decReply.OutputReceipts
@@ -578,7 +579,7 @@ func (s *SimulationService) executeTally() error {
 }
 
 func (s *SimulationService) runEvoting() error {
-	ballots := commons.GenerateBallots(s.NumParticipants)
+	ballots := commons.GenerateBallots(s.NumCandidates, s.NumParticipants)
 	schedule := commons.GenerateSchedule(s.Seed, s.NumParticipants, s.NumSlots)
 	// Initialize DFUs
 	err := s.initDFUs()

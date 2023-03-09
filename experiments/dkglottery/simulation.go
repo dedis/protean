@@ -149,6 +149,7 @@ func (s *SimulationService) initContract() error {
 }
 
 func (s *SimulationService) executeSetup() error {
+	inReceipts := make(map[int]map[string]*core.OpcodeReceipt)
 	setupMonitor := monitor.NewTimeMeasure("setup")
 	// Get state
 	gcs, err := s.stCl.GetState(s.CID)
@@ -200,7 +201,6 @@ func (s *SimulationService) executeSetup() error {
 		log.Error(err)
 		return err
 	}
-	inReceipts := make(map[int]map[string]*core.OpcodeReceipt)
 	inReceipts[execReq.Index] = execReply.InputReceipts
 	execReq.Index = 2
 	execReq.OpReceipts = execReply.OutputReceipts
@@ -372,6 +372,7 @@ func (s *SimulationService) executeClose() error {
 }
 
 func (s *SimulationService) executeFinalize() error {
+	inReceipts := make(map[int]map[string]*core.OpcodeReceipt)
 	finalizeMonitor := monitor.NewTimeMeasure("finalize")
 	// Get state
 	gcs, err := s.stCl.GetState(s.CID)
@@ -434,7 +435,6 @@ func (s *SimulationService) executeFinalize() error {
 		Data:        data,
 		StateProofs: sp,
 	}
-	inReceipts := make(map[int]map[string]*core.OpcodeReceipt)
 	inReceipts[execReq.Index] = decReply.InputReceipts
 	execReq.Index = 2
 	execReq.OpReceipts = decReply.OutputReceipts

@@ -317,6 +317,7 @@ func (s *SimulationService) executeClose() error {
 }
 
 func (s *SimulationService) executeFinalize() error {
+	inReceipts := make(map[int]map[string]*core.OpcodeReceipt)
 	finalizeMonitor := monitor.NewTimeMeasure("finalize")
 	// Get state
 	gcs, err := s.stCl.GetState(s.CID)
@@ -378,7 +379,6 @@ func (s *SimulationService) executeFinalize() error {
 		log.Errorf("protobuf decode: %v", err)
 		return err
 	}
-	inReceipts := make(map[int]map[string]*core.OpcodeReceipt)
 	inReceipts[execReq.Index] = execReply.InputReceipts
 	execReq.Index = 2
 	execReq.OpReceipts = execReply.OutputReceipts
