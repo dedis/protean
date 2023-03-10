@@ -83,7 +83,7 @@ func (p *SignProtocol) Dispatch() error {
 		for i := 0; i < n-1; i++ {
 			select {
 			case <-p.syncChan:
-			case <-time.After(time.Second * 2):
+			case <-time.After(time.Minute * 5):
 				return xerrors.New("time out while synchronising")
 			}
 		}

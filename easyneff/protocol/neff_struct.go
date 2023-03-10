@@ -8,7 +8,7 @@ import (
 const ShuffleProtoName = "easyneff_shuffle"
 
 func init() {
-	network.RegisterMessages(&base.ShuffleInput{})
+	network.RegisterMessages(&Request{}, &base.Proof{})
 }
 
 type Request struct {

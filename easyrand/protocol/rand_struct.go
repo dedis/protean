@@ -2,10 +2,15 @@ package protocol
 
 import (
 	"go.dedis.ch/onet/v3"
+	"go.dedis.ch/onet/v3/network"
 )
 
 const DKGProtoName = "easyrand_dkg"
 const SignProtoName = "easyrand_sign"
+
+func init() {
+	network.RegisterMessages(&Init{}, &Sig{}, &Sync{})
+}
 
 // Init initializes the message to sign.
 type Init struct {

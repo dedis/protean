@@ -25,7 +25,7 @@ var thresholdID onet.ServiceID
 var ServiceName = "ThresholdService"
 var storageKey = []byte("storage")
 
-const propagationTimeout = 20 * time.Second
+const propagationTimeout = 5 * time.Minute
 
 type DKGID [32]byte
 
@@ -67,7 +67,8 @@ func (s *Service) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
 	// Run DKG
 	dkgID := NewDKGID(req.ExecReq.EP.CID)
 	reply := &InitDKGReply{}
-	tree := s.roster.GenerateNaryTreeWithRoot(len(s.roster.List)-1, s.ServerIdentity())
+	nodeCount := len(s.roster.List)
+	tree := s.roster.GenerateNaryTreeWithRoot(nodeCount-1, s.ServerIdentity())
 	if tree == nil {
 		log.Error("Cannot create tree with roster", s.roster.List)
 		return nil, xerrors.New("error while generating tree")
@@ -90,7 +91,7 @@ func (s *Service) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
 		log.Errorf("Start protocol error: %v", err)
 		return nil, err
 	}
-	log.Lvl3("Started DKG-protocol - waiting for done", len(s.roster.List))
+	log.Lvl3("Started DKG-protocol - waiting for done", nodeCount)
 	select {
 	case <-setupDKG.Finished:
 		shared, dks, err := setupDKG.SharedSecret()
@@ -98,14 +99,12 @@ func (s *Service) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
 			log.Errorf("SharedSecret call error: %v", err)
 			return nil, err
 		}
-		nodeCount := len(s.roster.List)
 		threshold := nodeCount - (nodeCount-1)/3
 		receipts, err := s.verifyDKG(dkgID, threshold, shared.X, &req.ExecReq)
 		if err != nil {
 			return nil, err
 		}
 		reply = &InitDKGReply{
-			//X:        shared.X,
 			Output:   base.DKGOutput{X: shared.X},
 			Receipts: receipts,
 		}

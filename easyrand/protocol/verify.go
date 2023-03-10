@@ -93,7 +93,7 @@ func (rv *RandomnessVerify) Start() error {
 		rv.finish(false)
 		return err
 	}
-	rv.timeout = time.AfterFunc(2*time.Minute, func() {
+	rv.timeout = time.AfterFunc(5*time.Minute, func() {
 		log.Lvl1("RandomnessVerify protocol timeout")
 		rv.finish(false)
 	})

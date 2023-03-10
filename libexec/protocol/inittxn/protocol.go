@@ -66,7 +66,7 @@ func (p *InitTxn) Start() error {
 		p.finish(false)
 		return xerrors.New("verification function cannot be nil")
 	}
-	p.timeout = time.AfterFunc(1*time.Minute, func() {
+	p.timeout = time.AfterFunc(5*time.Minute, func() {
 		log.Lvl1("protocol timeout")
 		p.finish(false)
 	})

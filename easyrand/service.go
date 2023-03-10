@@ -24,6 +24,8 @@ var easyrandID onet.ServiceID
 var suite = bn256.NewSuite()
 var vssSuite = suite.G2().(vss.Suite)
 
+const dkgTimeout = 5 * time.Minute
+const randTimeout = 5 * time.Minute
 const genesisMsg = "genesis_msg"
 const ServiceName = "EasyrandService"
 
@@ -76,8 +78,7 @@ func (s *EasyRand) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
 			log.Errorf("Storing DKG shares failed: %v", err)
 			return nil, err
 		}
-	// Timeout was originally 5 seconds
-	case <-time.After(time.Duration(5) * time.Second):
+	case <-time.After(dkgTimeout):
 		log.Errorf("DKG did not finish")
 		return nil, xerrors.New("dkg did not finish")
 	}
@@ -106,11 +107,8 @@ func (s *EasyRand) CreateRandomness(req *CreateRandomnessRequest) (*CreateRandom
 	select {
 	case sig := <-signPi.FinalSignature:
 		s.blocks = append(s.blocks, sig)
-		//round := uint64(len(s.blocks) - 1)
-		//prev := s.getRoundBlock(round)
-		//public := s.pubPoly.Commit()
 		return &CreateRandomnessReply{}, nil
-	case <-time.After(2 * time.Second):
+	case <-time.After(randTimeout):
 		log.Errorf("Timed out waiting for the final signature")
 		return nil, xerrors.New("timeout waiting for final signature")
 	}
@@ -236,7 +234,7 @@ func (s *EasyRand) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConf
 			select {
 			case sig := <-signProto.FinalSignature:
 				s.blocks = append(s.blocks, sig)
-			case <-time.After(time.Second):
+			case <-time.After(5 * time.Minute):
 				log.Errorf("%s time out while waiting for signature", s.ServerIdentity())
 			}
 		}()

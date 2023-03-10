@@ -1,0 +1,18 @@
+Simulation = "Evoting"
+Servers = 14
+Hosts = 14
+Bf = 13
+Rounds = 1
+RunWait = "30000s"
+Delay = 100
+Bandwidth = 100
+Suite = "Ed25519"
+BlockTime = 15
+NumCandidates = 10
+ContractFile = "../input/contract.json"
+FSMFile = "../input/fsm.json"
+DFUFile = "../input/units.json"
+
+NumParticipants, NumSlots, Seed
+#11, 22, 41
+4, 32, 41

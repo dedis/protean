@@ -87,7 +87,7 @@ func (v *VerifyDKG) Start() error {
 		return xerrors.Errorf("couldn't generate mask: %v", err)
 	}
 	vr := &VerifyRequest{ExecReq: v.ExecReq}
-	v.timeout = time.AfterFunc(2*time.Minute, func() {
+	v.timeout = time.AfterFunc(5*time.Minute, func() {
 		log.Lvl1("verifydkg protocol timeout")
 		v.finish(false)
 	})

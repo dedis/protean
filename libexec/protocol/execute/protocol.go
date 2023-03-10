@@ -107,7 +107,7 @@ func (p *Execute) Start() error {
 		p.finish(false)
 		return xerrors.Errorf("couldn't generate mask: %v", err)
 	}
-	p.timeout = time.AfterFunc(2*time.Minute, func() {
+	p.timeout = time.AfterFunc(5*time.Minute, func() {
 		log.Lvl1("execute protocol timeout")
 		p.finish(false)
 	})

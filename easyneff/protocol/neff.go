@@ -120,7 +120,7 @@ func (p *NeffShuffle) Dispatch() error {
 		select {
 		case prf := <-p.proofChan:
 			proofMap[prf.TreeNode.ID] = prf.Proof
-		case <-time.After(5 * time.Second):
+		case <-time.After(15 * time.Minute):
 			return xerrors.New("timeout waiting for proofs")
 		}
 	}

@@ -21,6 +21,8 @@ var easyneffID onet.ServiceID
 
 const ServiceName = "EasyneffService"
 
+const shuffleTimeout = 90 * time.Minute
+
 func init() {
 	var err error
 	easyneffID, err = onet.RegisterNewService(ServiceName, newService)
@@ -84,7 +86,7 @@ func (s *EasyNeff) Shuffle(req *ShuffleRequest) (*ShuffleReply, error) {
 		}
 		return &ShuffleReply{Proofs: shufProof, InputReceipts: shufVerify.
 			InputReceipts, OutputReceipts: shufVerify.OutputReceipts}, nil
-	case <-time.After(time.Second * time.Duration(len(s.roster.List))):
+	case <-time.After(shuffleTimeout):
 		return nil, xerrors.New("timeout waiting for shuffle")
 	}
 }

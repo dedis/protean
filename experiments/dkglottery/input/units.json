@@ -1,0 +1,43 @@
+{
+        "registry": {
+                "state": {
+                        "num_nodes": 10,
+                        "threshold": 7,
+                        "opcodes": [
+                                "init_contract",
+                                "update_state"
+                        ]
+                },
+                "codeexec": {
+                        "num_nodes": 10,
+                        "threshold": 7,
+                        "opcodes": [
+                                "init_txn",
+                                "exec"
+                        ]
+                },
+                "threshold": {
+                        "num_nodes": 10,
+                        "threshold": 7,
+                        "opcodes": [
+                                "init_dkg",
+                                "decrypt"
+                        ]
+                },
+                "easyneff": {
+                        "num_nodes": 10,
+                        "threshold": 7,
+                        "opcodes": [
+                                "shuffle"
+                        ]
+                },
+                "easyrand": {
+                        "num_nodes": 10,
+                        "threshold": 7,
+                        "opcodes": [
+                                "init_dkg",
+                                "get_randomness"
+                        ]
+                }
+        }
+}

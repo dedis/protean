@@ -77,7 +77,7 @@ func (v *Verify) Start() error {
 		v.finish(false)
 		return err
 	}
-	v.timeout = time.AfterFunc(2*time.Minute, func() {
+	v.timeout = time.AfterFunc(5*time.Minute, func() {
 		log.Lvl1("Verify protocol timeout")
 		v.finish(false)
 	})
