@@ -61,11 +61,15 @@ func SetupByzcoin(r *onet.Roster, blockTime int) (*AdminClient,
 
 func (c *Client) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 	reply := &InitUnitReply{}
-	for _, node := range c.bcClient.Roster.List {
-		err := c.c.SendProtobuf(node, req, reply)
-		if err != nil {
-			return nil, xerrors.Errorf("send InitUnit message: %v", err)
-		}
+	//for _, node := range c.bcClient.Roster.List {
+	//	err := c.c.SendProtobuf(node, req, reply)
+	//	if err != nil {
+	//		return nil, xerrors.Errorf("send InitUnit message: %v", err)
+	//	}
+	//}
+	err := c.c.SendProtobuf(c.bcClient.Roster.List[0], req, reply)
+	if err != nil {
+		return nil, xerrors.Errorf("send InitUnit message: %v", err)
 	}
 	return reply, nil
 }

@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	statebase "github.com/dedis/protean/libstate/base"
+	thbase "github.com/dedis/protean/threshold/base"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -45,6 +47,7 @@ type SimulationService struct {
 	execCl       *libexec.Client
 	thCl         *threshold.Client
 
+	threshMap   map[string]int
 	rdata       *execbase.ByzData
 	CID         byzcoin.InstanceID
 	contractGen *skipchain.SkipBlock
@@ -86,13 +89,13 @@ func (s *SimulationService) Node(config *onet.SimulationConfig) error {
 
 func (s *SimulationService) initDFUs() error {
 	s.execCl = libexec.NewClient(s.execRoster)
-	_, err := s.execCl.InitUnit()
+	_, err := s.execCl.InitUnit(s.threshMap[execbase.UID])
 	if err != nil {
 		log.Errorf("initializing execution unit: %v", err)
 		return err
 	}
 	s.thCl = threshold.NewClient(s.threshRoster)
-	_, err = s.thCl.InitUnit()
+	_, err = s.thCl.InitUnit(s.threshMap[thbase.UID])
 	if err != nil {
 		log.Errorf("initializing threshold unit: %v", err)
 		return err
@@ -132,7 +135,7 @@ func (s *SimulationService) initContract() error {
 		return err
 	}
 	args := byzcoin.Arguments{{Name: "enc_tickets", Value: buf}}
-	reply, err := s.stCl.InitContract(raw, hdr, args, 10)
+	reply, err := s.stCl.InitContract(raw, hdr, args, 5)
 	if err != nil {
 		log.Error(err)
 		return err
@@ -204,7 +207,7 @@ func (s *SimulationService) executeSetup() error {
 	inReceipts[execReq.Index] = execReply.InputReceipts
 	execReq.Index = 2
 	execReq.OpReceipts = execReply.OutputReceipts
-	_, err = s.stCl.UpdateState(setupOut.WS, execReq, inReceipts, 5)
+	_, err = s.stCl.UpdateState(setupOut.WS, execReq, inReceipts, 1)
 	if err != nil {
 		log.Error(err)
 		return err
@@ -281,7 +284,7 @@ func (s *SimulationService) executeJoin(idx int) error {
 		}
 		execReq.Index = 1
 		execReq.OpReceipts = execReply.OutputReceipts
-		_, err = stCl.UpdateState(joinOut.WS, execReq, nil, 5)
+		_, err = stCl.UpdateState(joinOut.WS, execReq, nil, 1)
 		if err != nil {
 			pr, err := stCl.WaitProof(s.CID[:], lastRoot, s.BlockTime)
 			if err != nil {
@@ -356,7 +359,7 @@ func (s *SimulationService) executeClose() error {
 	}
 	execReq.Index = 1
 	execReq.OpReceipts = execReply.OutputReceipts
-	_, err = s.stCl.UpdateState(closeOut.WS, execReq, nil, 5)
+	_, err = s.stCl.UpdateState(closeOut.WS, execReq, nil, 1)
 	if err != nil {
 		log.Errorf("updating state: %v", err)
 		return err
@@ -454,7 +457,7 @@ func (s *SimulationService) executeFinalize() error {
 	inReceipts[execReq.Index] = execReply.InputReceipts
 	execReq.Index = 3
 	execReq.OpReceipts = execReply.OutputReceipts
-	_, err = s.stCl.UpdateState(finalOut.WS, execReq, inReceipts, 5)
+	_, err = s.stCl.UpdateState(finalOut.WS, execReq, inReceipts, 1)
 	if err != nil {
 		log.Errorf("updating state: %v", err)
 		return err
@@ -537,10 +540,11 @@ func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 	s.threshRoster = s.stRoster
 
 	keyMap := make(map[string][]kyber.Point)
-	keyMap["state"] = s.stRoster.ServicePublics(skipchain.ServiceName)
-	keyMap["codeexec"] = s.execRoster.ServicePublics(libexec.ServiceName)
-	keyMap["threshold"] = s.threshRoster.ServicePublics(blscosi.ServiceName)
-	s.rdata, err = commons.SetupRegistry(regRoster, &s.DFUFile, keyMap)
+	keyMap[statebase.UID] = s.stRoster.ServicePublics(skipchain.ServiceName)
+	keyMap[execbase.UID] = s.execRoster.ServicePublics(libexec.ServiceName)
+	keyMap[thbase.UID] = s.threshRoster.ServicePublics(blscosi.ServiceName)
+	s.rdata, s.threshMap, err = commons.SetupRegistry(regRoster, &s.DFUFile,
+		keyMap, s.BlockTime)
 	if err != nil {
 		log.Error(err)
 	}

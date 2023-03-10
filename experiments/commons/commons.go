@@ -44,35 +44,39 @@ func SetupStateUnit(roster *onet.Roster, blockTime int) (skipchain.SkipBlockID, 
 	return byzID, nil
 }
 
-func SetupRegistry(regRoster *onet.Roster, dfile *string, keyMap map[string][]kyber.Point) (*execbase.ByzData, error) {
+func SetupRegistry(regRoster *onet.Roster, dfile *string,
+	keyMap map[string][]kyber.Point, blockTime int) (*execbase.ByzData,
+	map[string]int, error) {
+	threshMap := make(map[string]int)
 	dfuReg, err := libclient.ReadDFUJSON(dfile)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	for dfuName, keys := range keyMap {
 		dfuReg.Units[dfuName].Keys = keys
+		threshMap[dfuName] = dfuReg.Units[dfuName].Threshold
 	}
-	adminCl, _, err := registry.SetupByzcoin(regRoster, 5)
+	adminCl, _, err := registry.SetupByzcoin(regRoster, blockTime)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	reply, err := adminCl.InitRegistry(dfuReg, 5)
+	reply, err := adminCl.InitRegistry(dfuReg, 10)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	pr, err := adminCl.Cl.WaitProof(reply.IID, 10*time.Second, nil)
+	pr, err := adminCl.Cl.WaitProof(reply.IID, time.Duration(blockTime)*time.Second, nil)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	genesis, err := adminCl.Cl.FetchGenesisBlock(pr.Latest.SkipChainID())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	return &execbase.ByzData{
 		IID:     reply.IID,
 		Proof:   pr,
 		Genesis: genesis,
-	}, nil
+	}, threshMap, nil
 }
 
 func GenerateBallots(numCandidates int, count int) []string {

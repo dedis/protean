@@ -16,8 +16,8 @@ func NewClient(r *onet.Roster) *Client {
 	return &Client{Client: onet.NewClient(cothority.Suite, ServiceName), roster: r}
 }
 
-func (c *Client) InitUnit() (*InitUnitReply, error) {
-	req := &InitUnitRequest{Roster: c.roster}
+func (c *Client) InitUnit(threshold int) (*InitUnitReply, error) {
+	req := &InitUnitRequest{Roster: c.roster, Threshold: threshold}
 	reply := &InitUnitReply{}
 	for _, dst := range c.roster.List {
 		err := c.SendProtobuf(dst, req, reply)

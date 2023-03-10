@@ -32,18 +32,20 @@ func init() {
 
 type Service struct {
 	*onet.ServiceProcessor
-	suite  pairing.SuiteBn256
-	roster *onet.Roster
+	suite     pairing.SuiteBn256
+	roster    *onet.Roster
+	threshold int
 }
 
 func (s *Service) InitUnit(req *InitUnit) (*InitUnitReply, error) {
 	s.roster = req.Roster
+	s.threshold = req.Threshold
 	return &InitUnitReply{}, nil
 }
 
 func (s *Service) InitTransaction(req *InitTransaction) (*InitTransactionReply, error) {
 	nodeCount := len(s.roster.List)
-	threshold := nodeCount - (nodeCount-1)/3
+	//threshold := nodeCount - (nodeCount-1)/3
 	tree := s.roster.GenerateNaryTreeWithRoot(nodeCount-1, s.ServerIdentity())
 	pi, err := s.CreateProtocol(inittxn.ProtoName, tree)
 	if err != nil {
@@ -52,7 +54,7 @@ func (s *Service) InitTransaction(req *InitTransaction) (*InitTransactionReply, 
 	proto := pi.(*inittxn.InitTxn)
 	proto.KP = s.getKeyPair()
 	proto.Publics = s.roster.ServicePublics(ServiceName)
-	proto.Threshold = threshold
+	proto.Threshold = s.threshold
 	proto.Input = &req.Input
 	proto.GeneratePlan = s.generateExecutionPlan
 	err = proto.Start()
@@ -70,7 +72,7 @@ func (s *Service) InitTransaction(req *InitTransaction) (*InitTransactionReply, 
 
 func (s *Service) Execute(req *Execute) (*ExecuteReply, error) {
 	nodeCount := len(s.roster.List)
-	threshold := nodeCount - (nodeCount-1)/3
+	//threshold := nodeCount - (nodeCount-1)/3
 	tree := s.roster.GenerateNaryTreeWithRoot(nodeCount-1, s.ServerIdentity())
 	pi, err := s.CreateProtocol(execute.ProtoName, tree)
 	if err != nil {
@@ -81,7 +83,7 @@ func (s *Service) Execute(req *Execute) (*ExecuteReply, error) {
 	proto.ExecReq = &req.ExecReq
 	proto.KP = s.getKeyPair()
 	proto.Publics = s.roster.ServicePublics(ServiceName)
-	proto.Threshold = threshold
+	proto.Threshold = s.threshold
 	err = proto.Start()
 	if err != nil {
 		return nil, xerrors.Errorf("failed to start the protocol: %v", err)

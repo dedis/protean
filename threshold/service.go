@@ -46,6 +46,7 @@ type Service struct {
 	*onet.ServiceProcessor
 	storage    *storage
 	roster     *onet.Roster
+	threshold  int
 	blsService *blscosi.Service
 }
 
@@ -60,6 +61,7 @@ func init() {
 
 func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 	s.roster = req.Roster
+	s.threshold = req.Threshold
 	return &InitUnitReply{}, nil
 }
 
@@ -99,8 +101,8 @@ func (s *Service) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
 			log.Errorf("SharedSecret call error: %v", err)
 			return nil, err
 		}
-		threshold := nodeCount - (nodeCount-1)/3
-		receipts, err := s.verifyDKG(dkgID, threshold, shared.X, &req.ExecReq)
+		//threshold := nodeCount - (nodeCount-1)/3
+		receipts, err := s.verifyDKG(dkgID, shared.X, &req.ExecReq)
 		if err != nil {
 			return nil, err
 		}
@@ -141,7 +143,8 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 	decProto.DecInput = &req.Input
 	decProto.ExecReq = &req.ExecReq
 	decProto.KP = protean.GetBLSKeyPair(s.ServerIdentity())
-	decProto.Threshold = nodeCount - (nodeCount-1)/3
+	//decProto.Threshold = nodeCount - (nodeCount-1)/3
+	decProto.Threshold = s.threshold
 	err = decProto.SetConfig(&onet.GenericConfig{Data: dkgID[:]})
 	if err != nil {
 		log.Errorf("Could not set config: %v", err)
@@ -180,7 +183,7 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 	return reply, nil
 }
 
-func (s *Service) verifyDKG(dkgID DKGID, threshold int, X kyber.Point,
+func (s *Service) verifyDKG(dkgID DKGID, X kyber.Point,
 	req *core.ExecutionRequest) (map[string]*core.OpcodeReceipt, error) {
 	tree := s.roster.GenerateNaryTreeWithRoot(len(s.roster.List)-1, s.ServerIdentity())
 	if tree == nil {
@@ -191,7 +194,7 @@ func (s *Service) verifyDKG(dkgID DKGID, threshold int, X kyber.Point,
 		return nil, err
 	}
 	vfDKG := pi.(*protocol.VerifyDKG)
-	vfDKG.Threshold = threshold
+	vfDKG.Threshold = s.threshold
 	vfDKG.X = X
 	vfDKG.ExecReq = req
 	vfDKG.KP = protean.GetBLSKeyPair(s.ServerIdentity())
@@ -290,13 +293,14 @@ func (s *Service) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConfi
 		if !ok {
 			return nil, xerrors.Errorf("couldn't find shared data with id: %x", id)
 		}
-		nodeCount := len(s.roster.List)
+		//nodeCount := len(s.roster.List)
 		pi, err := protocol.NewThreshDecrypt(tn)
 		if err != nil {
 			return nil, err
 		}
 		dec := pi.(*protocol.ThreshDecrypt)
-		dec.Threshold = nodeCount - (nodeCount-1)/3
+		//dec.Threshold = nodeCount - (nodeCount-1)/3
+		dec.Threshold = s.threshold
 		dec.Shared = shared
 		dec.DKGID = NewDKGID(conf.Data)
 		dec.KP = protean.GetBLSKeyPair(s.ServerIdentity())

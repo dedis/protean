@@ -7,7 +7,8 @@ import (
 )
 
 type InitUnit struct {
-	Roster *onet.Roster
+	Roster    *onet.Roster
+	Threshold int
 }
 
 type InitUnitReply struct{}

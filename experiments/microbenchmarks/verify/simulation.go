@@ -12,6 +12,7 @@ import (
 	"github.com/dedis/protean/libexec"
 	execbase "github.com/dedis/protean/libexec/base"
 	"github.com/dedis/protean/libstate"
+	statebase "github.com/dedis/protean/libstate/base"
 	"github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3/blscosi"
 	"go.dedis.ch/cothority/v3/byzcoin"
@@ -43,6 +44,7 @@ type SimulationService struct {
 	stCl           *libstate.Client
 	execCl         *libexec.Client
 
+	threshMap   map[string]int
 	rdata       *execbase.ByzData
 	CID         byzcoin.InstanceID
 	contractGen *skipchain.SkipBlock
@@ -83,7 +85,7 @@ func (s *SimulationService) Node(config *onet.SimulationConfig) error {
 
 func (s *SimulationService) initDFUs() error {
 	s.execCl = libexec.NewClient(s.execRoster)
-	_, err := s.execCl.InitUnit()
+	_, err := s.execCl.InitUnit(s.threshMap[execbase.UID])
 	if err != nil {
 		log.Errorf("initializing execution unit: %v", err)
 		return err
@@ -255,7 +257,8 @@ func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 		keyMap["codeexec"] = config.Roster.ServicePublics(libexec.ServiceName)
 		keyMap["verifier"] = config.Roster.ServicePublics(verifysvc.ServiceName)
 		keyMap["signer"] = config.Roster.ServicePublics(blscosi.ServiceName)
-		s.rdata, err = commons.SetupRegistry(regRoster, &s.DFUFile, keyMap)
+		s.rdata, _, err = commons.SetupRegistry(regRoster, &s.DFUFile,
+			keyMap, s.BlockTime)
 		if err != nil {
 			log.Error(err)
 			return err
@@ -267,11 +270,12 @@ func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 		s.verifierRoster = config.Roster
 
 		keyMap := make(map[string][]kyber.Point)
-		keyMap["state"] = config.Roster.ServicePublics(skipchain.ServiceName)
-		keyMap["codeexec"] = config.Roster.ServicePublics(libexec.ServiceName)
-		keyMap["verifier"] = config.Roster.ServicePublics(verifysvc.ServiceName)
-		keyMap["signer"] = config.Roster.ServicePublics(blscosi.ServiceName)
-		s.rdata, err = commons.SetupRegistry(regRoster, &s.DFUFile, keyMap)
+		keyMap[statebase.UID] = config.Roster.ServicePublics(skipchain.ServiceName)
+		keyMap[execbase.UID] = config.Roster.ServicePublics(libexec.ServiceName)
+		keyMap[verifysvc.UID] = config.Roster.ServicePublics(verifysvc.ServiceName)
+		keyMap[signsvc.UID] = config.Roster.ServicePublics(blscosi.ServiceName)
+		s.rdata, s.threshMap, err = commons.SetupRegistry(regRoster, &s.DFUFile,
+			keyMap, s.BlockTime)
 		if err != nil {
 			log.Error(err)
 			return err

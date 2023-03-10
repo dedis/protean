@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	statebase "github.com/dedis/protean/libstate/base"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/easyneff"
+	neffbase "github.com/dedis/protean/easyneff/base"
 	"github.com/dedis/protean/experiments/commons"
 	"github.com/dedis/protean/libclient"
 	"github.com/dedis/protean/libexec"
@@ -16,6 +18,7 @@ import (
 	execbase "github.com/dedis/protean/libexec/base"
 	"github.com/dedis/protean/libstate"
 	"github.com/dedis/protean/threshold"
+	thbase "github.com/dedis/protean/threshold/base"
 	"github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3/blscosi"
 	"go.dedis.ch/cothority/v3/byzcoin"
@@ -49,6 +52,7 @@ type SimulationService struct {
 	shCl         *easyneff.Client
 	thCl         *threshold.Client
 
+	threshMap   map[string]int
 	rdata       *execbase.ByzData
 	CID         byzcoin.InstanceID
 	contractGen *skipchain.SkipBlock
@@ -90,28 +94,30 @@ func (s *SimulationService) Node(config *onet.SimulationConfig) error {
 
 func (s *SimulationService) initDFUs() error {
 	s.execCl = libexec.NewClient(s.execRoster)
-	_, err := s.execCl.InitUnit()
+	_, err := s.execCl.InitUnit(s.threshMap[execbase.UID])
 	if err != nil {
 		log.Errorf("initializing execution unit: %v", err)
 		return err
 	}
 	s.shCl = easyneff.NewClient(s.shufRoster)
-	_, err = s.shCl.InitUnit()
+	_, err = s.shCl.InitUnit(s.threshMap[neffbase.UID])
 	if err != nil {
 		log.Errorf("initializing shuffle unit: %v", err)
 		return err
 	}
 	s.thCl = threshold.NewClient(s.threshRoster)
-	_, err = s.thCl.InitUnit()
+	_, err = s.thCl.InitUnit(s.threshMap[thbase.UID])
 	if err != nil {
 		log.Errorf("initializing threshold unit: %v", err)
 		return err
 	}
 	// Setup the state unit
+	log.Info("BEFORE STATE UNIT")
 	s.byzID, err = commons.SetupStateUnit(s.stRoster, s.BlockTime)
 	if err != nil {
 		log.Error(err)
 	}
+	log.Info("AFTER STATE UNIT")
 	return err
 }
 
@@ -213,7 +219,7 @@ func (s *SimulationService) executeSetup() error {
 	inReceipts[execReq.Index] = execReply.InputReceipts
 	execReq.Index = 2
 	execReq.OpReceipts = execReply.OutputReceipts
-	_, err = s.stCl.UpdateState(setupOut.WS, execReq, inReceipts, 5)
+	_, err = s.stCl.UpdateState(setupOut.WS, execReq, inReceipts, 1)
 	if err != nil {
 		log.Error(err)
 		return err
@@ -288,7 +294,7 @@ func (s *SimulationService) executeVote(ballot string, idx int) error {
 		}
 		execReq.Index = 1
 		execReq.OpReceipts = execReply.OutputReceipts
-		_, err = stCl.UpdateState(voteOut.WS, execReq, nil, 5)
+		_, err = stCl.UpdateState(voteOut.WS, execReq, nil, 1)
 		if err != nil {
 			pr, err := stCl.WaitProof(s.CID[:], lastRoot, s.BlockTime)
 			if err != nil {
@@ -371,7 +377,7 @@ func (s *SimulationService) executeLock() error {
 	}
 	execReq.Index = 1
 	execReq.OpReceipts = execReply.OutputReceipts
-	_, err = s.stCl.UpdateState(lockOut.WS, execReq, nil, 5)
+	_, err = s.stCl.UpdateState(lockOut.WS, execReq, nil, 1)
 	if err != nil {
 		log.Errorf("updating state: %v", err)
 		return err
@@ -468,7 +474,11 @@ func (s *SimulationService) executeShuffle() error {
 	inReceipts[execReq.Index] = execReply.InputReceipts
 	execReq.Index = 3
 	execReq.OpReceipts = execReply.OutputReceipts
-	_, err = s.stCl.UpdateState(prepPrOut.WS, execReq, inReceipts, 5)
+	_, err = s.stCl.UpdateState(prepPrOut.WS, execReq, inReceipts, 1)
+	if err != nil {
+		log.Errorf("updating state: %v", err)
+		return err
+	}
 
 	_, err = s.stCl.WaitProof(execReq.EP.CID, execReq.EP.StateRoot, 5)
 	if err != nil {
@@ -563,7 +573,7 @@ func (s *SimulationService) executeTally() error {
 	inReceipts[execReq.Index] = execReply.InputReceipts
 	execReq.Index = 3
 	execReq.OpReceipts = execReply.OutputReceipts
-	_, err = s.stCl.UpdateState(tallyOut.WS, execReq, inReceipts, 5)
+	_, err = s.stCl.UpdateState(tallyOut.WS, execReq, inReceipts, 1)
 	if err != nil {
 		log.Errorf("updating state: %v", err)
 		return err
@@ -647,24 +657,22 @@ func (s *SimulationService) runEvoting() error {
 func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 	var err error
 	regRoster := onet.NewRoster(config.Roster.List[0:4])
-	//s.stRoster = onet.NewRoster(config.Roster.List[10:])
-	//s.execRoster = s.stRoster
-	//s.shufRoster = onet.NewRoster(config.Roster.List[4:])
-	//s.threshRoster = s.stRoster
 	s.stRoster = onet.NewRoster(config.Roster.List[4:])
 	s.execRoster = s.stRoster
 	s.shufRoster = s.stRoster
 	s.threshRoster = s.stRoster
 
 	keyMap := make(map[string][]kyber.Point)
-	keyMap["state"] = s.stRoster.ServicePublics(skipchain.ServiceName)
-	keyMap["codeexec"] = s.execRoster.ServicePublics(libexec.ServiceName)
-	keyMap["easyneff"] = s.shufRoster.ServicePublics(blscosi.ServiceName)
-	keyMap["threshold"] = s.threshRoster.ServicePublics(blscosi.ServiceName)
-	s.rdata, err = commons.SetupRegistry(regRoster, &s.DFUFile, keyMap)
+	keyMap[statebase.UID] = s.stRoster.ServicePublics(skipchain.ServiceName)
+	keyMap[execbase.UID] = s.execRoster.ServicePublics(libexec.ServiceName)
+	keyMap[neffbase.UID] = s.shufRoster.ServicePublics(blscosi.ServiceName)
+	keyMap[thbase.UID] = s.threshRoster.ServicePublics(blscosi.ServiceName)
+	s.rdata, s.threshMap, err = commons.SetupRegistry(regRoster, &s.DFUFile,
+		keyMap, s.BlockTime)
 	if err != nil {
 		log.Error(err)
 	}
+	log.Info("registry done")
 	err = s.runEvoting()
 	return err
 }

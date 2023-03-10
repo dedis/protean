@@ -41,6 +41,7 @@ func init() {
 type EasyRand struct {
 	*onet.ServiceProcessor
 	roster     *onet.Roster
+	threshold  int
 	blsService *blscosi.Service
 
 	keypair      *key.Pair
@@ -51,6 +52,7 @@ type EasyRand struct {
 
 func (s *EasyRand) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 	s.roster = req.Roster
+	s.threshold = req.Threshold
 	return &InitUnitReply{}, nil
 }
 
@@ -89,7 +91,7 @@ func (s *EasyRand) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
 func (s *EasyRand) CreateRandomness(req *CreateRandomnessRequest) (*CreateRandomnessReply, error) {
 	// Generate randomness
 	nodeCount := len(s.roster.List)
-	threshold := nodeCount - (nodeCount-1)/3
+	//threshold := nodeCount - (nodeCount-1)/3
 	tree := s.roster.GenerateNaryTreeWithRoot(nodeCount-1, s.ServerIdentity())
 	pi, err := s.CreateProtocol(protocol.SignProtoName, tree)
 	if err != nil {
@@ -98,7 +100,7 @@ func (s *EasyRand) CreateRandomness(req *CreateRandomnessRequest) (*CreateRandom
 	}
 	signPi := pi.(*protocol.SignProtocol)
 	signPi.Msg = createNextMsg(s.blocks)
-	signPi.Threshold = threshold
+	signPi.Threshold = s.threshold
 	err = signPi.Start()
 	if err != nil {
 		log.Errorf("Start protocol error: %v", err)
@@ -124,7 +126,7 @@ func (s *EasyRand) GetRandomness(req *GetRandomnessRequest) (*GetRandomnessReply
 	binary.LittleEndian.PutUint64(rBuf, round)
 
 	nodeCount := len(s.roster.List)
-	threshold := nodeCount - (nodeCount-1)/3
+	//threshold := nodeCount - (nodeCount-1)/3
 	tree := s.roster.GenerateNaryTreeWithRoot(nodeCount-1, s.ServerIdentity())
 	pi, err := s.CreateProtocol(protocol.VerifyProtoName, tree)
 	if err != nil {
@@ -132,7 +134,7 @@ func (s *EasyRand) GetRandomness(req *GetRandomnessRequest) (*GetRandomnessReply
 		return nil, err
 	}
 	verifyPi := pi.(*protocol.RandomnessVerify)
-	verifyPi.Threshold = threshold
+	verifyPi.Threshold = s.threshold
 	verifyPi.InputHashes, err = req.Input.PrepareHashes()
 	if err != nil {
 		log.Errorf("failed to prepare the input hashes: %v", err)
@@ -227,9 +229,10 @@ func (s *EasyRand) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConf
 			log.Errorf("Cannot initialize the signing protocol: %v", err)
 			return nil, err
 		}
-		nodeCount := len(s.roster.List)
+		//nodeCount := len(s.roster.List)
 		signProto := pi.(*protocol.SignProtocol)
-		signProto.Threshold = nodeCount - (nodeCount-1)/3
+		//signProto.Threshold = nodeCount - (nodeCount-1)/3
+		signProto.Threshold = s.threshold
 		go func() {
 			select {
 			case sig := <-signProto.FinalSignature:

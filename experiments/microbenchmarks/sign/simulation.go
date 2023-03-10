@@ -10,6 +10,7 @@ import (
 	"github.com/dedis/protean/libexec"
 	execbase "github.com/dedis/protean/libexec/base"
 	"github.com/dedis/protean/libstate"
+	statebase "github.com/dedis/protean/libstate/base"
 	"github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/skipchain"
@@ -36,6 +37,7 @@ type SimulationService struct {
 	stCl         *libstate.Client
 	execCl       *libexec.Client
 
+	threshMap   map[string]int
 	rdata       *execbase.ByzData
 	CID         byzcoin.InstanceID
 	contractGen *skipchain.SkipBlock
@@ -76,7 +78,7 @@ func (s *SimulationService) Node(config *onet.SimulationConfig) error {
 
 func (s *SimulationService) initDFUs() error {
 	s.execCl = libexec.NewClient(s.execRoster)
-	_, err := s.execCl.InitUnit()
+	_, err := s.execCl.InitUnit(s.threshMap[execbase.UID])
 	if err != nil {
 		log.Errorf("initializing execution unit: %v", err)
 		return err
@@ -187,10 +189,11 @@ func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 
 	keyMap := make(map[string][]kyber.Point)
 	//keyMap["signer"] = config.Roster.ServicePublics(blscosi.ServiceName)
-	keyMap["signer"] = config.Roster.ServicePublics(service.ServiceName)
-	keyMap["state"] = config.Roster.ServicePublics(skipchain.ServiceName)
-	keyMap["codeexec"] = config.Roster.ServicePublics(libexec.ServiceName)
-	s.rdata, err = commons.SetupRegistry(regRoster, &s.DFUFile, keyMap)
+	keyMap[service.UID] = config.Roster.ServicePublics(service.ServiceName)
+	keyMap[statebase.UID] = config.Roster.ServicePublics(skipchain.ServiceName)
+	keyMap[execbase.UID] = config.Roster.ServicePublics(libexec.ServiceName)
+	s.rdata, s.threshMap, err = commons.SetupRegistry(regRoster, &s.DFUFile,
+		keyMap, s.BlockTime)
 	if err != nil {
 		log.Error(err)
 	}

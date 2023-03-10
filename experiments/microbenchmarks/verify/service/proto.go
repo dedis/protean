@@ -5,6 +5,10 @@ import (
 	"go.dedis.ch/onet/v3"
 )
 
+const (
+	UID string = "verifier"
+)
+
 type VerifyRequest struct {
 	Roster    *onet.Roster
 	InputData map[string][]byte

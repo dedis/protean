@@ -15,7 +15,8 @@ func init() {
 }
 
 type InitUnitRequest struct {
-	Roster *onet.Roster
+	Roster    *onet.Roster
+	Threshold int
 }
 
 type InitUnitReply struct{}

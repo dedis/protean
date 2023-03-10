@@ -2,9 +2,15 @@ package main
 
 import (
 	"fmt"
+	statebase "github.com/dedis/protean/libstate/base"
+	"sync"
+	"sync/atomic"
+	"time"
+
 	"github.com/BurntSushi/toml"
 	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/easyrand"
+	randbase "github.com/dedis/protean/easyrand/base"
 	"github.com/dedis/protean/experiments/commons"
 	"github.com/dedis/protean/libclient"
 	"github.com/dedis/protean/libexec"
@@ -21,9 +27,6 @@ import (
 	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/onet/v3/simul/monitor"
 	"go.dedis.ch/protobuf"
-	"sync"
-	"sync/atomic"
-	"time"
 )
 
 type SimulationService struct {
@@ -45,6 +48,7 @@ type SimulationService struct {
 	execCl     *libexec.Client
 	randCl     *easyrand.Client
 
+	threshMap   map[string]int
 	rdata       *execbase.ByzData
 	CID         byzcoin.InstanceID
 	contractGen *skipchain.SkipBlock
@@ -85,13 +89,13 @@ func (s *SimulationService) Node(config *onet.SimulationConfig) error {
 
 func (s *SimulationService) initDFUs() error {
 	s.execCl = libexec.NewClient(s.execRoster)
-	_, err := s.execCl.InitUnit()
+	_, err := s.execCl.InitUnit(s.threshMap[execbase.UID])
 	if err != nil {
 		log.Errorf("initializing execution unit: %v", err)
 		return err
 	}
 	s.randCl = easyrand.NewClient(s.randRoster)
-	_, err = s.randCl.InitUnit()
+	_, err = s.randCl.InitUnit(s.threshMap[randbase.UID])
 	if err != nil {
 		log.Errorf("initializing randomness unit: %v", err)
 		return err
@@ -225,7 +229,7 @@ func (s *SimulationService) executeJoin(signer darc.Signer, idx int) error {
 		}
 		execReq.Index = 1
 		execReq.OpReceipts = execReply.OutputReceipts
-		_, err = stCl.UpdateState(joinOut.WS, execReq, nil, 0)
+		_, err = stCl.UpdateState(joinOut.WS, execReq, nil, 1)
 		if err != nil {
 			log.Errorf("update state: %v", err)
 			pr, err := stCl.WaitProof(s.CID[:], lastRoot, s.BlockTime)
@@ -301,7 +305,7 @@ func (s *SimulationService) executeClose() error {
 	}
 	execReq.Index = 1
 	execReq.OpReceipts = execReply.OutputReceipts
-	_, err = s.stCl.UpdateState(closeOut.WS, execReq, nil, 5)
+	_, err = s.stCl.UpdateState(closeOut.WS, execReq, nil, 1)
 	if err != nil {
 		log.Errorf("updating state: %v", err)
 		return err
@@ -382,7 +386,7 @@ func (s *SimulationService) executeFinalize() error {
 	inReceipts[execReq.Index] = execReply.InputReceipts
 	execReq.Index = 2
 	execReq.OpReceipts = execReply.OutputReceipts
-	_, err = s.stCl.UpdateState(finalOut.WS, execReq, inReceipts, 5)
+	_, err = s.stCl.UpdateState(finalOut.WS, execReq, inReceipts, 1)
 	if err != nil {
 		log.Errorf("updating state: %v", err)
 		return err
@@ -461,10 +465,11 @@ func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 	s.randRoster = s.stRoster
 
 	keyMap := make(map[string][]kyber.Point)
-	keyMap["state"] = s.stRoster.ServicePublics(skipchain.ServiceName)
-	keyMap["codeexec"] = s.execRoster.ServicePublics(libexec.ServiceName)
-	keyMap["easyrand"] = s.randRoster.ServicePublics(blscosi.ServiceName)
-	s.rdata, err = commons.SetupRegistry(regRoster, &s.DFUFile, keyMap)
+	keyMap[statebase.UID] = s.stRoster.ServicePublics(skipchain.ServiceName)
+	keyMap[execbase.UID] = s.execRoster.ServicePublics(libexec.ServiceName)
+	keyMap[randbase.UID] = s.randRoster.ServicePublics(blscosi.ServiceName)
+	s.rdata, s.threshMap, err = commons.SetupRegistry(regRoster, &s.DFUFile,
+		keyMap, s.BlockTime)
 	if err != nil {
 		log.Error(err)
 	}

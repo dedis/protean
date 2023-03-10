@@ -6,6 +6,10 @@ import (
 	"go.dedis.ch/onet/v3/network"
 )
 
+const (
+	UID string = "signer"
+)
+
 func init() {
 	network.RegisterMessages(&SignRequest{}, &SignReply{})
 }

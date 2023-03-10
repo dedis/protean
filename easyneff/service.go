@@ -35,11 +35,13 @@ func init() {
 type EasyNeff struct {
 	*onet.ServiceProcessor
 	roster     *onet.Roster
+	threshold  int
 	blsService *blscosi.Service
 }
 
 func (s *EasyNeff) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 	s.roster = req.Roster
+	s.threshold = req.Threshold
 	return &InitUnitReply{}, nil
 }
 
@@ -76,7 +78,8 @@ func (s *EasyNeff) Shuffle(req *ShuffleRequest) (*ShuffleReply, error) {
 		}
 		// Verification function
 		shufVerify.ShufVerify = s.ShuffleVerify
-		shufVerify.Threshold = nodeCount - (nodeCount-1)/3
+		//shufVerify.Threshold = nodeCount - (nodeCount-1)/3
+		shufVerify.Threshold = s.threshold
 		err = shufVerify.Start()
 		if err != nil {
 			return nil, xerrors.Errorf("Failed to start the verification protocol: " + err.Error())
