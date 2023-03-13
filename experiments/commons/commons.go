@@ -2,6 +2,8 @@ package commons
 
 import (
 	"fmt"
+	"github.com/dedis/protean/core"
+	"go.dedis.ch/cothority/v3/byzcoin"
 	"math/rand"
 	"strings"
 	"time"
@@ -125,4 +127,17 @@ func PrepareData(numData int, size int) map[string][]byte {
 		data[name] = buf
 	}
 	return data
+}
+
+func PrepareStateProof(numInputs int, pr *byzcoin.Proof,
+	genesis *skipchain.SkipBlock) map[string]*core.StateProof {
+	sp := make(map[string]*core.StateProof)
+	for i := 0; i < numInputs; i++ {
+		key := fmt.Sprintf("data%d", i)
+		sp[key] = &core.StateProof{
+			Proof:   pr,
+			Genesis: genesis,
+		}
+	}
+	return sp
 }

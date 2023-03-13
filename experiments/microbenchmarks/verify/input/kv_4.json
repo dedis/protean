@@ -5,6 +5,28 @@
 				"verify": {
 					"opcodes": [
 						{
+							"name": "verify",
+							"dfu_id": "verifier",
+							"inputs": {
+								"data0": {
+									"src": "KEYVALUE",
+									"value": "test_key"
+								},
+								"data1": {
+									"src": "KEYVALUE",
+									"value": "test_key"
+								},
+								"data2": {
+									"src": "KEYVALUE",
+									"value": "test_key"
+								},
+								"data3": {
+									"src": "KEYVALUE",
+									"value": "test_key"
+								}
+							}
+						},
+						{
 							"name": "exec",
 							"dfu_id": "codeexec"
 						},
@@ -15,28 +37,6 @@
 						{
 							"name": "sign",
 							"dfu_id": "signer"
-						},
-						{
-							"name": "verify",
-							"dfu_id": "verifier",
-							"inputs": {
-								"data0": {
-									"src": "KEYVALUE",
-									"value": "key0"
-								},
-								"data1": {
-									"src": "KEYVALUE",
-									"value": "key1"
-								},
-								"data2": {
-									"src": "KEYVALUE",
-									"value": "key2"
-								},
-								"data3": {
-									"src": "KEYVALUE",
-									"value": "key3"
-								}
-							}
 						}
 					]
 				}

@@ -5,6 +5,16 @@
 				"verify": {
 					"opcodes": [
 						{
+							"name": "verify",
+							"dfu_id": "verifier",
+							"inputs": {
+								"data0": {
+									"src": "KEYVALUE",
+									"value": "test_key"
+								}
+							}
+						},
+						{
 							"name": "exec",
 							"dfu_id": "codeexec"
 						},
@@ -15,16 +25,6 @@
 						{
 							"name": "sign",
 							"dfu_id": "signer"
-						},
-						{
-							"name": "verify",
-							"dfu_id": "verifier",
-							"inputs": {
-								"data0": {
-									"src": "KEYVALUE",
-									"value": "key0"
-								}
-							}
 						}
 					]
 				}

@@ -29,7 +29,6 @@ type Verify struct {
 	InputData   map[string][]byte
 	InputHashes map[string][]byte
 	StateProofs map[string]*core.StateProof
-	Precommits  *core.KVDict
 	ExecReq     *core.ExecutionRequest
 	KP          *key.Pair
 
@@ -70,7 +69,9 @@ func (v *Verify) Start() error {
 			return err
 		}
 	}
-	v.prepareInputHashes()
+	if len(v.InputData) > 0 {
+		v.prepareInputHashes()
+	}
 	err := v.runVerification()
 	if err != nil {
 		log.Errorf("%s failed to verify request: %v", v.Name(), err)
@@ -82,7 +83,7 @@ func (v *Verify) Start() error {
 		v.finish(false)
 	})
 	errs := v.Broadcast(&VerifyRequest{InputData: v.InputData,
-		StateProofs: v.StateProofs, Precommits: v.Precommits, ExecReq: v.ExecReq})
+		StateProofs: v.StateProofs, ExecReq: v.ExecReq})
 	if len(errs) > (len(v.Roster().List) - v.Threshold) {
 		log.Errorf("some nodes failed with error(s) %v", errs)
 		return xerrors.New("too many nodes failed in broadcast")
@@ -95,7 +96,6 @@ func (v *Verify) verify(r structVerify) error {
 	var err error
 	v.InputData = r.InputData
 	v.StateProofs = r.StateProofs
-	v.Precommits = r.Precommits
 	v.ExecReq = r.ExecReq
 	if len(v.StateProofs) > 0 {
 		_, err := core.PrepareKVDicts(v.ExecReq, v.StateProofs)
@@ -105,7 +105,9 @@ func (v *Verify) verify(r structVerify) error {
 				&VerifyResponse{Success: false}), "sending VerifyResponse to parent")
 		}
 	}
-	v.prepareInputHashes()
+	if len(v.InputData) > 0 {
+		v.prepareInputHashes()
+	}
 	err = v.runVerification()
 	if err != nil {
 		log.Errorf("%s couldn't verify the request: %v", v.Name(), err)
@@ -146,6 +148,7 @@ func (v *Verify) runVerification() error {
 		UID:         "verifier",
 		OpcodeName:  "verify",
 		InputHashes: v.InputHashes,
+		StateProofs: v.StateProofs,
 	}
 	return v.ExecReq.Verify(vData)
 }

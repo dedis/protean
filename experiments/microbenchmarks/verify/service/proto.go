@@ -10,9 +10,10 @@ const (
 )
 
 type VerifyRequest struct {
-	Roster    *onet.Roster
-	InputData map[string][]byte
-	ExecReq   *core.ExecutionRequest
+	Roster      *onet.Roster
+	InputData   map[string][]byte
+	StateProofs map[string]*core.StateProof
+	ExecReq     *core.ExecutionRequest
 }
 
 type VerifyReply struct {

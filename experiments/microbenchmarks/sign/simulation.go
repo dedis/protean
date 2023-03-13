@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"github.com/BurntSushi/toml"
 	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/experiments/commons"
@@ -17,6 +16,7 @@ import (
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
+	"go.dedis.ch/onet/v3/simul/monitor"
 	"time"
 )
 
@@ -149,19 +149,18 @@ func (s *SimulationService) executeSign(config *onet.SimulationConfig) error {
 	// Get signer service
 	outputData := commons.PrepareData(s.NumOutput, s.Size)
 	signer := config.GetService(service.ServiceName).(*service.Signer)
+
+	signMonitor := monitor.NewTimeMeasure("sign")
 	req := service.SignRequest{
 		Roster:     s.signerRoster,
 		OutputData: outputData,
 		ExecReq:    execReq,
 	}
-	reply, err := signer.Sign(&req)
+	_, err = signer.Sign(&req)
 	if err != nil {
 		log.Error(err)
 	}
-	for k, v := range reply.Receipts {
-		fmt.Println(k)
-		fmt.Println(v.HashBytes)
-	}
+	signMonitor.Record()
 	return err
 }
 

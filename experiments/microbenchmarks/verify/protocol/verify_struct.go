@@ -15,7 +15,6 @@ func init() {
 type VerifyRequest struct {
 	InputData   map[string][]byte
 	StateProofs map[string]*core.StateProof
-	Precommits  *core.KVDict
 	ExecReq     *core.ExecutionRequest
 }
 

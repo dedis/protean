@@ -3,6 +3,8 @@ package main
 import (
 	"crypto/rand"
 	"fmt"
+	"time"
+
 	"github.com/BurntSushi/toml"
 	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/experiments/commons"
@@ -20,8 +22,8 @@ import (
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
+	"go.dedis.ch/onet/v3/simul/monitor"
 	"golang.org/x/xerrors"
-	"time"
 )
 
 type SimulationService struct {
@@ -139,6 +141,9 @@ func (s *SimulationService) executeVerifyOpc(config *onet.SimulationConfig) erro
 	stCl := libstate.NewClient(byzcoin.NewClient(s.byzID, *s.stRoster))
 	defer execCl.Close()
 	defer stCl.Close()
+
+	//s.NumBlocks = 1
+	//s.generateBlocks()
 	// Get state
 	gcs, err := stCl.GetState(s.CID)
 	if err != nil {
@@ -148,13 +153,20 @@ func (s *SimulationService) executeVerifyOpc(config *onet.SimulationConfig) erro
 	cdata := &execbase.ByzData{IID: s.CID, Proof: gcs.Proof.Proof,
 		Genesis: s.contractGen}
 	itReply, err := execCl.InitTransaction(s.rdata, cdata, "verifywf", "verify")
+	if err != nil {
+		log.Error(err)
+		return err
+	}
 	execReq := &core.ExecutionRequest{
-		Index: 2,
+		Index: 0,
 		EP:    &itReply.Plan,
 	}
 
 	// Get signer service
 	outputData := commons.PrepareData(s.NumInput, s.Size)
+	for k, _ := range outputData {
+		fmt.Println(k)
+	}
 	signer := config.GetService(signsvc.ServiceName).(*signsvc.Signer)
 	signReq := signsvc.SignRequest{
 		Roster:     s.signerRoster,
@@ -166,19 +178,21 @@ func (s *SimulationService) executeVerifyOpc(config *onet.SimulationConfig) erro
 		log.Error(err)
 	}
 	// Get verifier service
-	execReq.Index = 3
+	execReq.Index = 1
 	execReq.OpReceipts = signReply.Receipts
 	verifier := config.GetService(verifysvc.ServiceName).(*verifysvc.Verifier)
-	verReq := verifysvc.VerifyRequest{
+
+	vMonitor := monitor.NewTimeMeasure("verify_opc")
+	verifyReq := verifysvc.VerifyRequest{
 		Roster:    s.verifierRoster,
 		InputData: outputData,
 		ExecReq:   execReq,
 	}
-	verReply, err := verifier.Verify(&verReq)
+	_, err = verifier.Verify(&verifyReq)
 	if err != nil {
 		log.Error(err)
 	}
-	fmt.Println(verReply)
+	vMonitor.Record()
 	return err
 }
 
@@ -188,32 +202,47 @@ func (s *SimulationService) executeVerifyKv(config *onet.SimulationConfig) error
 	defer execCl.Close()
 	defer stCl.Close()
 
-	s.generateBlocks()
-	//time.Sleep(time.Duration(s.BlockTime) * time.Second)
 	// Get state
 	gcs, err := stCl.GetState(s.CID)
 	if err != nil {
 		log.Errorf("getting state: %v", err)
 		return err
 	}
-	log.Info("Link count:", len(gcs.Proof.Proof.Links))
-	log.Info("Block index", gcs.Proof.Proof.Latest.Index)
-	//cdata := &execbase.ByzData{IID: s.CID, Proof: gcs.Proof.Proof,
-	//	Genesis: s.contractGen}
-	//itReply, err := execCl.InitTransaction(s.rdata, cdata, "verifywf", "verify")
-	//execReq := &core.ExecutionRequest{
-	//	Index: 2,
-	//	EP:    &itReply.Plan,
-	//}
+	cdata := &execbase.ByzData{IID: s.CID, Proof: gcs.Proof.Proof,
+		Genesis: s.contractGen}
 
-	return nil
+	itReply, err := execCl.InitTransaction(s.rdata, cdata, "verifywf", "verify")
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+	execReq := &core.ExecutionRequest{
+		Index: 0,
+		EP:    &itReply.Plan,
+	}
+
+	verifier := config.GetService(verifysvc.ServiceName).(*verifysvc.Verifier)
+	sp := commons.PrepareStateProof(s.NumInput, gcs.Proof.Proof, s.contractGen)
+
+	vMonitor := monitor.NewTimeMeasure("verify_kv")
+	verifyReq := verifysvc.VerifyRequest{
+		Roster:      s.verifierRoster,
+		StateProofs: sp,
+		ExecReq:     execReq,
+	}
+	_, err = verifier.Verify(&verifyReq)
+	if err != nil {
+		log.Error(err)
+	}
+	vMonitor.Record()
+	return err
 }
 
 func (s *SimulationService) generateBlocks() error {
 	buf := make([]byte, 128)
 	for i := 0; i < s.NumBlocks; i++ {
 		rand.Read(buf)
-		args := byzcoin.Arguments{{Name: "data0", Value: buf}}
+		args := byzcoin.Arguments{{Name: "test_key", Value: buf}}
 		_, err := s.stCl.DummyUpdate(s.CID, args, 2)
 		if err != nil {
 			log.Error(err)
@@ -237,10 +266,13 @@ func (s *SimulationService) runMicrobenchmark(config *onet.SimulationConfig) err
 	if s.DepType == "OPC" {
 		err = s.executeVerifyOpc(config)
 	} else {
-		s.generateBlocks()
+		err = s.generateBlocks()
+		if err != nil {
+			return err
+		}
 		err = s.executeVerifyKv(config)
 	}
-	return nil
+	return err
 }
 
 func (s *SimulationService) Run(config *onet.SimulationConfig) error {
@@ -253,11 +285,11 @@ func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 		s.verifierRoster = config.Roster
 
 		keyMap := make(map[string][]kyber.Point)
-		keyMap["state"] = config.Roster.ServicePublics(skipchain.ServiceName)
-		keyMap["codeexec"] = config.Roster.ServicePublics(libexec.ServiceName)
-		keyMap["verifier"] = config.Roster.ServicePublics(verifysvc.ServiceName)
-		keyMap["signer"] = config.Roster.ServicePublics(blscosi.ServiceName)
-		s.rdata, _, err = commons.SetupRegistry(regRoster, &s.DFUFile,
+		keyMap[statebase.UID] = config.Roster.ServicePublics(skipchain.ServiceName)
+		keyMap[execbase.UID] = config.Roster.ServicePublics(libexec.ServiceName)
+		keyMap[verifysvc.UID] = config.Roster.ServicePublics(verifysvc.ServiceName)
+		keyMap[signsvc.UID] = config.Roster.ServicePublics(blscosi.ServiceName)
+		s.rdata, s.threshMap, err = commons.SetupRegistry(regRoster, &s.DFUFile,
 			keyMap, s.BlockTime)
 		if err != nil {
 			log.Error(err)

@@ -5,14 +5,6 @@
 				"verify": {
 					"opcodes": [
 						{
-							"name": "exec",
-							"dfu_id": "codeexec"
-						},
-						{
-							"name": "update_state",
-							"dfu_id": "state"
-						},
-						{
 							"name": "sign",
 							"dfu_id": "signer"
 						},
@@ -23,14 +15,22 @@
 								"data0": {
 									"src": "OPCODE",
 									"src_name": "data0",
-									"idx": 2
+									"idx": 0
 								},
 								"data1": {
 									"src": "OPCODE",
 									"src_name": "data1",
-									"idx": 2
+									"idx": 0
 								}
 							}
+						},
+						{
+							"name": "exec",
+							"dfu_id": "codeexec"
+						},
+						{
+							"name": "update_state",
+							"dfu_id": "state"
 						}
 					]
 				}

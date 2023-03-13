@@ -38,6 +38,7 @@ func (s *Verifier) Verify(req *VerifyRequest) (*VerifyReply, error) {
 	verifyPi := pi.(*protocol.Verify)
 	verifyPi.Threshold = threshold
 	verifyPi.InputData = req.InputData
+	verifyPi.StateProofs = req.StateProofs
 	verifyPi.ExecReq = req.ExecReq
 	verifyPi.KP = protean.GetBLSKeyPair(s.ServerIdentity())
 	err = verifyPi.Start()
