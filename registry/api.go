@@ -3,6 +3,7 @@ package registry
 import (
 	"github.com/dedis/protean/contracts"
 	"github.com/dedis/protean/core"
+	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/darc"
 	"go.dedis.ch/cothority/v3/skipchain"
@@ -15,14 +16,14 @@ import (
 
 type AdminClient struct {
 	Cl     *Client
+	GMsg   *byzcoin.CreateGenesisBlock
 	signer darc.Signer
 	ctr    uint64
-	gMsg   *byzcoin.CreateGenesisBlock
 }
 
 type Client struct {
 	bcClient *byzcoin.Client
-	//c        *onet.Client
+	c        *onet.Client
 }
 
 type InitRegistryReply struct {
@@ -31,30 +32,30 @@ type InitRegistryReply struct {
 }
 
 func NewAdminClient(byzcoin *byzcoin.Client, signer darc.Signer,
-	ctr uint64, gMsg *byzcoin.CreateGenesisBlock) *AdminClient {
-	return &AdminClient{Cl: &Client{bcClient: byzcoin}, signer: signer, ctr: ctr, gMsg: gMsg}
-	//return &AdminClient{Cl: &Client{bcClient: byzcoin, c: onet.NewClient(cothority.
-	//		Suite, ServiceName)}, signer: signer, ctr: ctr, gMsg: gMsg}
+	gMsg *byzcoin.CreateGenesisBlock) *AdminClient {
+	return &AdminClient{Cl: &Client{bcClient: byzcoin,
+		c: onet.NewClient(cothority.Suite, ServiceName)}, signer: signer,
+		ctr: uint64(1), GMsg: gMsg}
 }
 
 func NewClient(byzcoin *byzcoin.Client) *Client {
-	return &Client{bcClient: byzcoin}
-	//return &Client{bcClient: byzcoin, c: onet.NewClient(cothority.Suite,
-	//	ServiceName)}
+	return &Client{bcClient: byzcoin, c: onet.NewClient(cothority.Suite, ServiceName)}
 }
 
-func SetupByzcoin(r *onet.Roster, blockTime time.Duration) (*AdminClient, skipchain.SkipBlockID, error) {
+func SetupByzcoin(r *onet.Roster, blockTime int) (*AdminClient,
+	skipchain.SkipBlockID, error) {
 	signer := darc.NewSignerEd25519(nil, nil)
-	gMsg, err := byzcoin.DefaultGenesisMsg(byzcoin.CurrentVersion, r, []string{"spawn:keyValue", "invoke:keyValue.update"}, signer.Identity())
+	gMsg, err := byzcoin.DefaultGenesisMsg(byzcoin.CurrentVersion, r,
+		[]string{"spawn:keyValue", "invoke:keyValue.update"}, signer.Identity())
 	if err != nil {
 		return nil, nil, err
 	}
-	gMsg.BlockInterval = blockTime * time.Second
+	gMsg.BlockInterval = time.Duration(blockTime) * time.Second
 	c, _, err := byzcoin.NewLedger(gMsg, false)
 	if err != nil {
 		return nil, nil, err
 	}
-	cl := NewAdminClient(c, signer, uint64(1), gMsg)
+	cl := NewAdminClient(c, signer, gMsg)
 	return cl, c.ID, nil
 }
 
@@ -65,10 +66,10 @@ func (c *AdminClient) InitRegistry(registry *core.DFURegistry, wait int) (*InitR
 	}
 	ctx := byzcoin.NewClientTransaction(byzcoin.CurrentVersion,
 		byzcoin.Instruction{
-			InstanceID: byzcoin.NewInstanceID(c.gMsg.GenesisDarc.GetBaseID()),
+			InstanceID: byzcoin.NewInstanceID(c.GMsg.GenesisDarc.GetBaseID()),
 			Spawn: &byzcoin.Spawn{
 				ContractID: contracts.ContractKeyValueID,
-				Args: byzcoin.Arguments{{
+				Args: []byzcoin.Argument{{
 					Name: "registry", Value: buf}},
 			},
 			SignerCounter: []uint64{c.ctr},

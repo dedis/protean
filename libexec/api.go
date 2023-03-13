@@ -20,12 +20,6 @@ func NewClient(r *onet.Roster) *Client {
 func (c *Client) InitUnit(threshold int) (*InitUnitReply, error) {
 	req := &InitUnit{Roster: c.roster, Threshold: threshold}
 	reply := &InitUnitReply{}
-	//for _, node := range c.roster.List {
-	//	err := c.SendProtobuf(node, req, reply)
-	//	if err != nil {
-	//		return nil, xerrors.Errorf("send InitUnit message: %v", err)
-	//	}
-	//}
 	err := c.SendProtobuf(c.roster.List[0], req, reply)
 	if err != nil {
 		return nil, xerrors.Errorf("send InitUnit message: %v", err)
