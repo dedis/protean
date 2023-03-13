@@ -14,3 +14,5 @@ require (
 )
 
 replace go.dedis.ch/cothority/v3 => ../../cothority
+
+replace go.dedis.ch/onet/v3 => ../../onet
