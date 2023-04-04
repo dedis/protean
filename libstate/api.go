@@ -51,7 +51,8 @@ func SetupByzcoin(r *onet.Roster, blockTime int) (*AdminClient,
 		return nil, nil, err
 	}
 	gMsg.BlockInterval = time.Duration(blockTime) * time.Second
-	c, _, err := byzcoin.NewLedger(gMsg, true)
+	//c, _, err := byzcoin.NewLedger(gMsg, true)
+	c, _, err := byzcoin.NewLedger(gMsg, false)
 	if err != nil {
 		return nil, nil, err
 	}

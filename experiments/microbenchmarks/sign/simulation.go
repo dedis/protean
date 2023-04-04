@@ -17,7 +17,6 @@ import (
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/onet/v3/simul/monitor"
-	"time"
 )
 
 type SimulationService struct {
@@ -111,7 +110,7 @@ func (s *SimulationService) initContract() error {
 		Lock:      false,
 		CurrState: fsm.InitialState,
 	}
-	reply, err := s.stCl.InitContract(raw, hdr, nil, 10)
+	reply, err := s.stCl.InitContract(raw, hdr, nil, 5)
 	if err != nil {
 		log.Error(err)
 		return err
@@ -123,7 +122,6 @@ func (s *SimulationService) initContract() error {
 		log.Error(err)
 		return err
 	}
-	time.Sleep(time.Duration(s.BlockTime/2) * time.Second)
 	return nil
 }
 
@@ -150,17 +148,19 @@ func (s *SimulationService) executeSign(config *onet.SimulationConfig) error {
 	outputData := commons.PrepareData(s.NumOutput, s.Size)
 	signer := config.GetService(service.ServiceName).(*service.Signer)
 
-	signMonitor := monitor.NewTimeMeasure("sign")
-	req := service.SignRequest{
-		Roster:     s.signerRoster,
-		OutputData: outputData,
-		ExecReq:    execReq,
+	for round := 0; round < s.Rounds; round++ {
+		signMonitor := monitor.NewTimeMeasure("sign")
+		req := service.SignRequest{
+			Roster:     s.signerRoster,
+			OutputData: outputData,
+			ExecReq:    execReq,
+		}
+		_, err = signer.Sign(&req)
+		if err != nil {
+			log.Error(err)
+		}
+		signMonitor.Record()
 	}
-	_, err = signer.Sign(&req)
-	if err != nil {
-		log.Error(err)
-	}
-	signMonitor.Record()
 	return err
 }
 
@@ -180,22 +180,29 @@ func (s *SimulationService) runMicrobenchmark(config *onet.SimulationConfig) err
 }
 
 func (s *SimulationService) Run(config *onet.SimulationConfig) error {
+	log.Print("Simulation started")
 	var err error
+
 	regRoster := onet.NewRoster(config.Roster.List[0:4])
-	s.stRoster = config.Roster
-	s.execRoster = config.Roster
-	s.signerRoster = config.Roster
+	s.stRoster = onet.NewRoster(config.Roster.List[0:4])
+	s.execRoster = onet.NewRoster(config.Roster.List[0:4])
+	s.signerRoster = onet.NewRoster(config.Roster.List[4:])
+	s.signerRoster.List[0] = config.Roster.List[0]
 
 	keyMap := make(map[string][]kyber.Point)
-	//keyMap["signer"] = config.Roster.ServicePublics(blscosi.ServiceName)
-	keyMap[service.UID] = config.Roster.ServicePublics(service.ServiceName)
-	keyMap[statebase.UID] = config.Roster.ServicePublics(skipchain.ServiceName)
-	keyMap[execbase.UID] = config.Roster.ServicePublics(libexec.ServiceName)
+	keyMap[service.UID] = s.signerRoster.ServicePublics(service.ServiceName)
+	keyMap[statebase.UID] = s.stRoster.ServicePublics(skipchain.ServiceName)
+	keyMap[execbase.UID] = s.execRoster.ServicePublics(libexec.ServiceName)
 	s.rdata, s.threshMap, err = commons.SetupRegistry(regRoster, &s.DFUFile,
 		keyMap, s.BlockTime)
 	if err != nil {
 		log.Error(err)
 	}
+	log.Info("Registry roster size:", len(regRoster.List))
+	log.Info("State roster size:", len(s.stRoster.List))
+	log.Info("Exec roster size:", len(s.execRoster.List))
+	log.Info("Signer roster size:", len(s.signerRoster.List))
 	err = s.runMicrobenchmark(config)
+	log.Print("Simulation finished")
 	return err
 }

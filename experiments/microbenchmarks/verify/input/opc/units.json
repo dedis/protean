@@ -8,16 +8,16 @@
                         ]
                 },
                 "codeexec": {
-                        "num_nodes": 19,
-                        "threshold": 13,
+                        "num_nodes": 4,
+                        "threshold": 3,
                         "opcodes": [
                                 "init_txn",
                                 "exec"
                         ]
                 },
                 "state": {
-                        "num_nodes": 19,
-                        "threshold": 13,
+                        "num_nodes": 4,
+                        "threshold": 3,
                         "opcodes": [
                                 "init_contract",
                                 "update_state"

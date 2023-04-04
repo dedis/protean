@@ -1,13 +1,13 @@
 Simulation = "Evoting"
-Servers = 14
-Hosts = 14
-Bf = 13
+Servers = 1
+Hosts = 16
+Bf = 15
 Rounds = 1
 RunWait = "30000s"
 Delay = 100
 Bandwidth = 100
 Suite = "Ed25519"
-BlockTime = 15
+BlockTime = 12
 NumCandidates = 10
 ContractFile = "../input/contract.json"
 FSMFile = "../input/fsm.json"

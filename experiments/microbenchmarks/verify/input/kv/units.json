@@ -1,10 +1,10 @@
 {
         "registry": {
-                "signer": {
+                "verifier": {
                         "num_nodes": 19,
                         "threshold": 13,
                         "opcodes": [
-                                "sign"
+                                "verify"
                         ]
                 },
                 "codeexec": {
@@ -16,11 +16,18 @@
                         ]
                 },
                 "state": {
-                        "num_nodes": 4,
-                        "threshold": 3,
+                        "num_nodes": 19,
+                        "threshold": 13,
                         "opcodes": [
                                 "init_contract",
                                 "update_state"
+                        ]
+                },
+                "signer": {
+                        "num_nodes": 4,
+                        "threshold": 3,
+                        "opcodes": [
+                                "sign"
                         ]
                 }
         }

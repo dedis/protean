@@ -1,31 +1,31 @@
 Simulation = "VerifyMicrobenchmark"
 DepType = "OPC"
-Servers = 19
-Hosts = 19
-Bf = 18
-Rounds = 1
+Servers = 1
+Hosts = 38
+Bf = 37
+Rounds = 5
 RunWait = "30000s"
 Delay = 100
 Bandwidth = 100
 Suite = "Ed25519"
 BlockTime = 5
-FSMFile = "../input/fsm.json"
-DFUFile = "../input/units.json"
+FSMFile = "../input/opc/fsm.json"
+DFUFile = "../input/opc/units.json"
 
 NumInput,Size,ContractFile
-#1,8192,"../input/opc_1.json"
-#1,65536,"../input/opc_1.json"
-#1,524288,"../input/opc_1.json"
-#1,4194304,"../input/opc_1.json"
-#2,8192,"../input/opc_2.json"
-#2,65536,"../input/opc_2.json"
-#2,524288,"../input/opc_2.json"
-#2,4194304,"../input/opc_2.json"
-#3,8192,"../input/opc_3.json"
-#3,65536,"../input/opc_3.json"
-3,524288,"../input/opc_3.json"
-#3,4194304,"../input/opc_3.json"
-#4,8192,"../input/opc_4.json"
-#4,65536,"../input/opc_4.json"
-4,524288,"../input/opc_4.json"
-#4,4194304,"../input/opc_4.json"
+#1,8192,"../input/opc/opc_1.json"
+#1,65536,"../input/opc/opc_1.json"
+#1,524288,"../input/opc/opc_1.json"
+#1,4194304,"../input/opc/opc_1.json"
+#2,8192,"../input/opc/opc_2.json"
+#2,65536,"../input/opc/opc_2.json"
+#2,524288,"../input/opc/opc_2.json"
+#2,4194304,"../input/opc/opc_2.json"
+#3,8192,"../input/opc/opc_3.json"
+#3,65536,"../input/opc/opc_3.json"
+#3,524288,"../input/opc/opc_3.json"
+#3,4194304,"../input/opc/opc_3.json"
+#4,8192,"../input/opc/opc_4.json"
+#4,65536,"../input/opc/opc_4.json"
+#4,524288,"../input/opc/opc_4.json"
+#4,4194304,"../input/opc/opc_4.json"

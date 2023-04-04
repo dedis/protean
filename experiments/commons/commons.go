@@ -62,7 +62,7 @@ func SetupRegistry(regRoster *onet.Roster, dfile *string,
 	if err != nil {
 		return nil, nil, err
 	}
-	reply, err := adminCl.InitRegistry(dfuReg, 10)
+	reply, err := adminCl.InitRegistry(dfuReg, 5)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/rand"
 	"fmt"
+	"go.dedis.ch/cothority/v3/blscosi"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -16,7 +17,6 @@ import (
 	"github.com/dedis/protean/libstate"
 	statebase "github.com/dedis/protean/libstate/base"
 	"github.com/dedis/protean/utils"
-	"go.dedis.ch/cothority/v3/blscosi"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/kyber/v3"
@@ -120,7 +120,7 @@ func (s *SimulationService) initContract() error {
 		Lock:      false,
 		CurrState: fsm.InitialState,
 	}
-	reply, err := s.stCl.InitContract(raw, hdr, nil, 10)
+	reply, err := s.stCl.InitContract(raw, hdr, nil, 5)
 	if err != nil {
 		log.Error(err)
 		return err
@@ -142,8 +142,6 @@ func (s *SimulationService) executeVerifyOpc(config *onet.SimulationConfig) erro
 	defer execCl.Close()
 	defer stCl.Close()
 
-	//s.NumBlocks = 1
-	//s.generateBlocks()
 	// Get state
 	gcs, err := stCl.GetState(s.CID)
 	if err != nil {
@@ -182,17 +180,19 @@ func (s *SimulationService) executeVerifyOpc(config *onet.SimulationConfig) erro
 	execReq.OpReceipts = signReply.Receipts
 	verifier := config.GetService(verifysvc.ServiceName).(*verifysvc.Verifier)
 
-	vMonitor := monitor.NewTimeMeasure("verify_opc")
-	verifyReq := verifysvc.VerifyRequest{
-		Roster:    s.verifierRoster,
-		InputData: outputData,
-		ExecReq:   execReq,
+	for round := 0; round < s.Rounds; round++ {
+		vMonitor := monitor.NewTimeMeasure("verify_opc")
+		verifyReq := verifysvc.VerifyRequest{
+			Roster:    s.verifierRoster,
+			InputData: outputData,
+			ExecReq:   execReq,
+		}
+		_, err = verifier.Verify(&verifyReq)
+		if err != nil {
+			log.Error(err)
+		}
+		vMonitor.Record()
 	}
-	_, err = verifier.Verify(&verifyReq)
-	if err != nil {
-		log.Error(err)
-	}
-	vMonitor.Record()
 	return err
 }
 
@@ -224,17 +224,19 @@ func (s *SimulationService) executeVerifyKv(config *onet.SimulationConfig) error
 	verifier := config.GetService(verifysvc.ServiceName).(*verifysvc.Verifier)
 	sp := commons.PrepareStateProof(s.NumInput, gcs.Proof.Proof, s.contractGen)
 
-	vMonitor := monitor.NewTimeMeasure("verify_kv")
-	verifyReq := verifysvc.VerifyRequest{
-		Roster:      s.verifierRoster,
-		StateProofs: sp,
-		ExecReq:     execReq,
+	for round := 0; round < s.Rounds; round++ {
+		vMonitor := monitor.NewTimeMeasure("verify_kv")
+		verifyReq := verifysvc.VerifyRequest{
+			Roster:      s.verifierRoster,
+			StateProofs: sp,
+			ExecReq:     execReq,
+		}
+		_, err = verifier.Verify(&verifyReq)
+		if err != nil {
+			log.Error(err)
+		}
+		vMonitor.Record()
 	}
-	_, err = verifier.Verify(&verifyReq)
-	if err != nil {
-		log.Error(err)
-	}
-	vMonitor.Record()
 	return err
 }
 
@@ -243,11 +245,12 @@ func (s *SimulationService) generateBlocks() error {
 	for i := 0; i < s.NumBlocks; i++ {
 		rand.Read(buf)
 		args := byzcoin.Arguments{{Name: "test_key", Value: buf}}
-		_, err := s.stCl.DummyUpdate(s.CID, args, 2)
+		_, err := s.stCl.DummyUpdate(s.CID, args, 5)
 		if err != nil {
 			log.Error(err)
 			return err
 		}
+		log.Info("Added block:", i)
 	}
 	return nil
 }
@@ -277,44 +280,46 @@ func (s *SimulationService) runMicrobenchmark(config *onet.SimulationConfig) err
 
 func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 	var err error
+	keyMap := make(map[string][]kyber.Point)
 	regRoster := onet.NewRoster(config.Roster.List[0:4])
 	if s.DepType == "OPC" {
-		s.stRoster = config.Roster
-		s.execRoster = config.Roster
-		s.signerRoster = config.Roster
-		s.verifierRoster = config.Roster
-
-		keyMap := make(map[string][]kyber.Point)
-		keyMap[statebase.UID] = config.Roster.ServicePublics(skipchain.ServiceName)
-		keyMap[execbase.UID] = config.Roster.ServicePublics(libexec.ServiceName)
-		keyMap[verifysvc.UID] = config.Roster.ServicePublics(verifysvc.ServiceName)
-		keyMap[signsvc.UID] = config.Roster.ServicePublics(blscosi.ServiceName)
-		s.rdata, s.threshMap, err = commons.SetupRegistry(regRoster, &s.DFUFile,
-			keyMap, s.BlockTime)
-		if err != nil {
-			log.Error(err)
-			return err
-		}
+		s.stRoster = onet.NewRoster(config.Roster.List[0:4])
+		s.execRoster = onet.NewRoster(config.Roster.List[0:4])
+		s.signerRoster = onet.NewRoster(config.Roster.List[0:19])
+		s.verifierRoster = onet.NewRoster(config.Roster.List[19:])
+		s.verifierRoster.List[0] = config.Roster.List[0]
+		log.Info("Registry roster size:", len(regRoster.List))
+		log.Info("State roster size:", len(s.stRoster.List))
+		log.Info("Exec roster size:", len(s.execRoster.List))
+		log.Info("Signer roster size:", len(s.signerRoster.List))
+		log.Info("Verifier roster size:", len(s.verifierRoster.List))
 	} else if s.DepType == "KV" {
-		s.stRoster = config.Roster
-		s.execRoster = config.Roster
-		s.signerRoster = config.Roster
-		s.verifierRoster = config.Roster
-
-		keyMap := make(map[string][]kyber.Point)
-		keyMap[statebase.UID] = config.Roster.ServicePublics(skipchain.ServiceName)
-		keyMap[execbase.UID] = config.Roster.ServicePublics(libexec.ServiceName)
-		keyMap[verifysvc.UID] = config.Roster.ServicePublics(verifysvc.ServiceName)
-		keyMap[signsvc.UID] = config.Roster.ServicePublics(blscosi.ServiceName)
-		s.rdata, s.threshMap, err = commons.SetupRegistry(regRoster, &s.DFUFile,
-			keyMap, s.BlockTime)
-		if err != nil {
-			log.Error(err)
-			return err
-		}
+		s.execRoster = onet.NewRoster(config.Roster.List[0:4])
+		s.signerRoster = onet.NewRoster(config.Roster.List[0:4])
+		s.stRoster = onet.NewRoster(config.Roster.List[0:19])
+		s.verifierRoster = onet.NewRoster(config.Roster.List[19:])
+		s.verifierRoster.List[0] = config.Roster.List[0]
+		log.Info("Registry roster size:", len(regRoster.List))
+		log.Info("Signer roster size:", len(s.signerRoster.List))
+		log.Info("Exec roster size:", len(s.execRoster.List))
+		log.Info("State roster size:", len(s.stRoster.List))
+		log.Info("Verifier roster size:", len(s.verifierRoster.List))
 	} else {
 		return xerrors.New("invalid dep type")
 	}
+
+	keyMap[statebase.UID] = s.stRoster.ServicePublics(skipchain.ServiceName)
+	keyMap[execbase.UID] = s.execRoster.ServicePublics(libexec.ServiceName)
+	keyMap[verifysvc.UID] = s.verifierRoster.ServicePublics(verifysvc.ServiceName)
+	keyMap[signsvc.UID] = s.signerRoster.ServicePublics(blscosi.ServiceName)
+
+	s.rdata, s.threshMap, err = commons.SetupRegistry(regRoster, &s.DFUFile,
+		keyMap, s.BlockTime)
+	if err != nil {
+		log.Error(err)
+		return err
+	}
 	err = s.runMicrobenchmark(config)
+	log.Info("Simulation finished")
 	return err
 }

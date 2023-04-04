@@ -21,3 +21,5 @@ conode/conode
 /experiments/dkglottery/deploy/
 /experiments/evoting/deploy/
 /experiments/randlottery/deploy/
+/experiments/microbenchmarks/sign/server_list
+/experiments/microbenchmarks/verify/server_list

@@ -2,10 +2,11 @@ package main
 
 import (
 	"fmt"
-	statebase "github.com/dedis/protean/libstate/base"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	statebase "github.com/dedis/protean/libstate/base"
 
 	"github.com/BurntSushi/toml"
 	"github.com/dedis/protean/core"
@@ -632,6 +633,7 @@ func (s *SimulationService) runEvoting() error {
 					continue
 				}
 			}
+			log.Info("before sleeping", i)
 			time.Sleep(time.Duration(s.BlockTime) * time.Second)
 		}
 		wg.Wait()
@@ -657,7 +659,8 @@ func (s *SimulationService) runEvoting() error {
 func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 	var err error
 	regRoster := onet.NewRoster(config.Roster.List[0:4])
-	s.stRoster = onet.NewRoster(config.Roster.List[4:])
+	//s.stRoster = onet.NewRoster(config.Roster.List[4:])
+	s.stRoster = config.Roster
 	s.execRoster = s.stRoster
 	s.shufRoster = s.stRoster
 	s.threshRoster = s.stRoster
