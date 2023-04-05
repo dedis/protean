@@ -12,7 +12,7 @@ BlockTime = 5
 FSMFile = "../input/opc/fsm.json"
 DFUFile = "../input/opc/units.json"
 
-NumInput,Size,ContractFile
+NumInputs,Size,ContractFile
 #1,8192,"../input/opc/opc_1.json"
 #1,65536,"../input/opc/opc_1.json"
 #1,524288,"../input/opc/opc_1.json"

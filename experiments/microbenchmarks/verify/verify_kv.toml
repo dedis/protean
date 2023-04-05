@@ -8,29 +8,9 @@ RunWait = "30000s"
 Delay = 100
 Bandwidth = 100
 Suite = "Ed25519"
-BlockTime = 5
+BlockTime = 1
 FSMFile = "../input/kv/fsm.json"
 DFUFile = "../input/kv/units.json"
 
-NumInput,NumBlocks,ContractFile
-#1,4,"../input/kv/kv_1.json"
-#1,10,"../input/kv/kv_1.json"
-#1,30,"../input/kv/kv_1.json"
-1,100,"../input/kv/kv_1.json"
-#1,300,"../input/kv/kv_1.json"
-#1,1000,"../input/kv/kv_1.json"
-#2,10,"../input/kv/kv_2.json"
-#2,30,"../input/kv/kv_2.json"
-#2,100,"../input/kv/kv_2.json"
-#2,300,"../input/kv/kv_2.json"
-#2,1000,"../input/kv/kv_2.json"
-#3,10,"../input/kv/kv_3.json"
-#3,30,"../input/kv/kv_3.json"
-#3,100,"../input/kv/kv_3.json"
-#3,300,"../input/kv/kv_3.json"
-#3,1000,"../input/kv/kv_3.json"
-#4,10,"../input/kv/kv_4.json"
-#4,30,"../input/kv/kv_4.json"
-#4,100,"../input/kv/kv_4.json"
-#4,300,"../input/kv/kv_4.json"
-#4,1000,"../input/kv/kv_4.json"
+NumInputsStr,NumBlocksStr,ContractFile
+"1;2;3;4","1;2;5;10;20;50;100;200;500;1000","../input/kv/kv.json"

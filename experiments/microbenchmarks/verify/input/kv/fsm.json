@@ -2,7 +2,19 @@
   "initial_state": "open",
   "states": ["open"],
   "transitions": {
-    "verify": {
+    "verify_1": {
+      "from": "open",
+      "to": "open"
+    },
+    "verify_2": {
+      "from": "open",
+      "to": "open"
+    },
+    "verify_3": {
+      "from": "open",
+      "to": "open"
+    },
+    "verify_4": {
       "from": "open",
       "to": "open"
     }

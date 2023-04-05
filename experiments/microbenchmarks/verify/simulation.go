@@ -3,7 +3,12 @@ package main
 import (
 	"crypto/rand"
 	"fmt"
+	statebase "github.com/dedis/protean/libstate/base"
 	"go.dedis.ch/cothority/v3/blscosi"
+	"go.dedis.ch/kyber/v3"
+	"golang.org/x/xerrors"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -15,15 +20,12 @@ import (
 	"github.com/dedis/protean/libexec"
 	execbase "github.com/dedis/protean/libexec/base"
 	"github.com/dedis/protean/libstate"
-	statebase "github.com/dedis/protean/libstate/base"
 	"github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/skipchain"
-	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/onet/v3/simul/monitor"
-	"golang.org/x/xerrors"
 )
 
 type SimulationService struct {
@@ -33,9 +35,17 @@ type SimulationService struct {
 	FSMFile      string
 	DFUFile      string
 	BlockTime    int
-	NumInput     int
-	NumBlocks    int
-	Size         int
+
+	// verify_opc structs
+	NumInputs int
+	Size      int
+
+	// verify_kv structs
+	NumInputsStr string
+	NumBlocksStr string
+	NumInputsKV  []int
+	NumBlocks    []int
+	latestProof  map[int]*byzcoin.GetProofResponse
 
 	// internal structs
 	byzID          skipchain.SkipBlockID
@@ -161,7 +171,7 @@ func (s *SimulationService) executeVerifyOpc(config *onet.SimulationConfig) erro
 	}
 
 	// Get signer service
-	outputData := commons.PrepareData(s.NumInput, s.Size)
+	outputData := commons.PrepareData(s.NumInputs, s.Size)
 	for k, _ := range outputData {
 		fmt.Println(k)
 	}
@@ -202,47 +212,45 @@ func (s *SimulationService) executeVerifyKv(config *onet.SimulationConfig) error
 	defer execCl.Close()
 	defer stCl.Close()
 
-	// Get state
-	gcs, err := stCl.GetState(s.CID)
-	if err != nil {
-		log.Errorf("getting state: %v", err)
-		return err
-	}
-	cdata := &execbase.ByzData{IID: s.CID, Proof: gcs.Proof.Proof,
-		Genesis: s.contractGen}
-
-	itReply, err := execCl.InitTransaction(s.rdata, cdata, "verifywf", "verify")
-	if err != nil {
-		log.Error(err)
-		return err
-	}
-	execReq := &core.ExecutionRequest{
-		Index: 0,
-		EP:    &itReply.Plan,
-	}
-
+	var err error
 	verifier := config.GetService(verifysvc.ServiceName).(*verifysvc.Verifier)
-	sp := commons.PrepareStateProof(s.NumInput, gcs.Proof.Proof, s.contractGen)
-
-	for round := 0; round < s.Rounds; round++ {
-		vMonitor := monitor.NewTimeMeasure("verify_kv")
-		verifyReq := verifysvc.VerifyRequest{
-			Roster:      s.verifierRoster,
-			StateProofs: sp,
-			ExecReq:     execReq,
+	
+	for _, ni := range s.NumInputsKV {
+		for _, nb := range s.NumBlocks {
+			pr := &s.latestProof[nb].Proof
+			sp := commons.PrepareStateProof(ni, pr, s.contractGen)
+			cdata := &execbase.ByzData{IID: s.CID, Proof: pr, Genesis: s.contractGen}
+			txnName := fmt.Sprintf("verify_%d", ni)
+			itReply, err := execCl.InitTransaction(s.rdata, cdata, "verifywf", txnName)
+			if err != nil {
+				log.Error(err)
+				return err
+			}
+			execReq := &core.ExecutionRequest{Index: 0, EP: &itReply.Plan}
+			for round := 0; round < s.Rounds; round++ {
+				vMonitor := monitor.NewTimeMeasure(fmt.Sprintf("verify_%d_%d",
+					ni, nb))
+				verifyReq := verifysvc.VerifyRequest{
+					Roster:      s.verifierRoster,
+					StateProofs: sp,
+					ExecReq:     execReq,
+				}
+				_, err = verifier.Verify(&verifyReq)
+				if err != nil {
+					log.Error(err)
+				}
+				vMonitor.Record()
+			}
 		}
-		_, err = verifier.Verify(&verifyReq)
-		if err != nil {
-			log.Error(err)
-		}
-		vMonitor.Record()
 	}
 	return err
 }
 
 func (s *SimulationService) generateBlocks() error {
+	idx := 0
 	buf := make([]byte, 128)
-	for i := 0; i < s.NumBlocks; i++ {
+	blkCount := s.NumBlocks[len(s.NumBlocks)-1]
+	for i := 1; i <= blkCount; i++ {
 		rand.Read(buf)
 		args := byzcoin.Arguments{{Name: "test_key", Value: buf}}
 		_, err := s.stCl.DummyUpdate(s.CID, args, 5)
@@ -250,9 +258,32 @@ func (s *SimulationService) generateBlocks() error {
 			log.Error(err)
 			return err
 		}
-		log.Info("Added block:", i)
+		if i == s.NumBlocks[idx] {
+			time.Sleep(5 * time.Second)
+			latestProof, err := s.stCl.DummyGetProof(s.CID)
+			if err != nil {
+				log.Error(err)
+				return err
+			}
+			s.latestProof[i] = latestProof
+			idx++
+			log.Infof("Added block: %d - idx: %d - link#: %d", i, latestProof.Proof.Latest.Index, len(latestProof.Proof.Links))
+		}
 	}
 	return nil
+}
+
+func (s *SimulationService) stringSliceToIntSlice() {
+	numInputsSlice := strings.Split(s.NumInputsStr, ";")
+	for _, n := range numInputsSlice {
+		numInput, _ := strconv.Atoi(n)
+		s.NumInputsKV = append(s.NumInputsKV, numInput)
+	}
+	numBlocksSlice := strings.Split(s.NumBlocksStr, ";")
+	for _, n := range numBlocksSlice {
+		numBlocks, _ := strconv.Atoi(n)
+		s.NumBlocks = append(s.NumBlocks, numBlocks)
+	}
 }
 
 func (s *SimulationService) runMicrobenchmark(config *onet.SimulationConfig) error {
@@ -269,6 +300,7 @@ func (s *SimulationService) runMicrobenchmark(config *onet.SimulationConfig) err
 	if s.DepType == "OPC" {
 		err = s.executeVerifyOpc(config)
 	} else {
+		s.stringSliceToIntSlice()
 		err = s.generateBlocks()
 		if err != nil {
 			return err
@@ -281,29 +313,18 @@ func (s *SimulationService) runMicrobenchmark(config *onet.SimulationConfig) err
 func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 	var err error
 	keyMap := make(map[string][]kyber.Point)
+	s.latestProof = make(map[int]*byzcoin.GetProofResponse)
+	s.execRoster = onet.NewRoster(config.Roster.List[0:4])
+	s.verifierRoster = onet.NewRoster(config.Roster.List[19:])
+	s.verifierRoster.List[0] = config.Roster.List[0]
 	regRoster := onet.NewRoster(config.Roster.List[0:4])
+
 	if s.DepType == "OPC" {
 		s.stRoster = onet.NewRoster(config.Roster.List[0:4])
-		s.execRoster = onet.NewRoster(config.Roster.List[0:4])
 		s.signerRoster = onet.NewRoster(config.Roster.List[0:19])
-		s.verifierRoster = onet.NewRoster(config.Roster.List[19:])
-		s.verifierRoster.List[0] = config.Roster.List[0]
-		log.Info("Registry roster size:", len(regRoster.List))
-		log.Info("State roster size:", len(s.stRoster.List))
-		log.Info("Exec roster size:", len(s.execRoster.List))
-		log.Info("Signer roster size:", len(s.signerRoster.List))
-		log.Info("Verifier roster size:", len(s.verifierRoster.List))
 	} else if s.DepType == "KV" {
-		s.execRoster = onet.NewRoster(config.Roster.List[0:4])
 		s.signerRoster = onet.NewRoster(config.Roster.List[0:4])
 		s.stRoster = onet.NewRoster(config.Roster.List[0:19])
-		s.verifierRoster = onet.NewRoster(config.Roster.List[19:])
-		s.verifierRoster.List[0] = config.Roster.List[0]
-		log.Info("Registry roster size:", len(regRoster.List))
-		log.Info("Signer roster size:", len(s.signerRoster.List))
-		log.Info("Exec roster size:", len(s.execRoster.List))
-		log.Info("State roster size:", len(s.stRoster.List))
-		log.Info("Verifier roster size:", len(s.verifierRoster.List))
 	} else {
 		return xerrors.New("invalid dep type")
 	}
@@ -319,6 +340,7 @@ func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 		log.Error(err)
 		return err
 	}
+
 	err = s.runMicrobenchmark(config)
 	log.Info("Simulation finished")
 	return err

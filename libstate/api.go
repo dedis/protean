@@ -113,21 +113,6 @@ func (c *Client) UpdateState(args byzcoin.Arguments,
 	return reply, nil
 }
 
-func (c *Client) DummyUpdate(cid byzcoin.InstanceID, args byzcoin.Arguments,
-	wait int) (*DummyReply, error) {
-	reply := &DummyReply{}
-	req := &DummyRequest{
-		CID:   cid,
-		Input: base.UpdateInput{Args: args},
-		Wait:  wait,
-	}
-	err := c.c.SendProtobuf(c.bcClient.Roster.List[0], req, reply)
-	if err != nil {
-		return nil, xerrors.Errorf("dummy update: %v", err)
-	}
-	return reply, nil
-}
-
 // FetchGenesisBlock requires the hash of the genesis block. To retrieve,
 // use proof.Latest.SkipchainID()
 func (c *Client) FetchGenesisBlock(scID skipchain.SkipBlockID) (*skipchain.
@@ -204,6 +189,25 @@ func (c *Client) WaitProof(id []byte, currRoot []byte, interval int) (
 		time.Sleep((time.Duration(interval) * time.Second) / 5)
 	}
 	return nil, xerrors.New("timeout reached and proof not found")
+}
+
+func (c *Client) DummyUpdate(cid byzcoin.InstanceID, args byzcoin.Arguments,
+	wait int) (*DummyReply, error) {
+	reply := &DummyReply{}
+	req := &DummyRequest{
+		CID:   cid,
+		Input: base.UpdateInput{Args: args},
+		Wait:  wait,
+	}
+	err := c.c.SendProtobuf(c.bcClient.Roster.List[0], req, reply)
+	if err != nil {
+		return nil, xerrors.Errorf("dummy update: %v", err)
+	}
+	return reply, nil
+}
+
+func (c *Client) DummyGetProof(cid byzcoin.InstanceID) (*byzcoin.GetProofResponse, error) {
+	return c.bcClient.GetProof(cid[:])
 }
 
 func (c *Client) Close() error {

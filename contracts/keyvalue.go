@@ -78,8 +78,7 @@ func (c *ContractKeyValue) Invoke(rst byzcoin.ReadOnlyStateTrie, inst byzcoin.In
 		if err != nil {
 			return nil, nil, err
 		}
-	} else if inst.Invoke.Command != "init_contract" && inst.Invoke.
-		Command != "dummy" {
+	} else if inst.Invoke.Command != "init_contract" && inst.Invoke.Command != "dummy" {
 		log.Errorf("value contract can only init_contract, update, " +
 			"or dummy")
 		return nil, nil, xerrors.New("invalid command")
