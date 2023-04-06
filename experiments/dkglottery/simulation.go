@@ -35,7 +35,7 @@ type SimulationService struct {
 	DFUFile         string
 	BlockTime       int
 	NumParticipants int
-	NumSlots        int
+	SlotFactor      int
 	Seed            int
 
 	// internal structs
@@ -106,6 +106,21 @@ func (s *SimulationService) initDFUs() error {
 		log.Error(err)
 	}
 	return err
+}
+
+func (s *SimulationService) generateSchedule() []int {
+	if s.NumParticipants < 1000 {
+		numSlots := s.NumParticipants * s.SlotFactor
+		return commons.GenerateSchedule(s.Seed, s.NumParticipants, numSlots)
+	} else {
+		// if s.NumParticipants == 1000, use the schedule from 500
+		halfSlots := (s.NumParticipants / 2) * s.SlotFactor
+		half := commons.GenerateSchedule(s.Seed, s.NumParticipants/2, halfSlots)
+		slots := make([]int, halfSlots*2)
+		copy(slots, half)
+		copy(slots[halfSlots:], half)
+		return slots
+	}
 }
 
 func (s *SimulationService) initContract() error {
@@ -473,7 +488,7 @@ func (s *SimulationService) executeFinalize() error {
 }
 
 func (s *SimulationService) runDKGLottery() error {
-	schedule := commons.GenerateSchedule(s.Seed, s.NumParticipants, s.NumSlots)
+	schedule := s.generateSchedule()
 	// Initialize DFUs
 	err := s.initDFUs()
 	if err != nil {

@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	statebase "github.com/dedis/protean/libstate/base"
+	"go.dedis.ch/cothority/v3/blscosi"
+	"go.dedis.ch/kyber/v3"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -18,11 +20,9 @@ import (
 	execbase "github.com/dedis/protean/libexec/base"
 	"github.com/dedis/protean/libstate"
 	"github.com/dedis/protean/utils"
-	"go.dedis.ch/cothority/v3/blscosi"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/darc"
 	"go.dedis.ch/cothority/v3/skipchain"
-	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/onet/v3/simul/monitor"
@@ -36,7 +36,7 @@ type SimulationService struct {
 	DFUFile         string
 	BlockTime       int
 	NumParticipants int
-	NumSlots        int
+	SlotFactor      int
 	Seed            int
 
 	// internal structs
@@ -115,6 +115,21 @@ func (s *SimulationService) initDFUs() error {
 		log.Error(err)
 	}
 	return err
+}
+
+func (s *SimulationService) generateSchedule() []int {
+	if s.NumParticipants < 1000 {
+		numSlots := s.NumParticipants * s.SlotFactor
+		return commons.GenerateSchedule(s.Seed, s.NumParticipants, numSlots)
+	} else {
+		// if s.NumParticipants == 1000, use the schedule from 500
+		halfSlots := (s.NumParticipants / 2) * s.SlotFactor
+		half := commons.GenerateSchedule(s.Seed, s.NumParticipants/2, halfSlots)
+		slots := make([]int, halfSlots*2)
+		copy(slots, half)
+		copy(slots[halfSlots:], half)
+		return slots
+	}
 }
 
 func (s *SimulationService) initContract() error {
@@ -403,7 +418,8 @@ func (s *SimulationService) executeFinalize() error {
 
 func (s *SimulationService) runRandLottery() error {
 	participants := commons.GenerateWriters(s.NumParticipants)
-	schedule := commons.GenerateSchedule(s.Seed, s.NumParticipants, s.NumSlots)
+	//schedule := commons.GenerateSchedule(s.Seed, s.NumParticipants, s.NumSlots)
+	schedule := s.generateSchedule()
 	// Initialize DFUs
 	err := s.initDFUs()
 	if err != nil {

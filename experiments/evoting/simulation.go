@@ -39,7 +39,7 @@ type SimulationService struct {
 	BlockTime       int
 	NumCandidates   int
 	NumParticipants int
-	NumSlots        int
+	SlotFactor      int
 	Seed            int
 
 	// internal structs
@@ -113,13 +113,26 @@ func (s *SimulationService) initDFUs() error {
 		return err
 	}
 	// Setup the state unit
-	log.Info("BEFORE STATE UNIT")
 	s.byzID, err = commons.SetupStateUnit(s.stRoster, s.BlockTime)
 	if err != nil {
 		log.Error(err)
 	}
-	log.Info("AFTER STATE UNIT")
 	return err
+}
+
+func (s *SimulationService) generateSchedule() []int {
+	if s.NumParticipants < 1000 {
+		numSlots := s.NumParticipants * s.SlotFactor
+		return commons.GenerateSchedule(s.Seed, s.NumParticipants, numSlots)
+	} else {
+		// if s.NumParticipants == 1000, use the schedule from 500
+		halfSlots := (s.NumParticipants / 2) * s.SlotFactor
+		half := commons.GenerateSchedule(s.Seed, s.NumParticipants/2, halfSlots)
+		slots := make([]int, halfSlots*2)
+		copy(slots, half)
+		copy(slots[halfSlots:], half)
+		return slots
+	}
 }
 
 func (s *SimulationService) initContract() error {
@@ -591,7 +604,7 @@ func (s *SimulationService) executeTally() error {
 
 func (s *SimulationService) runEvoting() error {
 	ballots := commons.GenerateBallots(s.NumCandidates, s.NumParticipants)
-	schedule := commons.GenerateSchedule(s.Seed, s.NumParticipants, s.NumSlots)
+	schedule := s.generateSchedule()
 	// Initialize DFUs
 	err := s.initDFUs()
 	if err != nil {
@@ -659,10 +672,9 @@ func (s *SimulationService) runEvoting() error {
 func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 	var err error
 	regRoster := onet.NewRoster(config.Roster.List[0:4])
-	//s.stRoster = onet.NewRoster(config.Roster.List[4:])
 	s.stRoster = config.Roster
-	s.execRoster = s.stRoster
-	s.shufRoster = s.stRoster
+	s.execRoster = onet.NewRoster(config.Roster.List[:9])
+	s.shufRoster = onet.NewRoster(config.Roster.List[:9])
 	s.threshRoster = s.stRoster
 
 	keyMap := make(map[string][]kyber.Point)
