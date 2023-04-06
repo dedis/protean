@@ -21,6 +21,7 @@ type NeffShuffle struct {
 
 	ShufInput  *base.ShuffleInput
 	FinalProof chan base.ShuffleOutput
+	Threshold  int
 
 	suite     proof.Suite
 	reqChan   chan reqChan
@@ -116,7 +117,7 @@ func (p *NeffShuffle) Dispatch() error {
 		return nil
 	}
 	proofMap := make(map[onet.TreeNodeID]base.Proof)
-	for i := 0; i < len(p.List()); i++ {
+	for i := 0; i < p.Threshold; i++ {
 		select {
 		case prf := <-p.proofChan:
 			proofMap[prf.TreeNode.ID] = prf.Proof
@@ -155,7 +156,7 @@ func sortProofs(proofs map[onet.TreeNodeID]base.Proof, root *onet.TreeNode) []ba
 	out := make([]base.Proof, len(proofs))
 	curr := root
 	var i int
-	for curr != nil {
+	for i < len(proofs) {
 		out[i] = proofs[curr.ID]
 		i++
 		if len(curr.Children) == 0 {

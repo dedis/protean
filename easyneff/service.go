@@ -55,6 +55,7 @@ func (s *EasyNeff) Shuffle(req *ShuffleRequest) (*ShuffleReply, error) {
 	}
 	neff := pi.(*protocol.NeffShuffle)
 	neff.ShufInput = &req.Input
+	neff.Threshold = s.threshold
 	if err := pi.Start(); err != nil {
 		return nil, err
 	}
@@ -78,7 +79,6 @@ func (s *EasyNeff) Shuffle(req *ShuffleRequest) (*ShuffleReply, error) {
 		}
 		// Verification function
 		shufVerify.ShufVerify = s.ShuffleVerify
-		//shufVerify.Threshold = nodeCount - (nodeCount-1)/3
 		shufVerify.Threshold = s.threshold
 		err = shufVerify.Start()
 		if err != nil {
