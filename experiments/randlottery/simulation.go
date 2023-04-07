@@ -2,12 +2,13 @@ package main
 
 import (
 	"fmt"
-	statebase "github.com/dedis/protean/libstate/base"
-	"go.dedis.ch/cothority/v3/blscosi"
-	"go.dedis.ch/kyber/v3"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	statebase "github.com/dedis/protean/libstate/base"
+	"go.dedis.ch/cothority/v3/blscosi"
+	"go.dedis.ch/kyber/v3"
 
 	"github.com/BurntSushi/toml"
 	"github.com/dedis/protean/core"
@@ -244,7 +245,7 @@ func (s *SimulationService) executeJoin(signer darc.Signer, idx int) error {
 		}
 		execReq.Index = 1
 		execReq.OpReceipts = execReply.OutputReceipts
-		_, err = stCl.UpdateState(joinOut.WS, execReq, nil, 1)
+		_, err = stCl.UpdateState(joinOut.WS, execReq, nil, commons.UPDATE_WAIT)
 		if err != nil {
 			log.Errorf("update state: %v", err)
 			pr, err := stCl.WaitProof(s.CID[:], lastRoot, s.BlockTime)
@@ -320,7 +321,7 @@ func (s *SimulationService) executeClose() error {
 	}
 	execReq.Index = 1
 	execReq.OpReceipts = execReply.OutputReceipts
-	_, err = s.stCl.UpdateState(closeOut.WS, execReq, nil, 1)
+	_, err = s.stCl.UpdateState(closeOut.WS, execReq, nil, commons.UPDATE_WAIT)
 	if err != nil {
 		log.Errorf("updating state: %v", err)
 		return err
@@ -401,7 +402,7 @@ func (s *SimulationService) executeFinalize() error {
 	inReceipts[execReq.Index] = execReply.InputReceipts
 	execReq.Index = 2
 	execReq.OpReceipts = execReply.OutputReceipts
-	_, err = s.stCl.UpdateState(finalOut.WS, execReq, inReceipts, 1)
+	_, err = s.stCl.UpdateState(finalOut.WS, execReq, inReceipts, commons.UPDATE_WAIT)
 	if err != nil {
 		log.Errorf("updating state: %v", err)
 		return err
@@ -476,9 +477,16 @@ func (s *SimulationService) runRandLottery() error {
 func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 	var err error
 	regRoster := onet.NewRoster(config.Roster.List[0:4])
-	s.stRoster = onet.NewRoster(config.Roster.List[4:])
-	s.execRoster = s.stRoster
-	s.randRoster = s.stRoster
+	//s.execRoster = onet.NewRoster(config.Roster.List[0:13])
+	//s.randRoster = onet.NewRoster(config.Roster.List[0:13])
+	//s.stRoster = config.Roster
+
+	s.stRoster = onet.NewRoster(config.Roster.List[4:23])
+	s.execRoster = onet.NewRoster(config.Roster.List[23:36])
+	s.randRoster = onet.NewRoster(config.Roster.List[36:])
+	s.stRoster.List[0] = config.Roster.List[0]
+	s.execRoster.List[0] = config.Roster.List[0]
+	s.randRoster.List[0] = config.Roster.List[0]
 
 	keyMap := make(map[string][]kyber.Point)
 	keyMap[statebase.UID] = s.stRoster.ServicePublics(skipchain.ServiceName)

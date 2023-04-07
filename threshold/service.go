@@ -293,13 +293,11 @@ func (s *Service) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConfi
 		if !ok {
 			return nil, xerrors.Errorf("couldn't find shared data with id: %x", id)
 		}
-		//nodeCount := len(s.roster.List)
 		pi, err := protocol.NewThreshDecrypt(tn)
 		if err != nil {
 			return nil, err
 		}
 		dec := pi.(*protocol.ThreshDecrypt)
-		//dec.Threshold = nodeCount - (nodeCount-1)/3
 		dec.Threshold = s.threshold
 		dec.Shared = shared
 		dec.DKGID = NewDKGID(conf.Data)

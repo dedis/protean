@@ -2,11 +2,12 @@ package commons
 
 import (
 	"fmt"
-	"github.com/dedis/protean/core"
-	"go.dedis.ch/cothority/v3/byzcoin"
 	"math/rand"
 	"strings"
 	"time"
+
+	"github.com/dedis/protean/core"
+	"go.dedis.ch/cothority/v3/byzcoin"
 
 	"github.com/dedis/protean/libclient"
 	execbase "github.com/dedis/protean/libexec/base"
@@ -19,6 +20,8 @@ import (
 	"go.dedis.ch/onet/v3"
 )
 
+const UPDATE_WAIT int = 0
+
 func SetupStateUnit(roster *onet.Roster, blockTime int) (skipchain.SkipBlockID, error) {
 	adminCl, byzID, err := libstate.SetupByzcoin(roster, blockTime)
 	if err != nil {
@@ -26,6 +29,7 @@ func SetupStateUnit(roster *onet.Roster, blockTime int) (skipchain.SkipBlockID, 
 	}
 	signer := darc.NewSignerEd25519(nil, nil)
 	spawnDarc, err := adminCl.SpawnDarc(signer, adminCl.GMsg.GenesisDarc, 5)
+	//spawnDarc, err := adminCl.SpawnDarc(signer, adminCl.GMsg.GenesisDarc, 1)
 	if err != nil {
 		return nil, err
 	}

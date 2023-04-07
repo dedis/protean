@@ -35,6 +35,7 @@ type SimulationService struct {
 	FSMFile      string
 	DFUFile      string
 	BlockTime    int
+	LocalVerify  bool
 
 	// verify_opc structs
 	NumInputs int
@@ -46,6 +47,7 @@ type SimulationService struct {
 	NumInputsKV  []int
 	NumBlocks    []int
 	latestProof  map[int]*byzcoin.GetProofResponse
+	execReqs     []*core.ExecutionRequest
 
 	// internal structs
 	byzID          skipchain.SkipBlockID
@@ -207,14 +209,14 @@ func (s *SimulationService) executeVerifyOpc(config *onet.SimulationConfig) erro
 }
 
 func (s *SimulationService) executeVerifyKv(config *onet.SimulationConfig) error {
+	var err error
 	execCl := libexec.NewClient(s.execRoster)
 	stCl := libstate.NewClient(byzcoin.NewClient(s.byzID, *s.stRoster))
 	defer execCl.Close()
 	defer stCl.Close()
 
-	var err error
 	verifier := config.GetService(verifysvc.ServiceName).(*verifysvc.Verifier)
-	
+
 	for _, ni := range s.NumInputsKV {
 		for _, nb := range s.NumBlocks {
 			pr := &s.latestProof[nb].Proof
@@ -241,28 +243,64 @@ func (s *SimulationService) executeVerifyKv(config *onet.SimulationConfig) error
 				}
 				vMonitor.Record()
 			}
+			s.execReqs = append(s.execReqs, execReq)
 		}
 	}
 	return err
 }
 
+func (s *SimulationService) executeLocalVerify() error {
+	idx := 0
+	vData := &core.VerificationData{
+		UID:         "verifier",
+		OpcodeName:  "verify",
+		InputHashes: make(map[string][]byte),
+	}
+	for _, ni := range s.NumInputsKV {
+		for _, nb := range s.NumBlocks {
+			pr := &s.latestProof[nb].Proof
+			execReq := s.execReqs[idx]
+			sp := commons.PrepareStateProof(ni, pr, s.contractGen)
+			for round := 0; round < s.Rounds; round++ {
+				lvMonitor := monitor.NewTimeMeasure(fmt.Sprintf(
+					"verify_local_%d_%d", ni, nb))
+				_, err := core.PrepareKVDicts(execReq, sp)
+				vData.StateProofs = sp
+				if err != nil {
+					log.Error(err)
+					return err
+				}
+				err = execReq.Verify(vData)
+				if err != nil {
+					log.Error(err)
+					return err
+				}
+				lvMonitor.Record()
+			}
+			idx++
+		}
+	}
+	return nil
+}
+
 func (s *SimulationService) generateBlocks() error {
+	s.latestProof = make(map[int]*byzcoin.GetProofResponse)
 	idx := 0
 	buf := make([]byte, 128)
 	blkCount := s.NumBlocks[len(s.NumBlocks)-1]
 	for i := 1; i <= blkCount; i++ {
 		rand.Read(buf)
 		args := byzcoin.Arguments{{Name: "test_key", Value: buf}}
-		_, err := s.stCl.DummyUpdate(s.CID, args, 5)
+		_, err := s.stCl.DummyUpdate(s.CID, args, 2)
 		if err != nil {
-			log.Error(err)
+			log.Errorf("Generating block: %v", err)
 			return err
 		}
 		if i == s.NumBlocks[idx] {
 			time.Sleep(5 * time.Second)
 			latestProof, err := s.stCl.DummyGetProof(s.CID)
 			if err != nil {
-				log.Error(err)
+				log.Errorf("Getting block: %v", err)
 				return err
 			}
 			s.latestProof[i] = latestProof
@@ -306,6 +344,12 @@ func (s *SimulationService) runMicrobenchmark(config *onet.SimulationConfig) err
 			return err
 		}
 		err = s.executeVerifyKv(config)
+		if err != nil {
+			return err
+		}
+		if s.LocalVerify {
+			err = s.executeLocalVerify()
+		}
 	}
 	return err
 }
@@ -313,7 +357,6 @@ func (s *SimulationService) runMicrobenchmark(config *onet.SimulationConfig) err
 func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 	var err error
 	keyMap := make(map[string][]kyber.Point)
-	s.latestProof = make(map[int]*byzcoin.GetProofResponse)
 	s.execRoster = onet.NewRoster(config.Roster.List[0:4])
 	s.verifierRoster = onet.NewRoster(config.Roster.List[19:])
 	s.verifierRoster.List[0] = config.Roster.List[0]
@@ -342,6 +385,5 @@ func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 	}
 
 	err = s.runMicrobenchmark(config)
-	log.Info("Simulation finished")
 	return err
 }

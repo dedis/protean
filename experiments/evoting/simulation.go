@@ -233,7 +233,7 @@ func (s *SimulationService) executeSetup() error {
 	inReceipts[execReq.Index] = execReply.InputReceipts
 	execReq.Index = 2
 	execReq.OpReceipts = execReply.OutputReceipts
-	_, err = s.stCl.UpdateState(setupOut.WS, execReq, inReceipts, 1)
+	_, err = s.stCl.UpdateState(setupOut.WS, execReq, inReceipts, commons.UPDATE_WAIT)
 	if err != nil {
 		log.Error(err)
 		return err
@@ -308,7 +308,7 @@ func (s *SimulationService) executeVote(ballot string, idx int) error {
 		}
 		execReq.Index = 1
 		execReq.OpReceipts = execReply.OutputReceipts
-		_, err = stCl.UpdateState(voteOut.WS, execReq, nil, 1)
+		_, err = stCl.UpdateState(voteOut.WS, execReq, nil, commons.UPDATE_WAIT)
 		if err != nil {
 			pr, err := stCl.WaitProof(s.CID[:], lastRoot, s.BlockTime)
 			if err != nil {
@@ -391,7 +391,7 @@ func (s *SimulationService) executeLock() error {
 	}
 	execReq.Index = 1
 	execReq.OpReceipts = execReply.OutputReceipts
-	_, err = s.stCl.UpdateState(lockOut.WS, execReq, nil, 1)
+	_, err = s.stCl.UpdateState(lockOut.WS, execReq, nil, commons.UPDATE_WAIT)
 	if err != nil {
 		log.Errorf("updating state: %v", err)
 		return err
@@ -488,13 +488,13 @@ func (s *SimulationService) executeShuffle() error {
 	inReceipts[execReq.Index] = execReply.InputReceipts
 	execReq.Index = 3
 	execReq.OpReceipts = execReply.OutputReceipts
-	_, err = s.stCl.UpdateState(prepPrOut.WS, execReq, inReceipts, 1)
+	_, err = s.stCl.UpdateState(prepPrOut.WS, execReq, inReceipts, commons.UPDATE_WAIT)
 	if err != nil {
 		log.Errorf("updating state: %v", err)
 		return err
 	}
 
-	_, err = s.stCl.WaitProof(execReq.EP.CID, execReq.EP.StateRoot, 5)
+	_, err = s.stCl.WaitProof(execReq.EP.CID, execReq.EP.StateRoot, s.BlockTime)
 	if err != nil {
 		log.Errorf("wait proof: %v", err)
 	}
@@ -587,7 +587,7 @@ func (s *SimulationService) executeTally() error {
 	inReceipts[execReq.Index] = execReply.InputReceipts
 	execReq.Index = 3
 	execReq.OpReceipts = execReply.OutputReceipts
-	_, err = s.stCl.UpdateState(tallyOut.WS, execReq, inReceipts, 1)
+	_, err = s.stCl.UpdateState(tallyOut.WS, execReq, inReceipts, commons.UPDATE_WAIT)
 	if err != nil {
 		log.Errorf("updating state: %v", err)
 		return err
@@ -646,7 +646,6 @@ func (s *SimulationService) runEvoting() error {
 					continue
 				}
 			}
-			log.Info("before sleeping", i)
 			time.Sleep(time.Duration(s.BlockTime) * time.Second)
 		}
 		wg.Wait()
@@ -672,10 +671,15 @@ func (s *SimulationService) runEvoting() error {
 func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 	var err error
 	regRoster := onet.NewRoster(config.Roster.List[0:4])
-	s.stRoster = config.Roster
-	s.execRoster = onet.NewRoster(config.Roster.List[:9])
-	s.shufRoster = onet.NewRoster(config.Roster.List[:9])
-	s.threshRoster = s.stRoster
+	s.stRoster = onet.NewRoster(config.Roster.List[4:23])
+	s.execRoster = onet.NewRoster(config.Roster.List[23:36])
+	s.threshRoster = onet.NewRoster(config.Roster.List[36:55])
+	s.shufRoster = onet.NewRoster(config.Roster.List[55:])
+
+	s.stRoster.List[0] = config.Roster.List[0]
+	s.execRoster.List[0] = config.Roster.List[0]
+	s.threshRoster.List[0] = config.Roster.List[0]
+	s.shufRoster.List[0] = config.Roster.List[0]
 
 	keyMap := make(map[string][]kyber.Point)
 	keyMap[statebase.UID] = s.stRoster.ServicePublics(skipchain.ServiceName)
@@ -687,7 +691,6 @@ func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 	if err != nil {
 		log.Error(err)
 	}
-	log.Info("registry done")
 	err = s.runEvoting()
 	return err
 }

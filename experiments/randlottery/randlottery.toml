@@ -1,13 +1,15 @@
 Simulation = "RandLottery"
 Servers = 1
-Hosts = 14
-Bf = 13
-Rounds = 3
+Hosts = 55
+Bf = 54
+#Hosts = 19
+#Bf = 18
+Rounds = 1
 RunWait = "30000s"
 Delay = 100
 Bandwidth = 100
 Suite = "Ed25519"
-BlockTime = 5
+BlockTime = 12
 SlotFactor = 5
 ContractFile = "../input/contract.json"
 FSMFile = "../input/fsm.json"
@@ -15,9 +17,9 @@ DFUFile = "../input/units.json"
 
 NumParticipants, Seed
 10,2
-20,3
-50,1
-100,249
-200,1605
-500,13890194
-1000,13890194
+#20,3
+#50,1
+#100,249
+#200,1605
+#500,13890194
+#1000,13890194

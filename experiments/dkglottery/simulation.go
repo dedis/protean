@@ -4,6 +4,7 @@ import (
 	"fmt"
 	statebase "github.com/dedis/protean/libstate/base"
 	thbase "github.com/dedis/protean/threshold/base"
+	"go.dedis.ch/cothority/v3/blscosi"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -18,7 +19,6 @@ import (
 	"github.com/dedis/protean/libstate"
 	"github.com/dedis/protean/threshold"
 	"github.com/dedis/protean/utils"
-	"go.dedis.ch/cothority/v3/blscosi"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/kyber/v3"
@@ -150,7 +150,7 @@ func (s *SimulationService) initContract() error {
 		return err
 	}
 	args := byzcoin.Arguments{{Name: "enc_tickets", Value: buf}}
-	reply, err := s.stCl.InitContract(raw, hdr, args, 5)
+	reply, err := s.stCl.InitContract(raw, hdr, args, 1)
 	if err != nil {
 		log.Error(err)
 		return err
@@ -162,6 +162,7 @@ func (s *SimulationService) initContract() error {
 		log.Error(err)
 		return err
 	}
+	//time.Sleep(time.Duration(s.BlockTime/2) * time.Second)
 	time.Sleep(time.Duration(s.BlockTime/2) * time.Second)
 	return nil
 }
@@ -222,7 +223,8 @@ func (s *SimulationService) executeSetup() error {
 	inReceipts[execReq.Index] = execReply.InputReceipts
 	execReq.Index = 2
 	execReq.OpReceipts = execReply.OutputReceipts
-	_, err = s.stCl.UpdateState(setupOut.WS, execReq, inReceipts, 1)
+
+	_, err = s.stCl.UpdateState(setupOut.WS, execReq, inReceipts, commons.UPDATE_WAIT)
 	if err != nil {
 		log.Error(err)
 		return err
@@ -299,9 +301,9 @@ func (s *SimulationService) executeJoin(idx int) error {
 		}
 		execReq.Index = 1
 		execReq.OpReceipts = execReply.OutputReceipts
-		_, err = stCl.UpdateState(joinOut.WS, execReq, nil, 1)
+		_, err = stCl.UpdateState(joinOut.WS, execReq, nil, commons.UPDATE_WAIT)
 		if err != nil {
-			pr, err := stCl.WaitProof(s.CID[:], lastRoot, s.BlockTime)
+			pr, err := stCl.WaitProof(execReq.EP.CID, lastRoot, s.BlockTime)
 			if err != nil {
 				log.Errorf("wait proof: %v", err)
 				return err
@@ -374,12 +376,12 @@ func (s *SimulationService) executeClose() error {
 	}
 	execReq.Index = 1
 	execReq.OpReceipts = execReply.OutputReceipts
-	_, err = s.stCl.UpdateState(closeOut.WS, execReq, nil, 1)
+
+	_, err = s.stCl.UpdateState(closeOut.WS, execReq, nil, commons.UPDATE_WAIT)
 	if err != nil {
 		log.Errorf("updating state: %v", err)
 		return err
 	}
-
 	// Wait for proof
 	_, err = s.stCl.WaitProof(execReq.EP.CID, execReq.EP.StateRoot, s.BlockTime)
 	if err != nil {
@@ -472,7 +474,7 @@ func (s *SimulationService) executeFinalize() error {
 	inReceipts[execReq.Index] = execReply.InputReceipts
 	execReq.Index = 3
 	execReq.OpReceipts = execReply.OutputReceipts
-	_, err = s.stCl.UpdateState(finalOut.WS, execReq, inReceipts, 1)
+	_, err = s.stCl.UpdateState(finalOut.WS, execReq, inReceipts, commons.UPDATE_WAIT)
 	if err != nil {
 		log.Errorf("updating state: %v", err)
 		return err
@@ -534,15 +536,18 @@ func (s *SimulationService) runDKGLottery() error {
 		}
 		wg.Wait()
 		// close_txn
+		log.Info("Closing")
 		err = s.executeClose()
 		if err != nil {
 			return err
 		}
 		// finalize_txn
+		log.Info("Finalizing")
 		err = s.executeFinalize()
 		if err != nil {
 			return err
 		}
+		log.Info("Finalized")
 	}
 	return nil
 }
@@ -550,9 +555,20 @@ func (s *SimulationService) runDKGLottery() error {
 func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 	var err error
 	regRoster := onet.NewRoster(config.Roster.List[0:4])
-	s.stRoster = onet.NewRoster(config.Roster.List[4:])
-	s.execRoster = s.stRoster
-	s.threshRoster = s.stRoster
+	s.threshRoster = onet.NewRoster(config.Roster.List[0:19])
+	s.execRoster = onet.NewRoster(config.Roster.List[0:19])
+	s.stRoster = onet.NewRoster(config.Roster.List[19:])
+	//s.execRoster.List[0] = config.Roster.List[0]
+	//s.threshRoster.List[0] = config.Roster.List[0]
+	s.stRoster.List[0] = config.Roster.List[0]
+
+	log.Info(s.threshRoster.List)
+	log.Info(s.execRoster.List)
+	log.Info(s.stRoster.List)
+
+	//s.execRoster = onet.NewRoster(config.Roster.List[0:13])
+	//s.threshRoster = onet.NewRoster(config.Roster.List[0:19])
+	//s.stRoster = config.Roster
 
 	keyMap := make(map[string][]kyber.Point)
 	keyMap[statebase.UID] = s.stRoster.ServicePublics(skipchain.ServiceName)

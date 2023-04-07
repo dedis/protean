@@ -229,9 +229,7 @@ func (s *EasyRand) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConf
 			log.Errorf("Cannot initialize the signing protocol: %v", err)
 			return nil, err
 		}
-		//nodeCount := len(s.roster.List)
 		signProto := pi.(*protocol.SignProtocol)
-		//signProto.Threshold = nodeCount - (nodeCount-1)/3
 		signProto.Threshold = s.threshold
 		go func() {
 			select {

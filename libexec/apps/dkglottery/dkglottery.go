@@ -7,7 +7,6 @@ import (
 	"github.com/dedis/protean/libexec/base"
 	threshold "github.com/dedis/protean/threshold/base"
 	"go.dedis.ch/cothority/v3/byzcoin"
-	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/protobuf"
 	"golang.org/x/xerrors"
 )
@@ -59,7 +58,6 @@ func JoinLottery(genInput *base.GenericInput) (*base.GenericOutput, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("couldn't encode tickets: %v", err)
 	}
-	//log.Infof("enc_tickets size: %d", len(buf))
 	args := byzcoin.Arguments{{Name: "enc_tickets", Value: buf}}
 	return &base.GenericOutput{O: JoinOutput{WS: args}}, nil
 }
@@ -124,7 +122,7 @@ func FinalizeLottery(genInput *base.GenericInput) (*base.GenericOutput, error) {
 		Index:  int(winnerIdx),
 		Ticket: pdata[winnerIdx],
 	}
-	log.Info("Winner is:", winner.Index, winner.Ticket)
+	//log.Info("Winner is:", winner.Index, winner.Ticket)
 	// Prepare write set
 	kvDict, ok := genInput.KVInput["readset"]
 	if !ok {

@@ -3,7 +3,6 @@ package randlottery
 import (
 	"crypto/sha256"
 	"encoding/binary"
-
 	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/libexec/base"
 	"github.com/dedis/protean/utils"
@@ -12,7 +11,6 @@ import (
 	"go.dedis.ch/kyber/v3/pairing"
 	"go.dedis.ch/kyber/v3/sign/bls"
 	"go.dedis.ch/kyber/v3/sign/schnorr"
-	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/protobuf"
 	"golang.org/x/xerrors"
 )
@@ -42,7 +40,6 @@ func JoinLottery(genInput *base.GenericInput) (*base.GenericOutput, error) {
 	}
 	tickets.Data = append(tickets.Data, ticket)
 	buf, err := protobuf.Encode(tickets)
-	//log.Infof("Tickets size: %d", len(buf))
 	if err != nil {
 		return nil, xerrors.Errorf("couldn't encode tickets: %v", err)
 	}
@@ -113,7 +110,7 @@ func FinalizeLottery(genInput *base.GenericInput) (*base.GenericOutput, error) {
 		Index: int(winnerIdx),
 		Key:   tickets.Data[winnerIdx].Key,
 	}
-	log.Info("Winner index:", winnerIdx, winner.Key.String())
+	//log.Info("Winner index:", winnerIdx, winner.Key.String())
 	// Get header
 	hdr, err := getHeader(&kvDict)
 	if err != nil {
@@ -129,7 +126,6 @@ func FinalizeLottery(genInput *base.GenericInput) (*base.GenericOutput, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("couldn't encode randomness: %v", err)
 	}
-	//log.Infof("randomness size: %d", len(randBuf))
 	winnerBuf, err := protobuf.Encode(&winner)
 	if err != nil {
 		return nil, xerrors.Errorf("couldn't encode winner data: %v", err)

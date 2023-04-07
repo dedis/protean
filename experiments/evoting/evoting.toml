@@ -1,7 +1,7 @@
 Simulation = "Evoting"
 Servers = 1
-Hosts = 16
-Bf = 15
+Hosts = 68
+Bf = 67
 Rounds = 1
 RunWait = "30000s"
 Delay = 100
@@ -16,9 +16,9 @@ DFUFile = "../input/units.json"
 
 NumParticipants, Seed
 10,2
-20,3
-50,1
-100,249
-200,1605
-500,13890194
-1000,13890194
+#20,3
+#50,1
+#100,249
+#200,1605
+#500,13890194
+#1000,13890194

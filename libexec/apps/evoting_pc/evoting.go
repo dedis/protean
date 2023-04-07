@@ -8,7 +8,6 @@ import (
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/kyber/v3"
-	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/protobuf"
 	"golang.org/x/xerrors"
 )
@@ -174,7 +173,7 @@ func Tally(genInput *base.GenericInput) (*base.GenericOutput, error) {
 		pdata[i] = msg
 	}
 	counts := countBallots(pdata, input.CandCount)
-	log.Info(counts)
+	//log.Info(counts)
 	result := ElectionResult{VoteCounts: counts}
 	// Prepare write set
 	kvDict, ok := genInput.KVInput["readset"]
@@ -226,7 +225,6 @@ func getBallots(kvDict *core.KVDict) (*EncBallots, error) {
 	if !ok {
 		return nil, xerrors.New("missing key: enc_ballots")
 	}
-	//log.Infof("enc_ballots size: %d", len(buf))
 	tickets := &EncBallots{}
 	err := protobuf.Decode(buf, tickets)
 	if err != nil {
@@ -240,7 +238,6 @@ func getPoint(kvDict *core.KVDict) (kyber.Point, error) {
 	if !ok {
 		return nil, xerrors.New("missing key: h")
 	}
-	//log.Infof("point size: %d", len(buf))
 	h := cothority.Suite.Point()
 	err := h.UnmarshalBinary(buf)
 	if err != nil {
@@ -254,7 +251,6 @@ func getProofs(kvDict *core.KVDict) ([]easyneff.Proof, error) {
 	if !ok {
 		return nil, xerrors.New("missing key: proofs")
 	}
-	//log.Infof("proofs size: %d", len(buf))
 	shOut := &easyneff.ShuffleOutput{}
 	err := protobuf.Decode(buf, shOut)
 	if err != nil {

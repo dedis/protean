@@ -1,32 +1,32 @@
 {
         "registry": {
                 "state": {
-                        "num_nodes": 13,
-                        "threshold": 9,
+                        "num_nodes": 19,
+                        "threshold": 13,
                         "opcodes": [
                                 "init_contract",
                                 "update_state"
                         ]
                 },
                 "codeexec": {
-                        "num_nodes": 9,
-                        "threshold": 5,
+                        "num_nodes": 13,
+                        "threshold": 7,
                         "opcodes": [
                                 "init_txn",
                                 "exec"
                         ]
                 },
                 "threshold": {
-                        "num_nodes": 13,
-                        "threshold": 9,
+                        "num_nodes": 19,
+                        "threshold": 13,
                         "opcodes": [
                                 "init_dkg",
                                 "decrypt"
                         ]
                 },
                 "easyneff": {
-                        "num_nodes": 9,
-                        "threshold": 5,
+                        "num_nodes": 13,
+                        "threshold": 7,
                         "opcodes": [
                                 "shuffle"
                         ]

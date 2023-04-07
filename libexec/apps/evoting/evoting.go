@@ -8,7 +8,6 @@ import (
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/kyber/v3"
-	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/protobuf"
 	"golang.org/x/xerrors"
 )
@@ -170,7 +169,7 @@ func Tally(genInput *base.GenericInput) (*base.GenericOutput, error) {
 		pdata[i] = msg
 	}
 	counts := countBallots(pdata, input.CandCount)
-	log.Info(counts)
+	//log.Info(counts)
 	result := ElectionResult{VoteCounts: counts}
 	// Prepare write set
 	kvDict, ok := genInput.KVInput["readset"]

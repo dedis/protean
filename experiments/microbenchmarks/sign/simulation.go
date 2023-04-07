@@ -180,7 +180,6 @@ func (s *SimulationService) runMicrobenchmark(config *onet.SimulationConfig) err
 }
 
 func (s *SimulationService) Run(config *onet.SimulationConfig) error {
-	log.Print("Simulation started")
 	var err error
 
 	regRoster := onet.NewRoster(config.Roster.List[0:4])
@@ -203,6 +202,5 @@ func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 	log.Info("Exec roster size:", len(s.execRoster.List))
 	log.Info("Signer roster size:", len(s.signerRoster.List))
 	err = s.runMicrobenchmark(config)
-	log.Print("Simulation finished")
 	return err
 }
