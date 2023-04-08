@@ -536,18 +536,15 @@ func (s *SimulationService) runDKGLottery() error {
 		}
 		wg.Wait()
 		// close_txn
-		log.Info("Closing")
 		err = s.executeClose()
 		if err != nil {
 			return err
 		}
 		// finalize_txn
-		log.Info("Finalizing")
 		err = s.executeFinalize()
 		if err != nil {
 			return err
 		}
-		log.Info("Finalized")
 	}
 	return nil
 }
@@ -561,10 +558,6 @@ func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 	//s.execRoster.List[0] = config.Roster.List[0]
 	//s.threshRoster.List[0] = config.Roster.List[0]
 	s.stRoster.List[0] = config.Roster.List[0]
-
-	log.Info(s.threshRoster.List)
-	log.Info(s.execRoster.List)
-	log.Info(s.stRoster.List)
 
 	//s.execRoster = onet.NewRoster(config.Roster.List[0:13])
 	//s.threshRoster = onet.NewRoster(config.Roster.List[0:19])

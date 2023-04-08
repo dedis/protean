@@ -4,9 +4,9 @@ conode/conode
 **/deploy/*
 **/build/*
 **/server_list
-**/randlottery
-**/dkglottery
-**/evoting
-**/sign
-**/verify
+**/experiments/randlottery/randlottery
+**/experiments/dkglottery/dkglottery
+**/experiments/evoting/evoting
+**/sign/sign
+**/verify/verify
 **/test_data/*

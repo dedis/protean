@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"fmt"
 	statebase "github.com/dedis/protean/libstate/base"
 	"go.dedis.ch/cothority/v3/blscosi"
@@ -36,18 +37,20 @@ type SimulationService struct {
 	DFUFile      string
 	BlockTime    int
 	LocalVerify  bool
+	NumInputsStr string
+	execReqs     []*core.ExecutionRequest
 
 	// verify_opc structs
-	NumInputs int
-	Size      int
+	NumSizesStr  string
+	NumInputsOPC []int
+	NumSizes     []int
+	outputData   []map[string][]byte
 
 	// verify_kv structs
-	NumInputsStr string
 	NumBlocksStr string
 	NumInputsKV  []int
 	NumBlocks    []int
 	latestProof  map[int]*byzcoin.GetProofResponse
-	execReqs     []*core.ExecutionRequest
 
 	// internal structs
 	byzID          skipchain.SkipBlockID
@@ -148,12 +151,135 @@ func (s *SimulationService) initContract() error {
 	return nil
 }
 
+//func (s *SimulationService) executeVerifyOpc(config *onet.SimulationConfig) error {
+//	execCl := libexec.NewClient(s.execRoster)
+//	stCl := libstate.NewClient(byzcoin.NewClient(s.byzID, *s.stRoster))
+//	defer execCl.Close()
+//	defer stCl.Close()
+//
+//	// Get state
+//	gcs, err := stCl.GetState(s.CID)
+//	if err != nil {
+//		log.Errorf("getting state: %v", err)
+//		return err
+//	}
+//	cdata := &execbase.ByzData{IID: s.CID, Proof: gcs.Proof.Proof,
+//		Genesis: s.contractGen}
+//	itReply, err := execCl.InitTransaction(s.rdata, cdata, "verifywf", "verify")
+//	if err != nil {
+//		log.Error(err)
+//		return err
+//	}
+//	execReq := &core.ExecutionRequest{
+//		Index: 0,
+//		EP:    &itReply.Plan,
+//	}
+//
+//	// Get signer service
+//	outputData := commons.PrepareData(s.NumInputs, s.Size)
+//	signer := config.GetService(signsvc.ServiceName).(*signsvc.Signer)
+//	signReq := signsvc.SignRequest{
+//		Roster:     s.signerRoster,
+//		OutputData: outputData,
+//		ExecReq:    execReq,
+//	}
+//	signReply, err := signer.Sign(&signReq)
+//	if err != nil {
+//		log.Error(err)
+//	}
+//	execReq.Index = 1
+//	execReq.OpReceipts = signReply.Receipts
+//	// Get verifier service
+//	verifier := config.GetService(verifysvc.ServiceName).(*verifysvc.Verifier)
+//
+//	for round := 0; round < s.Rounds; round++ {
+//		vMonitor := monitor.NewTimeMeasure("verify_opc")
+//		verifyReq := verifysvc.VerifyRequest{
+//			Roster:    s.verifierRoster,
+//			InputData: outputData,
+//			ExecReq:   execReq,
+//		}
+//		_, err = verifier.Verify(&verifyReq)
+//		if err != nil {
+//			log.Error(err)
+//		}
+//		vMonitor.Record()
+//	}
+//	return err
+//}
+
 func (s *SimulationService) executeVerifyOpc(config *onet.SimulationConfig) error {
+	var err error
+	// Get verifier service
+	verifier := config.GetService(verifysvc.ServiceName).(*verifysvc.Verifier)
+	idx := 0
+	for _, ns := range s.NumSizes {
+		for _, ni := range s.NumInputsOPC {
+			execReq := s.execReqs[idx]
+			outputData := s.outputData[idx]
+			for round := 0; round < s.Rounds; round++ {
+				vMonitor := monitor.NewTimeMeasure(fmt.Sprintf("verify_%d_%d", ni, ns))
+				verifyReq := verifysvc.VerifyRequest{
+					Roster:    s.verifierRoster,
+					InputData: outputData,
+					ExecReq:   execReq,
+				}
+				_, err = verifier.Verify(&verifyReq)
+				if err != nil {
+					log.Error(err)
+				}
+				vMonitor.Record()
+			}
+			idx++
+		}
+	}
+	return err
+}
+
+func (s *SimulationService) executeLocalVerifyOPC() error {
+	idx := 0
+	vData := &core.VerificationData{
+		UID:         "verifier",
+		OpcodeName:  "verify",
+		StateProofs: make(map[string]*core.StateProof),
+		InputHashes: make(map[string][]byte),
+	}
+	for _, ns := range s.NumSizes {
+		for _, ni := range s.NumInputsOPC {
+			execReq := s.execReqs[idx]
+			outputData := s.outputData[idx]
+			for round := 0; round < s.Rounds; round++ {
+				m := monitor.NewTimeMeasure(fmt.Sprintf("verify_local_%d_%d", ni, ns))
+				prepareInputHashes(vData, outputData)
+				err := execReq.Verify(vData)
+				if err != nil {
+					log.Error(err)
+					return err
+				}
+				log.Info("done with verify:", err)
+				m.Record()
+			}
+			idx++
+		}
+	}
+	return nil
+}
+
+func prepareInputHashes(vdata *core.VerificationData, inputData map[string][]byte) {
+	for varName, data := range inputData {
+		h := sha256.New()
+		h.Write(data)
+		vdata.InputHashes[varName] = h.Sum(nil)
+	}
+}
+
+func (s *SimulationService) generateVerifyOPCData(config *onet.SimulationConfig) error {
 	execCl := libexec.NewClient(s.execRoster)
 	stCl := libstate.NewClient(byzcoin.NewClient(s.byzID, *s.stRoster))
 	defer execCl.Close()
 	defer stCl.Close()
 
+	reqMap := make(map[string]*core.ExecutionRequest)
 	// Get state
 	gcs, err := stCl.GetState(s.CID)
 	if err != nil {
@@ -162,63 +288,61 @@ func (s *SimulationService) executeVerifyOpc(config *onet.SimulationConfig) erro
 	}
 	cdata := &execbase.ByzData{IID: s.CID, Proof: gcs.Proof.Proof,
 		Genesis: s.contractGen}
-	itReply, err := execCl.InitTransaction(s.rdata, cdata, "verifywf", "verify")
-	if err != nil {
-		log.Error(err)
-		return err
-	}
-	execReq := &core.ExecutionRequest{
-		Index: 0,
-		EP:    &itReply.Plan,
-	}
-
-	// Get signer service
-	outputData := commons.PrepareData(s.NumInputs, s.Size)
-	for k, _ := range outputData {
-		fmt.Println(k)
-	}
-	signer := config.GetService(signsvc.ServiceName).(*signsvc.Signer)
-	signReq := signsvc.SignRequest{
-		Roster:     s.signerRoster,
-		OutputData: outputData,
-		ExecReq:    execReq,
-	}
-	signReply, err := signer.Sign(&signReq)
-	if err != nil {
-		log.Error(err)
-	}
-	// Get verifier service
-	execReq.Index = 1
-	execReq.OpReceipts = signReply.Receipts
-	verifier := config.GetService(verifysvc.ServiceName).(*verifysvc.Verifier)
-
-	for round := 0; round < s.Rounds; round++ {
-		vMonitor := monitor.NewTimeMeasure("verify_opc")
-		verifyReq := verifysvc.VerifyRequest{
-			Roster:    s.verifierRoster,
-			InputData: outputData,
-			ExecReq:   execReq,
-		}
-		_, err = verifier.Verify(&verifyReq)
+	for _, ni := range s.NumInputsOPC {
+		txnName := fmt.Sprintf("verify_%d", ni)
+		itReply, err := execCl.InitTransaction(s.rdata, cdata, "verifywf", txnName)
 		if err != nil {
 			log.Error(err)
+			return err
 		}
-		vMonitor.Record()
+		reqMap[txnName] = &core.ExecutionRequest{
+			Index: 0,
+			EP:    &itReply.Plan,
+		}
 	}
-	return err
+	for _, ns := range s.NumSizes {
+		for _, ni := range s.NumInputsOPC {
+			txnName := fmt.Sprintf("verify_%d", ni)
+			//itReply, err := execCl.InitTransaction(s.rdata, cdata, "verifywf", txnName)
+			//if err != nil {
+			//	log.Error(err)
+			//	return err
+			//}
+			//execReq := &core.ExecutionRequest{
+			//	Index: 0,
+			//	EP:    &itReply.Plan,
+			//}
+			execReq := reqMap[txnName]
+			outputData := commons.PrepareData(ni, ns)
+			signer := config.GetService(signsvc.ServiceName).(*signsvc.Signer)
+			signReq := signsvc.SignRequest{
+				Roster:     s.signerRoster,
+				OutputData: outputData,
+				ExecReq:    execReq,
+			}
+			signReply, err := signer.Sign(&signReq)
+			if err != nil {
+				log.Error(err)
+			}
+			//execReq.Index = 1
+			//execReq.OpReceipts = signReply.Receipts
+			s.outputData = append(s.outputData, outputData)
+			s.execReqs = append(s.execReqs, &core.ExecutionRequest{Index: 1,
+				EP: execReq.EP, OpReceipts: signReply.Receipts})
+		}
+	}
+	return nil
 }
 
 func (s *SimulationService) executeVerifyKv(config *onet.SimulationConfig) error {
 	var err error
 	execCl := libexec.NewClient(s.execRoster)
-	stCl := libstate.NewClient(byzcoin.NewClient(s.byzID, *s.stRoster))
 	defer execCl.Close()
-	defer stCl.Close()
 
 	verifier := config.GetService(verifysvc.ServiceName).(*verifysvc.Verifier)
 
-	for _, ni := range s.NumInputsKV {
-		for _, nb := range s.NumBlocks {
+	for _, nb := range s.NumBlocks {
+		for _, ni := range s.NumInputsKV {
 			pr := &s.latestProof[nb].Proof
 			sp := commons.PrepareStateProof(ni, pr, s.contractGen)
 			cdata := &execbase.ByzData{IID: s.CID, Proof: pr, Genesis: s.contractGen}
@@ -243,24 +367,32 @@ func (s *SimulationService) executeVerifyKv(config *onet.SimulationConfig) error
 				}
 				vMonitor.Record()
 			}
-			s.execReqs = append(s.execReqs, execReq)
 		}
 	}
 	return err
 }
 
-func (s *SimulationService) executeLocalVerify() error {
-	idx := 0
+func (s *SimulationService) executeLocalVerifyKV() error {
+	execCl := libexec.NewClient(s.execRoster)
+	defer execCl.Close()
+
 	vData := &core.VerificationData{
 		UID:         "verifier",
 		OpcodeName:  "verify",
 		InputHashes: make(map[string][]byte),
 	}
-	for _, ni := range s.NumInputsKV {
-		for _, nb := range s.NumBlocks {
+	for _, nb := range s.NumBlocks {
+		for _, ni := range s.NumInputsKV {
 			pr := &s.latestProof[nb].Proof
-			execReq := s.execReqs[idx]
 			sp := commons.PrepareStateProof(ni, pr, s.contractGen)
+			cdata := &execbase.ByzData{IID: s.CID, Proof: pr, Genesis: s.contractGen}
+			txnName := fmt.Sprintf("verify_%d", ni)
+			itReply, err := execCl.InitTransaction(s.rdata, cdata, "verifywf", txnName)
+			if err != nil {
+				log.Error(err)
+				return err
+			}
+			execReq := &core.ExecutionRequest{Index: 0, EP: &itReply.Plan}
 			for round := 0; round < s.Rounds; round++ {
 				lvMonitor := monitor.NewTimeMeasure(fmt.Sprintf(
 					"verify_local_%d_%d", ni, nb))
@@ -277,7 +409,6 @@ func (s *SimulationService) executeLocalVerify() error {
 				}
 				lvMonitor.Record()
 			}
-			idx++
 		}
 	}
 	return nil
@@ -289,6 +420,7 @@ func (s *SimulationService) generateBlocks() error {
 	buf := make([]byte, 128)
 	blkCount := s.NumBlocks[len(s.NumBlocks)-1]
 	for i := 1; i <= blkCount; i++ {
+		//log.Info("Dummy update:", i)
 		rand.Read(buf)
 		args := byzcoin.Arguments{{Name: "test_key", Value: buf}}
 		_, err := s.stCl.DummyUpdate(s.CID, args, 2)
@@ -315,12 +447,24 @@ func (s *SimulationService) stringSliceToIntSlice() {
 	numInputsSlice := strings.Split(s.NumInputsStr, ";")
 	for _, n := range numInputsSlice {
 		numInput, _ := strconv.Atoi(n)
-		s.NumInputsKV = append(s.NumInputsKV, numInput)
+		if s.DepType == "OPC" {
+			s.NumInputsOPC = append(s.NumInputsOPC, numInput)
+		} else {
+			s.NumInputsKV = append(s.NumInputsKV, numInput)
+		}
 	}
-	numBlocksSlice := strings.Split(s.NumBlocksStr, ";")
-	for _, n := range numBlocksSlice {
-		numBlocks, _ := strconv.Atoi(n)
-		s.NumBlocks = append(s.NumBlocks, numBlocks)
+	if s.DepType == "OPC" {
+		numSizesSlice := strings.Split(s.NumSizesStr, ";")
+		for _, n := range numSizesSlice {
+			numSizes, _ := strconv.Atoi(n)
+			s.NumSizes = append(s.NumSizes, numSizes)
+		}
+	} else {
+		numBlocksSlice := strings.Split(s.NumBlocksStr, ";")
+		for _, n := range numBlocksSlice {
+			numBlocks, _ := strconv.Atoi(n)
+			s.NumBlocks = append(s.NumBlocks, numBlocks)
+		}
 	}
 }
 
@@ -335,20 +479,26 @@ func (s *SimulationService) runMicrobenchmark(config *onet.SimulationConfig) err
 	if err != nil {
 		return err
 	}
+	s.stringSliceToIntSlice()
 	if s.DepType == "OPC" {
-		err = s.executeVerifyOpc(config)
-	} else {
-		s.stringSliceToIntSlice()
-		err = s.generateBlocks()
-		if err != nil {
-			return err
-		}
-		err = s.executeVerifyKv(config)
+		err := s.generateVerifyOPCData(config)
 		if err != nil {
 			return err
 		}
 		if s.LocalVerify {
-			err = s.executeLocalVerify()
+			err = s.executeLocalVerifyOPC()
+		} else {
+			err = s.executeVerifyOpc(config)
+		}
+	} else {
+		err = s.generateBlocks()
+		if err != nil {
+			return err
+		}
+		if s.LocalVerify {
+			err = s.executeLocalVerifyKV()
+		} else {
+			err = s.executeVerifyKv(config)
 		}
 	}
 	return err

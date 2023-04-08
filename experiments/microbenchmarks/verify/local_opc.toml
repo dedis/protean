@@ -11,7 +11,8 @@ Suite = "Ed25519"
 BlockTime = 5
 FSMFile = "../input/opc/fsm.json"
 DFUFile = "../input/opc/units.json"
-LocalVerify = false
+LocalVerify = true
 
 NumInputsStr, NumSizesStr, ContractFile
-"1;2;3;4", "4096;8192;65536;524288;4194304", "../input/opc/opc.json"
+#"1;2;3;4", "4096;8192;65536;524288;4194304", "../input/opc/opc.json"
+"1;2;3;4", "4096;8192;65536", "../input/opc/opc.json"

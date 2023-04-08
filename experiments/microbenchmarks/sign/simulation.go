@@ -181,7 +181,6 @@ func (s *SimulationService) runMicrobenchmark(config *onet.SimulationConfig) err
 
 func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 	var err error
-
 	regRoster := onet.NewRoster(config.Roster.List[0:4])
 	s.stRoster = onet.NewRoster(config.Roster.List[0:4])
 	s.execRoster = onet.NewRoster(config.Roster.List[0:4])
@@ -197,10 +196,6 @@ func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 	if err != nil {
 		log.Error(err)
 	}
-	log.Info("Registry roster size:", len(regRoster.List))
-	log.Info("State roster size:", len(s.stRoster.List))
-	log.Info("Exec roster size:", len(s.execRoster.List))
-	log.Info("Signer roster size:", len(s.signerRoster.List))
 	err = s.runMicrobenchmark(config)
 	return err
 }
