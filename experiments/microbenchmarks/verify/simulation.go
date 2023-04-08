@@ -256,7 +256,6 @@ func (s *SimulationService) executeLocalVerifyOPC() error {
 					log.Error(err)
 					return err
 				}
-				log.Info("done with verify:", err)
 				m.Record()
 			}
 			idx++
