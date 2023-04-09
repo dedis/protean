@@ -164,7 +164,8 @@ func (s *SimulationService) initContract() error {
 
 func (s *SimulationService) executeSetup() error {
 	inReceipts := make(map[int]map[string]*core.OpcodeReceipt)
-	setupMonitor := monitor.NewTimeMeasure("setup")
+	//setupMonitor := monitor.NewTimeMeasure("setup")
+	m1 := monitor.NewTimeMeasure("setup_inittxn")
 	// Get state
 	gcs, err := s.stCl.GetState(s.CID)
 	if err != nil {
@@ -181,12 +182,16 @@ func (s *SimulationService) executeSetup() error {
 		Index: 0,
 		EP:    &itReply.Plan,
 	}
+	m1.Record()
+	m2 := monitor.NewTimeMeasure("setup_initdkg")
 	// Step 1: init_dkg
 	dkgReply, err := s.thCl.InitDKG(execReq)
 	if err != nil {
 		log.Error(err)
 		return err
 	}
+	m2.Record()
+	m3 := monitor.NewTimeMeasure("setup_exec")
 	// Step 2: exec
 	setupInput := dkglottery.SetupInput{Pk: dkgReply.Output.X}
 	data, err := protobuf.Encode(&setupInput)
@@ -208,6 +213,8 @@ func (s *SimulationService) executeSetup() error {
 		log.Error(err)
 		return err
 	}
+	m3.Record()
+	m4 := monitor.NewTimeMeasure("setup_update")
 	// Step 3: update_state
 	var setupOut dkglottery.SetupOutput
 	err = protobuf.Decode(execReply.Output.Data, &setupOut)
@@ -229,7 +236,8 @@ func (s *SimulationService) executeSetup() error {
 		log.Error(err)
 	}
 	s.X = dkgReply.Output.X
-	setupMonitor.Record()
+	m4.Record()
+	//setupMonitor.Record()
 	return err
 }
 
@@ -306,6 +314,7 @@ func (s *SimulationService) executeJoin(idx int) error {
 			gcs.Proof.Proof = pr
 			cdata.Proof = gcs.Proof.Proof
 			lastRoot = pr.InclusionProof.GetRoot()
+			//log.Info("going to retry @index:", idx)
 		} else {
 			_, err := stCl.WaitProof(s.CID[:], lastRoot, s.BlockTime)
 			if err != nil {
@@ -320,7 +329,8 @@ func (s *SimulationService) executeJoin(idx int) error {
 }
 
 func (s *SimulationService) executeClose() error {
-	closeMonitor := monitor.NewTimeMeasure("close")
+	//closeMonitor := monitor.NewTimeMeasure("close")
+	m1 := monitor.NewTimeMeasure("close_inittxn")
 	// Get state
 	gcs, err := s.stCl.GetState(s.CID)
 	if err != nil {
@@ -336,6 +346,8 @@ func (s *SimulationService) executeClose() error {
 		log.Errorf("initializing txn: %v", err)
 		return err
 	}
+	m1.Record()
+	m2 := monitor.NewTimeMeasure("close_exec")
 	// Step 1: exec
 	closeInput := dkglottery.CloseInput{
 		Barrier: 0,
@@ -361,7 +373,8 @@ func (s *SimulationService) executeClose() error {
 		log.Errorf("executing close_dkglot: %v", err)
 		return err
 	}
-
+	m2.Record()
+	m3 := monitor.NewTimeMeasure("close_update")
 	// Step 2: update_state
 	var closeOut dkglottery.CloseOutput
 	err = protobuf.Decode(execReply.Output.Data, &closeOut)
@@ -382,13 +395,15 @@ func (s *SimulationService) executeClose() error {
 	if err != nil {
 		log.Errorf("wait proof: %v", err)
 	}
-	closeMonitor.Record()
+	m3.Record()
+	//closeMonitor.Record()
 	return err
 }
 
 func (s *SimulationService) executeFinalize() error {
 	inReceipts := make(map[int]map[string]*core.OpcodeReceipt)
-	finalizeMonitor := monitor.NewTimeMeasure("finalize")
+	//finalizeMonitor := monitor.NewTimeMeasure("finalize")
+	m1 := monitor.NewTimeMeasure("finalize_inittxn")
 	// Get state
 	gcs, err := s.stCl.GetState(s.CID)
 	if err != nil {
@@ -405,7 +420,8 @@ func (s *SimulationService) executeFinalize() error {
 		log.Errorf("initializing txn: %v", err)
 		return err
 	}
-
+	m1.Record()
+	m2 := monitor.NewTimeMeasure("finalize_exec_1")
 	// Step 1: exec
 	sp := make(map[string]*core.StateProof)
 	sp["readset"] = &gcs.Proof
@@ -422,7 +438,8 @@ func (s *SimulationService) executeFinalize() error {
 		log.Errorf("executing prepare_decrypt_dkglot: %v", err)
 		return err
 	}
-
+	m2.Record()
+	m3 := monitor.NewTimeMeasure("finalize_decrypt")
 	// Step 2: decrypt
 	var prepOut dkglottery.PrepDecOutput
 	err = protobuf.Decode(execReply.Output.Data, &prepOut)
@@ -437,7 +454,8 @@ func (s *SimulationService) executeFinalize() error {
 		log.Errorf("decrypting: %v", err)
 		return err
 	}
-
+	m3.Record()
+	m4 := monitor.NewTimeMeasure("finalize_exec_2")
 	// Step 3: exec
 	finalInput := dkglottery.FinalizeInput{Ps: decReply.Output.Ps}
 	data, err := protobuf.Encode(&finalInput)
@@ -458,7 +476,8 @@ func (s *SimulationService) executeFinalize() error {
 		log.Errorf("executing finalize_dkglot: %v", err)
 		return err
 	}
-
+	m4.Record()
+	m5 := monitor.NewTimeMeasure("finalize_update")
 	// Step 4: update_state
 	var finalOut dkglottery.FinalizeOutput
 	err = protobuf.Decode(execReply.Output.Data, &finalOut)
@@ -480,13 +499,15 @@ func (s *SimulationService) executeFinalize() error {
 	if err != nil {
 		log.Errorf("wait proof: %v", err)
 	}
-	finalizeMonitor.Record()
+	m5.Record()
+	//finalizeMonitor.Record()
 	return err
 }
 
 func (s *SimulationService) runDKGLottery() error {
 	//schedule := s.generateSchedule()
-	schedule := commons.GenerateSchedule(s.Seed, s.NumParticipants, s.NumParticipants*s.SlotFactor)
+	schedule := commons.GenerateSchedule(s.Seed, s.NumParticipants,
+		s.NumParticipants*s.SlotFactor)
 	// Initialize DFUs
 	err := s.initDFUs()
 	if err != nil {
@@ -553,6 +574,14 @@ func (s *SimulationService) runDKGLottery() error {
 	return nil
 }
 
+func (s *SimulationService) dummyRecords() {
+	for i := s.NumParticipants; i < 500; i++ {
+		label := fmt.Sprintf("p%d_join", i)
+		dummy := monitor.NewTimeMeasure(label)
+		dummy.Record()
+	}
+}
+
 func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 	var err error
 	regRoster := onet.NewRoster(config.Roster.List[0:4])
@@ -574,5 +603,6 @@ func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 		log.Error(err)
 	}
 	err = s.runDKGLottery()
+	//s.dummyRecords()
 	return err
 }

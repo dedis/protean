@@ -2,7 +2,7 @@ Simulation = "DKGLottery"
 Servers = 1
 Hosts = 55
 Bf = 54
-Rounds = 3
+Rounds = 1
 RunWait = "30000s"
 Delay = 100
 Bandwidth = 100
@@ -14,11 +14,11 @@ FSMFile = "../input/fsm.json"
 DFUFile = "../input/units.json"
 
 NumParticipants, Seed
-5,0
-10,1
-20,1
-50,12
-100,2
-200,3
-500,86
 1000,1325
+500,86
+200,3
+100,2
+50,12
+20,1
+10,1
+#5,0

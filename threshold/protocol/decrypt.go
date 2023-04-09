@@ -239,6 +239,11 @@ func (d *ThreshDecrypt) decryptShareResponse(r structDecryptShareResponse) error
 
 func (d *ThreshDecrypt) reconstruct(r structReconstruct) error {
 	defer d.Done()
+	if d.DecInput == nil {
+		log.Info("%s missing input", d.ServerIdentity().String())
+		return cothority.ErrorOrNil(d.SendToParent(&ReconstructResponse{}),
+			"sending ReconstructResponse to parent")
+	}
 	d.Ps = make([]kyber.Point, len(r.Partials))
 	for i, c := range d.DecInput.Pairs {
 		partial := r.Partials[i]

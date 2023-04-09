@@ -3,7 +3,7 @@ DepType = "OPC"
 Servers = 1
 Hosts = 38
 Bf = 37
-Rounds = 5
+Rounds = 10
 RunWait = "30000s"
 Delay = 100
 Bandwidth = 100
@@ -13,5 +13,5 @@ FSMFile = "../input/opc/fsm.json"
 DFUFile = "../input/opc/units.json"
 LocalVerify = false
 
-NumInputsStr, NumSizesStr, ContractFile
-"1;2;3;4", "4096;8192;65536;524288;4194304", "../input/opc/opc.json"
+NumInputsStr,NumSizesStr,ContractFile
+"1;2;3;4","4096;8192;65536;524288;4194304","../input/opc/opc.json"

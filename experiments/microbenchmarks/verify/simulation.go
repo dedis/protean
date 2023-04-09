@@ -487,6 +487,7 @@ func (s *SimulationService) runMicrobenchmark(config *onet.SimulationConfig) err
 		if s.LocalVerify {
 			err = s.executeLocalVerifyOPC()
 		} else {
+			log.Info("starting non-local")
 			err = s.executeVerifyOpc(config)
 		}
 	} else {
@@ -497,6 +498,7 @@ func (s *SimulationService) runMicrobenchmark(config *onet.SimulationConfig) err
 		if s.LocalVerify {
 			err = s.executeLocalVerifyKV()
 		} else {
+			log.Info("starting non-local")
 			err = s.executeVerifyKv(config)
 		}
 	}
@@ -532,7 +534,6 @@ func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 		log.Error(err)
 		return err
 	}
-
 	err = s.runMicrobenchmark(config)
 	return err
 }
