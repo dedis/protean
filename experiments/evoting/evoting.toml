@@ -2,23 +2,24 @@ Simulation = "Evoting"
 Servers = 1
 Hosts = 68
 Bf = 67
-Rounds = 1
+Rounds = 3
 RunWait = "30000s"
 Delay = 100
 Bandwidth = 100
 Suite = "Ed25519"
 BlockTime = 12
-SlotFactor = 5
-NumCandidates = 10
+SlotFactor = 7
 ContractFile = "../input/contract.json"
 FSMFile = "../input/fsm.json"
 DFUFile = "../input/units.json"
+NumCandidates = 10
 
 NumParticipants, Seed
-10,2
-#20,3
-#50,1
-#100,249
-#200,1605
-#500,13890194
-#1000,13890194
+5,0
+10,1
+20,1
+50,12
+100,2
+200,3
+500,86
+1000,1325

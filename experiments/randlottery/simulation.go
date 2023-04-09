@@ -110,28 +110,23 @@ func (s *SimulationService) initDFUs() error {
 	s.randCl.CreateRandomness()
 	s.randCl.CreateRandomness()
 	s.randCl.CreateRandomness()
-	// Setup the state unit
-	s.byzID, err = commons.SetupStateUnit(s.stRoster, s.BlockTime)
-	if err != nil {
-		log.Error(err)
-	}
-	return err
+	return nil
 }
 
-func (s *SimulationService) generateSchedule() []int {
-	if s.NumParticipants < 1000 {
-		numSlots := s.NumParticipants * s.SlotFactor
-		return commons.GenerateSchedule(s.Seed, s.NumParticipants, numSlots)
-	} else {
-		// if s.NumParticipants == 1000, use the schedule from 500
-		halfSlots := (s.NumParticipants / 2) * s.SlotFactor
-		half := commons.GenerateSchedule(s.Seed, s.NumParticipants/2, halfSlots)
-		slots := make([]int, halfSlots*2)
-		copy(slots, half)
-		copy(slots[halfSlots:], half)
-		return slots
-	}
-}
+//func (s *SimulationService) generateSchedule() []int {
+//	if s.NumParticipants < 1000 {
+//		numSlots := s.NumParticipants * s.SlotFactor
+//		return commons.GenerateSchedule(s.Seed, s.NumParticipants, numSlots)
+//	} else {
+//		// if s.NumParticipants == 1000, use the schedule from 500
+//		halfSlots := (s.NumParticipants / 2) * s.SlotFactor
+//		half := commons.GenerateSchedule(s.Seed, s.NumParticipants/2, halfSlots)
+//		slots := make([]int, halfSlots*2)
+//		copy(slots, half)
+//		copy(slots[halfSlots:], half)
+//		return slots
+//	}
+//}
 
 func (s *SimulationService) initContract() error {
 	contract, err := libclient.ReadContractJSON(&s.ContractFile)
@@ -247,7 +242,6 @@ func (s *SimulationService) executeJoin(signer darc.Signer, idx int) error {
 		execReq.OpReceipts = execReply.OutputReceipts
 		_, err = stCl.UpdateState(joinOut.WS, execReq, nil, commons.UPDATE_WAIT)
 		if err != nil {
-			log.Errorf("update state: %v", err)
 			pr, err := stCl.WaitProof(s.CID[:], lastRoot, s.BlockTime)
 			if err != nil {
 				log.Errorf("wait proof: %v", err)
@@ -419,16 +413,24 @@ func (s *SimulationService) executeFinalize() error {
 
 func (s *SimulationService) runRandLottery() error {
 	participants := commons.GenerateWriters(s.NumParticipants)
-	//schedule := commons.GenerateSchedule(s.Seed, s.NumParticipants, s.NumSlots)
-	schedule := s.generateSchedule()
+	//schedule := s.generateSchedule()
+	schedule := commons.GenerateSchedule(s.Seed, s.NumParticipants, s.NumParticipants*s.SlotFactor)
 	// Initialize DFUs
 	err := s.initDFUs()
 	if err != nil {
 		return err
 	}
-	s.stCl = libstate.NewClient(byzcoin.NewClient(s.byzID, *s.stRoster))
 
 	for round := 0; round < s.Rounds; round++ {
+		// Setting up the state unit in this loop otherwise we would build
+		// on a single blockchain, which means later rounds would have larger
+		// Byzcoin proofs
+		s.byzID, err = commons.SetupStateUnit(s.stRoster, s.BlockTime)
+		if err != nil {
+			log.Error(err)
+		}
+		s.stCl = libstate.NewClient(byzcoin.NewClient(s.byzID, *s.stRoster))
+
 		var wg sync.WaitGroup
 		var ongoing int64
 		ctr := 0
@@ -470,6 +472,7 @@ func (s *SimulationService) runRandLottery() error {
 		if err != nil {
 			return err
 		}
+		s.stCl.Close()
 	}
 	return nil
 }
@@ -477,13 +480,10 @@ func (s *SimulationService) runRandLottery() error {
 func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 	var err error
 	regRoster := onet.NewRoster(config.Roster.List[0:4])
-	//s.execRoster = onet.NewRoster(config.Roster.List[0:13])
-	//s.randRoster = onet.NewRoster(config.Roster.List[0:13])
-	//s.stRoster = config.Roster
-
 	s.stRoster = onet.NewRoster(config.Roster.List[4:23])
 	s.execRoster = onet.NewRoster(config.Roster.List[23:36])
 	s.randRoster = onet.NewRoster(config.Roster.List[36:])
+
 	s.stRoster.List[0] = config.Roster.List[0]
 	s.execRoster.List[0] = config.Roster.List[0]
 	s.randRoster.List[0] = config.Roster.List[0]

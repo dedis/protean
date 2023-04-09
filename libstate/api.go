@@ -186,7 +186,8 @@ func (c *Client) WaitProof(id []byte, currRoot []byte, interval int) (
 		}
 
 		// wait for the block to be processed
-		time.Sleep((time.Duration(interval) * time.Second) / 5)
+		//time.Sleep((time.Duration(interval) * time.Second) / 5)
+		time.Sleep((time.Duration(interval) * time.Second) / 3)
 	}
 	return nil, xerrors.New("timeout reached and proof not found")
 }

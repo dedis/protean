@@ -49,6 +49,7 @@ type Service struct {
 }
 
 func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
+	s.bc = nil
 	s.byzID = req.ByzID
 	s.roster = req.Roster
 	s.signer = req.Signer
