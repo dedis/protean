@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/sha256"
 	"github.com/BurntSushi/toml"
 	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/experiments/commons"
@@ -11,13 +12,21 @@ import (
 	"github.com/dedis/protean/libstate"
 	statebase "github.com/dedis/protean/libstate/base"
 	"github.com/dedis/protean/utils"
+	"go.dedis.ch/cothority/v3/blscosi"
+	blsproto "go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/kyber/v3"
+	"go.dedis.ch/kyber/v3/pairing"
+	"go.dedis.ch/kyber/v3/sign"
+	"go.dedis.ch/kyber/v3/sign/bls"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/onet/v3/simul/monitor"
+	"time"
 )
+
+var suite *pairing.SuiteBn256 = pairing.NewSuiteBn256()
 
 type SimulationService struct {
 	onet.SimulationBFTree
@@ -25,6 +34,7 @@ type SimulationService struct {
 	FSMFile      string
 	DFUFile      string
 	BlockTime    int
+	LocalSign    bool
 	NumOutput    int
 	Size         int
 
@@ -35,6 +45,7 @@ type SimulationService struct {
 	signerRoster *onet.Roster
 	stCl         *libstate.Client
 	execCl       *libexec.Client
+	receipts     map[string]*core.OpcodeReceipt
 
 	threshMap   map[string]int
 	rdata       *execbase.ByzData
@@ -122,6 +133,9 @@ func (s *SimulationService) initContract() error {
 		log.Error(err)
 		return err
 	}
+	if s.LocalSign {
+		time.Sleep(1 * time.Second)
+	}
 	return nil
 }
 
@@ -164,6 +178,133 @@ func (s *SimulationService) executeSign(config *onet.SimulationConfig) error {
 	return err
 }
 
+func (s *SimulationService) executeSignLocal() error {
+	execCl := libexec.NewClient(s.execRoster)
+	stCl := libstate.NewClient(byzcoin.NewClient(s.byzID, *s.stRoster))
+	defer execCl.Close()
+	defer stCl.Close()
+	// Get state
+	gcs, err := stCl.GetState(s.CID)
+	if err != nil {
+		log.Errorf("getting state: %v", err)
+		return err
+	}
+	cdata := &execbase.ByzData{IID: s.CID, Proof: gcs.Proof.Proof,
+		Genesis: s.contractGen}
+	itReply, err := execCl.InitTransaction(s.rdata, cdata, "signwf", "sign")
+	execReq := &core.ExecutionRequest{
+		Index: 0,
+		EP:    &itReply.Plan,
+	}
+	outputData := commons.PrepareData(s.NumOutput, s.Size)
+
+	pks := make([]kyber.Point, len(s.signerRoster.List))
+	sks := make([]kyber.Scalar, len(s.signerRoster.List))
+	for i, sid := range s.signerRoster.List {
+		pks[i] = sid.ServicePublic(blscosi.ServiceName)
+		sks[i] = sid.ServicePrivate(blscosi.ServiceName)
+	}
+
+	for round := 0; round < s.Rounds; round++ {
+		signMonitor := monitor.NewTimeMeasure("sign_local")
+		_, err := s.signData(sks[round], outputData, execReq, false)
+		if err != nil {
+			log.Error(err)
+			return err
+		}
+		signMonitor.Record()
+	}
+
+	s.receipts = make(map[string]*core.OpcodeReceipt)
+
+	sz := len(s.signerRoster.List)
+	threshold := sz - ((sz - 1) / 3)
+	allSigs := make([]map[string]blsproto.BlsSignature, threshold)
+	for i := 1; i < threshold; i++ {
+		sigs, err := s.signData(sks[i], outputData, execReq, false)
+		if err != nil {
+			log.Error(err)
+			return err
+		}
+		allSigs[i] = sigs
+	}
+
+	for round := 0; round < s.Rounds; round++ {
+		signMonitor := monitor.NewTimeMeasure("sign_local_root")
+		sigs, err := s.signData(sks[0], outputData, execReq, true)
+		if err != nil {
+			log.Error(err)
+			return err
+		}
+		allSigs[0] = sigs
+		mask, err := sign.NewMask(suite, s.signerRoster.ServicePublics(blscosi.
+			ServiceName), pks[0])
+		if err != nil {
+			log.Error(err)
+			return err
+		}
+		for i := 1; i < threshold; i++ {
+			mask.SetBit(i, true)
+		}
+		for name, receipt := range s.receipts {
+			aggSignature := suite.G1().Point()
+			for _, allSig := range allSigs {
+				sig, err := allSig[name].Point(suite)
+				if err != nil {
+					log.Error(err)
+					return err
+				}
+				aggSignature = aggSignature.Add(aggSignature, sig)
+			}
+			sig, err := aggSignature.MarshalBinary()
+			if err != nil {
+				log.Error(err)
+				return err
+			}
+			receipt.Sig = append(sig, mask.Mask()...)
+		}
+		signMonitor.Record()
+
+		for _, r := range s.receipts {
+			hash := r.Hash()
+			err := r.Sig.VerifyWithPolicy(suite, hash, s.signerRoster.ServicePublics(blscosi.
+				ServiceName), sign.NewThresholdPolicy(threshold))
+			if err != nil {
+				log.Error(err)
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func (s *SimulationService) signData(sk kyber.Scalar,
+	outputData map[string][]byte,
+	req *core.ExecutionRequest, isRoot bool) (map[string]blsproto.BlsSignature, error) {
+	sigs := make(map[string]blsproto.BlsSignature)
+	for varName, data := range outputData {
+		h := sha256.New()
+		h.Write(data)
+		dataHash := h.Sum(nil)
+		r := core.OpcodeReceipt{
+			EPID:      req.EP.Hash(),
+			OpIdx:     req.Index,
+			Name:      varName,
+			HashBytes: dataHash,
+		}
+		if isRoot {
+			s.receipts[varName] = &r
+		}
+		sig, err := bls.Sign(suite, sk, r.Hash())
+		if err != nil {
+			return nil, err
+		}
+		sigs[varName] = sig
+	}
+	return sigs, nil
+}
+
 func (s *SimulationService) runMicrobenchmark(config *onet.SimulationConfig) error {
 	err := s.initDFUs()
 	if err != nil {
@@ -175,7 +316,11 @@ func (s *SimulationService) runMicrobenchmark(config *onet.SimulationConfig) err
 	if err != nil {
 		return err
 	}
-	err = s.executeSign(config)
+	if s.LocalSign {
+		err = s.executeSignLocal()
+	} else {
+		err = s.executeSign(config)
+	}
 	return nil
 }
 
