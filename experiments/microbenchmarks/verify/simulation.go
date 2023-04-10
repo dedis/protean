@@ -151,63 +151,6 @@ func (s *SimulationService) initContract() error {
 	return nil
 }
 
-//func (s *SimulationService) executeVerifyOpc(config *onet.SimulationConfig) error {
-//	execCl := libexec.NewClient(s.execRoster)
-//	stCl := libstate.NewClient(byzcoin.NewClient(s.byzID, *s.stRoster))
-//	defer execCl.Close()
-//	defer stCl.Close()
-//
-//	// Get state
-//	gcs, err := stCl.GetState(s.CID)
-//	if err != nil {
-//		log.Errorf("getting state: %v", err)
-//		return err
-//	}
-//	cdata := &execbase.ByzData{IID: s.CID, Proof: gcs.Proof.Proof,
-//		Genesis: s.contractGen}
-//	itReply, err := execCl.InitTransaction(s.rdata, cdata, "verifywf", "verify")
-//	if err != nil {
-//		log.Error(err)
-//		return err
-//	}
-//	execReq := &core.ExecutionRequest{
-//		Index: 0,
-//		EP:    &itReply.Plan,
-//	}
-//
-//	// Get signer service
-//	outputData := commons.PrepareData(s.NumInputs, s.Size)
-//	signer := config.GetService(signsvc.ServiceName).(*signsvc.Signer)
-//	signReq := signsvc.SignRequest{
-//		Roster:     s.signerRoster,
-//		OutputData: outputData,
-//		ExecReq:    execReq,
-//	}
-//	signReply, err := signer.Sign(&signReq)
-//	if err != nil {
-//		log.Error(err)
-//	}
-//	execReq.Index = 1
-//	execReq.OpReceipts = signReply.Receipts
-//	// Get verifier service
-//	verifier := config.GetService(verifysvc.ServiceName).(*verifysvc.Verifier)
-//
-//	for round := 0; round < s.Rounds; round++ {
-//		vMonitor := monitor.NewTimeMeasure("verify_opc")
-//		verifyReq := verifysvc.VerifyRequest{
-//			Roster:    s.verifierRoster,
-//			InputData: outputData,
-//			ExecReq:   execReq,
-//		}
-//		_, err = verifier.Verify(&verifyReq)
-//		if err != nil {
-//			log.Error(err)
-//		}
-//		vMonitor.Record()
-//	}
-//	return err
-//}
-
 func (s *SimulationService) executeVerifyOpc(config *onet.SimulationConfig) error {
 	var err error
 	// Get verifier service
@@ -302,15 +245,6 @@ func (s *SimulationService) generateVerifyOPCData(config *onet.SimulationConfig)
 	for _, ns := range s.NumSizes {
 		for _, ni := range s.NumInputsOPC {
 			txnName := fmt.Sprintf("verify_%d", ni)
-			//itReply, err := execCl.InitTransaction(s.rdata, cdata, "verifywf", txnName)
-			//if err != nil {
-			//	log.Error(err)
-			//	return err
-			//}
-			//execReq := &core.ExecutionRequest{
-			//	Index: 0,
-			//	EP:    &itReply.Plan,
-			//}
 			execReq := reqMap[txnName]
 			outputData := commons.PrepareData(ni, ns)
 			signer := config.GetService(signsvc.ServiceName).(*signsvc.Signer)
@@ -323,8 +257,6 @@ func (s *SimulationService) generateVerifyOPCData(config *onet.SimulationConfig)
 			if err != nil {
 				log.Error(err)
 			}
-			//execReq.Index = 1
-			//execReq.OpReceipts = signReply.Receipts
 			s.outputData = append(s.outputData, outputData)
 			s.execReqs = append(s.execReqs, &core.ExecutionRequest{Index: 1,
 				EP: execReq.EP, OpReceipts: signReply.Receipts})

@@ -175,7 +175,9 @@ func (s *SimulationService) initContract() error {
 
 func (s *SimulationService) executeSetup() error {
 	inReceipts := make(map[int]map[string]*core.OpcodeReceipt)
-	setupMonitor := monitor.NewTimeMeasure("setup")
+	//setupMonitor := monitor.NewTimeMeasure("setup")
+	m1 := monitor.NewTimeMeasure("setup_inittxn")
+	// Get state
 	gcs, err := s.stCl.GetState(s.CID)
 	if err != nil {
 		return err
@@ -191,12 +193,16 @@ func (s *SimulationService) executeSetup() error {
 		Index: 0,
 		EP:    &itReply.Plan,
 	}
+	m1.Record()
+	m2 := monitor.NewTimeMeasure("setup_initdkg")
 	// Step 1: init_dkg
 	dkgReply, err := s.thCl.InitDKG(execReq)
 	if err != nil {
 		log.Error(err)
 		return err
 	}
+	m2.Record()
+	m3 := monitor.NewTimeMeasure("setup_exec")
 	// Step 2: exec
 	setupInput := evotingpc.SetupInput{Pk: dkgReply.Output.X}
 	data, err := protobuf.Encode(&setupInput)
@@ -218,6 +224,8 @@ func (s *SimulationService) executeSetup() error {
 		log.Error(err)
 		return err
 	}
+	m3.Record()
+	m4 := monitor.NewTimeMeasure("setup_update")
 	// Step 3: update_state
 	var setupOut evotingpc.SetupOutput
 	err = protobuf.Decode(execReply.Output.Data, &setupOut)
@@ -238,7 +246,8 @@ func (s *SimulationService) executeSetup() error {
 		log.Error(err)
 	}
 	s.X = dkgReply.Output.X
-	setupMonitor.Record()
+	m4.Record()
+	//setupMonitor.Record()
 	return err
 }
 
@@ -327,7 +336,8 @@ func (s *SimulationService) executeVote(ballot string, idx int) error {
 }
 
 func (s *SimulationService) executeLock() error {
-	lockMonitor := monitor.NewTimeMeasure("lock")
+	//lockMonitor := monitor.NewTimeMeasure("lock")
+	m1 := monitor.NewTimeMeasure("lock_inittxn")
 	// Get state
 	gcs, err := s.stCl.GetState(s.CID)
 	if err != nil {
@@ -343,6 +353,8 @@ func (s *SimulationService) executeLock() error {
 		log.Errorf("initializing txn: %v", err)
 		return err
 	}
+	m1.Record()
+	m2 := monitor.NewTimeMeasure("lock_exec")
 	// Step 1: exec
 	lockInput := evotingpc.LockInput{
 		Barrier: 0,
@@ -376,7 +388,8 @@ func (s *SimulationService) executeLock() error {
 		log.Errorf("executing lock: %v", err)
 		return err
 	}
-
+	m2.Record()
+	m3 := monitor.NewTimeMeasure("lock_update")
 	// Step 2: update_state
 	var lockOut evotingpc.LockOutput
 	err = protobuf.Decode(execReply.Output.Data, &lockOut)
@@ -397,13 +410,15 @@ func (s *SimulationService) executeLock() error {
 	if err != nil {
 		log.Errorf("wait proof: %v", err)
 	}
-	lockMonitor.Record()
+	m3.Record()
+	//lockMonitor.Record()
 	return err
 }
 
 func (s *SimulationService) executeShuffle() error {
 	inReceipts := make(map[int]map[string]*core.OpcodeReceipt)
-	shuffleMonitor := monitor.NewTimeMeasure("shuffle")
+	//shuffleMonitor := monitor.NewTimeMeasure("shuffle")
+	m1 := monitor.NewTimeMeasure("shuffle_inittxn")
 	// Get state
 	gcs, err := s.stCl.GetState(s.CID)
 	if err != nil {
@@ -419,7 +434,8 @@ func (s *SimulationService) executeShuffle() error {
 		log.Errorf("initializing txn: %v", err)
 		return err
 	}
-
+	m1.Record()
+	m2 := monitor.NewTimeMeasure("shuffle_exec_1")
 	// Step 1: exec
 	execReq := &core.ExecutionRequest{
 		Index: 0,
@@ -436,7 +452,8 @@ func (s *SimulationService) executeShuffle() error {
 		log.Errorf("executing prepare_shuffle_pc: %v", err)
 		return err
 	}
-
+	m2.Record()
+	m3 := monitor.NewTimeMeasure("shuffle_shuffle")
 	// Step 2: shuffle
 	var prepShOut evotingpc.PrepShufOutput
 	err = protobuf.Decode(execReply.Output.Data, &prepShOut)
@@ -451,7 +468,8 @@ func (s *SimulationService) executeShuffle() error {
 		log.Errorf("shuffle: %v", err)
 		return err
 	}
-
+	m3.Record()
+	m4 := monitor.NewTimeMeasure("shuffle_exec_2")
 	// Step 3: exec
 	prepPrInput := evotingpc.PrepProofsInput{ShProofs: shReply.Proofs}
 	data, err := protobuf.Encode(&prepPrInput)
@@ -472,7 +490,8 @@ func (s *SimulationService) executeShuffle() error {
 		log.Errorf("executing prepare_proofs_pc: %v", err)
 		return err
 	}
-
+	m4.Record()
+	m5 := monitor.NewTimeMeasure("shuffle_update")
 	// Step 4: update_state
 	var prepPrOut evotingpc.PrepProofsOutput
 	err = protobuf.Decode(execReply.Output.Data, &prepPrOut)
@@ -493,13 +512,15 @@ func (s *SimulationService) executeShuffle() error {
 	if err != nil {
 		log.Errorf("wait proof: %v", err)
 	}
-	shuffleMonitor.Record()
+	m5.Record()
+	//shuffleMonitor.Record()
 	return err
 }
 
 func (s *SimulationService) executeTally() error {
 	inReceipts := make(map[int]map[string]*core.OpcodeReceipt)
-	tallyMonitor := monitor.NewTimeMeasure("tally")
+	//tallyMonitor := monitor.NewTimeMeasure("tally")
+	m1 := monitor.NewTimeMeasure("tally_inittxn")
 	// Get state
 	gcs, err := s.stCl.GetState(s.CID)
 	if err != nil {
@@ -515,7 +536,8 @@ func (s *SimulationService) executeTally() error {
 		log.Errorf("initializing txn: %v", err)
 		return err
 	}
-
+	m1.Record()
+	m2 := monitor.NewTimeMeasure("tally_exec_1")
 	// Step 1: exec
 	execReq := &core.ExecutionRequest{
 		Index: 0,
@@ -532,7 +554,8 @@ func (s *SimulationService) executeTally() error {
 		log.Errorf("executing prepare_decrypt_vote_pc: %v", err)
 		return err
 	}
-
+	m2.Record()
+	m3 := monitor.NewTimeMeasure("tally_decrypt")
 	// Step 2: decrypt
 	var prepDecOut evotingpc.PrepDecOutput
 	err = protobuf.Decode(execReply.Output.Data, &prepDecOut)
@@ -547,7 +570,8 @@ func (s *SimulationService) executeTally() error {
 		log.Errorf("decrypting: %v", err)
 		return err
 	}
-
+	m3.Record()
+	m4 := monitor.NewTimeMeasure("tally_exec_2")
 	// Step 3: exec
 	tallyIn := evotingpc.TallyInput{
 		CandCount: s.NumCandidates,
@@ -571,7 +595,8 @@ func (s *SimulationService) executeTally() error {
 		log.Errorf("executing tally_pc: %v", err)
 		return err
 	}
-
+	m4.Record()
+	m5 := monitor.NewTimeMeasure("tally_update")
 	// Step 4: update_state
 	var tallyOut evotingpc.TallyOutput
 	err = protobuf.Decode(execReply.Output.Data, &tallyOut)
@@ -593,7 +618,8 @@ func (s *SimulationService) executeTally() error {
 	if err != nil {
 		log.Errorf("wait proof: %v", err)
 	}
-	tallyMonitor.Record()
+	m5.Record()
+	//tallyMonitor.Record()
 	return err
 }
 
