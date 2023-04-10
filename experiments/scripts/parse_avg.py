@@ -34,8 +34,8 @@ def parse_pandas(fpath, txn_type, stat_type):
 def main():
     if len(sys.argv) < 4:
         sys.exit("missing args: input_file txn_type stat_type")
-    # parse_file(sys.argv[1], sys.argv[2], sys.argv[3])
-    parse_pandas(sys.argv[1], sys.argv[2], sys.argv[3])
+    parse_file(sys.argv[1], sys.argv[2], sys.argv[3])
+    # parse_pandas(sys.argv[1], sys.argv[2], sys.argv[3])
 
 if __name__ == "__main__":
     main()

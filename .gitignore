@@ -1,6 +1,8 @@
 conode/conode
 .idea
 
+**/.DS_Store
+**/.ipynb_checkpoints/
 **/deploy/*
 **/build/*
 **/server_list
@@ -10,3 +12,5 @@ conode/conode
 **/sign/sign
 **/verify/verify
 **/test_data/*
+**/scripts/*pdf
+**/scripts/data/
