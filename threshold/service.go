@@ -25,7 +25,7 @@ var thresholdID onet.ServiceID
 var ServiceName = "ThresholdService"
 var storageKey = []byte("storage")
 
-const propagationTimeout = 5 * time.Minute
+const propagationTimeout = 10 * time.Minute
 
 type DKGID [32]byte
 

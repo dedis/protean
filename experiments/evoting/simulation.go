@@ -2,11 +2,11 @@ package main
 
 import (
 	"fmt"
+	statebase "github.com/dedis/protean/libstate/base"
+	"go.dedis.ch/cothority/v3/blscosi"
 	"sync"
 	"sync/atomic"
 	"time"
-
-	statebase "github.com/dedis/protean/libstate/base"
 
 	"github.com/BurntSushi/toml"
 	"github.com/dedis/protean/core"
@@ -21,7 +21,6 @@ import (
 	"github.com/dedis/protean/threshold"
 	thbase "github.com/dedis/protean/threshold/base"
 	"github.com/dedis/protean/utils"
-	"go.dedis.ch/cothority/v3/blscosi"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/kyber/v3"
@@ -36,11 +35,12 @@ type SimulationService struct {
 	ContractFile    string
 	FSMFile         string
 	DFUFile         string
+	ScheduleFile    string
 	BlockTime       int
 	NumCandidates   int
 	NumParticipants int
-	SlotFactor      int
-	Seed            int
+	//SlotFactor      int
+	//Seed            int
 
 	// internal structs
 	byzID        skipchain.SkipBlockID
@@ -625,10 +625,14 @@ func (s *SimulationService) executeTally() error {
 
 func (s *SimulationService) runEvoting() error {
 	ballots := commons.GenerateBallots(s.NumCandidates, s.NumParticipants)
-	//schedule := s.generateSchedule()
-	schedule := commons.GenerateSchedule(s.Seed, s.NumParticipants, s.NumParticipants*s.SlotFactor)
+	//schedule := commons.GenerateSchedule(s.Seed, s.NumParticipants, s.NumParticipants*s.SlotFactor)
+	schedule, err := commons.ReadSchedule(s.ScheduleFile, s.NumParticipants)
+	if err != nil {
+		log.Error(err)
+		return err
+	}
 	// Initialize DFUs
-	err := s.initDFUs()
+	err = s.initDFUs()
 	if err != nil {
 		return err
 	}
@@ -703,7 +707,7 @@ func (s *SimulationService) dummyRecords() {
 		label := fmt.Sprintf("p%d_vote", i)
 		for round := 0; round < s.Rounds; round++ {
 			dummy := monitor.NewTimeMeasure(label)
-			time.Sleep(10 * time.Microsecond)
+			time.Sleep(5 * time.Microsecond)
 			dummy.Record()
 		}
 	}

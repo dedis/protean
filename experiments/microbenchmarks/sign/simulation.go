@@ -3,6 +3,9 @@ package main
 import (
 	"crypto/sha256"
 	"fmt"
+	"strconv"
+	"strings"
+
 	"github.com/BurntSushi/toml"
 	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/experiments/commons"
@@ -24,8 +27,6 @@ import (
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/onet/v3/simul/monitor"
-	"strconv"
-	"strings"
 )
 
 var suite = pairing.NewSuiteBn256()
@@ -369,9 +370,7 @@ func (s *SimulationService) runMicrobenchmark(config *onet.SimulationConfig) err
 	s.stringSliceToIntSlice()
 	s.generateSignData()
 	if s.LocalSign {
-		//TODO: Pick one
 		err = s.executeSignLocalRoot()
-		err = s.executeSignLocal()
 	} else {
 		err = s.executeSign(config)
 	}

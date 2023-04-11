@@ -148,6 +148,7 @@ func (s *Service) UpdateState(req *UpdateStateRequest) (*UpdateStateReply, error
 	_, ok := s.storage.CurrState[root]
 	if ok {
 		s.storage.Unlock()
+		log.Error("another update state is in progress")
 		return nil, xerrors.New("another update state request is in progress")
 	}
 	s.storage.CurrState[root] = true

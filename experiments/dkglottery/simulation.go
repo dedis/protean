@@ -33,10 +33,11 @@ type SimulationService struct {
 	ContractFile    string
 	FSMFile         string
 	DFUFile         string
+	ScheduleFile    string
 	BlockTime       int
 	NumParticipants int
-	SlotFactor      int
-	Seed            int
+	//SlotFactor      int
+	//Seed            int
 
 	// internal structs
 	byzID        skipchain.SkipBlockID
@@ -505,11 +506,13 @@ func (s *SimulationService) executeFinalize() error {
 }
 
 func (s *SimulationService) runDKGLottery() error {
-	//schedule := s.generateSchedule()
-	schedule := commons.GenerateSchedule(s.Seed, s.NumParticipants,
-		s.NumParticipants*s.SlotFactor)
+	//schedule := commons.GenerateSchedule(s.Seed, s.NumParticipants, s.NumParticipants*s.SlotFactor)
+	schedule, err := commons.ReadSchedule(s.ScheduleFile, s.NumParticipants)
+	if err != nil {
+		return err
+	}
 	// Initialize DFUs
-	err := s.initDFUs()
+	err = s.initDFUs()
 	if err != nil {
 		return err
 	}
@@ -579,7 +582,7 @@ func (s *SimulationService) dummyRecords() {
 		label := fmt.Sprintf("p%d_join", i)
 		for round := 0; round < s.Rounds; round++ {
 			dummy := monitor.NewTimeMeasure(label)
-			time.Sleep(10 * time.Microsecond)
+			time.Sleep(5 * time.Microsecond)
 			dummy.Record()
 		}
 	}

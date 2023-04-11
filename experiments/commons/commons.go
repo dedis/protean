@@ -1,8 +1,11 @@
 package commons
 
 import (
+	"bufio"
 	"fmt"
 	"math/rand"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -107,6 +110,56 @@ func GenerateWriters(count int) []darc.Signer {
 		writers[i] = darc.NewSignerEd25519(nil, nil)
 	}
 	return writers
+}
+
+func ReadSchedule(fpath string, numTxns int) ([]int, error) {
+	readFile, err := os.Open(fpath)
+	if err != nil {
+		return nil, err
+	}
+	fileScanner := bufio.NewScanner(readFile)
+	fileScanner.Split(bufio.ScanLines)
+	var fileLines []string
+	for fileScanner.Scan() {
+		fileLines = append(fileLines, fileScanner.Text())
+	}
+	err = readFile.Close()
+	if err != nil {
+		return nil, err
+	}
+	// Create dictionary
+	baseMap := make(map[int][]int)
+	for _, line := range fileLines {
+		var values []int
+		tokens := strings.Split(line, " ")
+		key, err := strconv.Atoi(tokens[0])
+		if err != nil {
+			return nil, err
+		}
+		for i := 1; i < len(tokens); i++ {
+			v, err := strconv.Atoi(tokens[i])
+			if err != nil {
+				return nil, err
+			}
+			values = append(values, v)
+		}
+		baseMap[key] = values
+	}
+
+	if numTxns < 20 {
+		return baseMap[numTxns], nil
+	} else {
+		baseSchedule := baseMap[numTxns]
+		lenBs := len(baseSchedule)
+		factor := numTxns / 10
+		schedule := make([]int, factor*lenBs)
+		for i := 0; i < factor; i++ {
+			begin := lenBs * i
+			end := begin + lenBs
+			copy(schedule[begin:end], baseSchedule[:])
+		}
+		return schedule, nil
+	}
 }
 
 func GenerateSchedule(seed int, numTxns int, numSlots int) []int {
