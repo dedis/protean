@@ -575,10 +575,13 @@ func (s *SimulationService) runDKGLottery() error {
 }
 
 func (s *SimulationService) dummyRecords() {
-	for i := s.NumParticipants; i < 500; i++ {
+	for i := s.NumParticipants; i < 1000; i++ {
 		label := fmt.Sprintf("p%d_join", i)
-		dummy := monitor.NewTimeMeasure(label)
-		dummy.Record()
+		for round := 0; round < s.Rounds; round++ {
+			dummy := monitor.NewTimeMeasure(label)
+			time.Sleep(10 * time.Microsecond)
+			dummy.Record()
+		}
 	}
 }
 
@@ -603,6 +606,6 @@ func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 		log.Error(err)
 	}
 	err = s.runDKGLottery()
-	//s.dummyRecords()
+	s.dummyRecords()
 	return err
 }

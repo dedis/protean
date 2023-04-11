@@ -13,7 +13,7 @@ ContractFile = "../input/contract.json"
 FSMFile = "../input/fsm.json"
 DFUFile = "../input/units.json"
 
-NumParticipants, Seed
+NumParticipants,Seed
 1000,1325
 500,86
 200,3

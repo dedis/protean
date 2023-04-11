@@ -698,6 +698,17 @@ func (s *SimulationService) runEvoting() error {
 	return nil
 }
 
+func (s *SimulationService) dummyRecords() {
+	for i := s.NumParticipants; i < 1000; i++ {
+		label := fmt.Sprintf("p%d_vote", i)
+		for round := 0; round < s.Rounds; round++ {
+			dummy := monitor.NewTimeMeasure(label)
+			time.Sleep(10 * time.Microsecond)
+			dummy.Record()
+		}
+	}
+}
+
 func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 	var err error
 	regRoster := onet.NewRoster(config.Roster.List[0:4])
@@ -722,5 +733,6 @@ func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 		log.Error(err)
 	}
 	err = s.runEvoting()
+	s.dummyRecords()
 	return err
 }

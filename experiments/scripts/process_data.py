@@ -59,10 +59,17 @@ def process_opc(data_read, local):
         for blk_size, val in sorted(val_dict.items()):
             print("%d,%d,%.6f" % (input_num, blk_size, float(val)))
 
+def process_sign(data_read, local):
+    print("output_num,data_size,total")
+    for d in data_read:
+        size = int(d['size'])
+        if size > 4096:
+            print("%d,%d,%.6f" % (int(d['numoutput']), size, float(d['sign_wall_avg'])))
+
 def main():
     parser = argparse.ArgumentParser(description='Parsing csv files')
     parser.add_argument('fname', type=str)
-    parser.add_argument('exp_type', choices=['v_kv', 'v_opc'], type=str)
+    parser.add_argument('exp_type', choices=['v_kv', 'v_opc', 'sign'], type=str)
     parser.add_argument('-l', dest='local', action='store_true')
     args = parser.parse_args()
     data_read = read_data(args.fname)
@@ -70,6 +77,8 @@ def main():
         process_kv(data_read, args.local)
     elif "opc" in args.exp_type:
         process_opc(data_read, args.local)
+    elif "sign" in args.exp_type:
+        process_sign(data_read, args.local)
 
 if __name__ == '__main__':
     main()

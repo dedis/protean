@@ -14,7 +14,7 @@ FSMFile = "../input/fsm.json"
 DFUFile = "../input/units.json"
 NumCandidates = 10
 
-NumParticipants, Seed
+NumParticipants,Seed
 1000,1325
 500,86
 200,3

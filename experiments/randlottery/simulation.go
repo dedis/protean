@@ -264,7 +264,8 @@ func (s *SimulationService) executeJoin(signer darc.Signer, idx int) error {
 }
 
 func (s *SimulationService) executeClose() error {
-	closeMonitor := monitor.NewTimeMeasure("close")
+	//closeMonitor := monitor.NewTimeMeasure("close")
+	m1 := monitor.NewTimeMeasure("close_inittxn")
 	// Get state
 	gcs, err := s.stCl.GetState(s.CID)
 	if err != nil {
@@ -280,6 +281,8 @@ func (s *SimulationService) executeClose() error {
 		log.Errorf("initializing txn: %v", err)
 		return err
 	}
+	m1.Record()
+	m2 := monitor.NewTimeMeasure("close_exec")
 	// Step 1: exec
 	closeInput := randlottery.CloseInput{
 		Barrier: 0,
@@ -305,7 +308,8 @@ func (s *SimulationService) executeClose() error {
 		log.Errorf("executing close_randlot: %v", err)
 		return err
 	}
-
+	m2.Record()
+	m3 := monitor.NewTimeMeasure("close_update")
 	// Step 2: update_state
 	var closeOut randlottery.CloseOutput
 	err = protobuf.Decode(execReply.Output.Data, &closeOut)
@@ -326,13 +330,15 @@ func (s *SimulationService) executeClose() error {
 	if err != nil {
 		log.Errorf("wait proof: %v", err)
 	}
-	closeMonitor.Record()
+	m3.Record()
+	//closeMonitor.Record()
 	return err
 }
 
 func (s *SimulationService) executeFinalize() error {
 	inReceipts := make(map[int]map[string]*core.OpcodeReceipt)
-	finalizeMonitor := monitor.NewTimeMeasure("finalize")
+	//finalizeMonitor := monitor.NewTimeMeasure("finalize")
+	m1 := monitor.NewTimeMeasure("finalize_inittxn")
 	// Get state
 	gcs, err := s.stCl.GetState(s.CID)
 	if err != nil {
@@ -349,7 +355,9 @@ func (s *SimulationService) executeFinalize() error {
 		log.Errorf("initializing txn: %v", err)
 		return err
 	}
+	m1.Record()
 	round := uint64(2)
+	m2 := monitor.NewTimeMeasure("finalize_getrand")
 	// Step 1: randomness
 	execReq := &core.ExecutionRequest{
 		Index: 0,
@@ -360,7 +368,8 @@ func (s *SimulationService) executeFinalize() error {
 		log.Errorf("getting randomness: %v", err)
 		return err
 	}
-
+	m2.Record()
+	m3 := monitor.NewTimeMeasure("finalize_exec")
 	// Step 2: exec
 	finalizeInput := randlottery.FinalizeInput{
 		Round:      round,
@@ -385,7 +394,8 @@ func (s *SimulationService) executeFinalize() error {
 		log.Errorf("executing finalize_randlot: %v", err)
 		return err
 	}
-
+	m3.Record()
+	m4 := monitor.NewTimeMeasure("finalize_update")
 	// Step 3: update_state
 	var finalOut randlottery.FinalizeOutput
 	err = protobuf.Decode(execReply.Output.Data, &finalOut)
@@ -407,7 +417,8 @@ func (s *SimulationService) executeFinalize() error {
 	if err != nil {
 		log.Errorf("wait proof: %v", err)
 	}
-	finalizeMonitor.Record()
+	m4.Record()
+	//finalizeMonitor.Record()
 	return err
 }
 
@@ -477,6 +488,17 @@ func (s *SimulationService) runRandLottery() error {
 	return nil
 }
 
+func (s *SimulationService) dummyRecords() {
+	for i := s.NumParticipants; i < 1000; i++ {
+		label := fmt.Sprintf("p%d_join", i)
+		for round := 0; round < s.Rounds; round++ {
+			dummy := monitor.NewTimeMeasure(label)
+			time.Sleep(10 * time.Microsecond)
+			dummy.Record()
+		}
+	}
+}
+
 func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 	var err error
 	regRoster := onet.NewRoster(config.Roster.List[0:4])
@@ -498,5 +520,6 @@ func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 		log.Error(err)
 	}
 	err = s.runRandLottery()
+	s.dummyRecords()
 	return err
 }

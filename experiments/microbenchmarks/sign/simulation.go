@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/sha256"
+	"fmt"
 	"github.com/BurntSushi/toml"
 	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/experiments/commons"
@@ -23,10 +24,11 @@ import (
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/onet/v3/simul/monitor"
-	"time"
+	"strconv"
+	"strings"
 )
 
-var suite *pairing.SuiteBn256 = pairing.NewSuiteBn256()
+var suite = pairing.NewSuiteBn256()
 
 type SimulationService struct {
 	onet.SimulationBFTree
@@ -35,8 +37,10 @@ type SimulationService struct {
 	DFUFile      string
 	BlockTime    int
 	LocalSign    bool
-	NumOutput    int
-	Size         int
+	NumOutputStr string
+	NumSizesStr  string
+	NumOutputs   []int
+	NumSizes     []int
 
 	// internal structs
 	byzID        skipchain.SkipBlockID
@@ -46,6 +50,7 @@ type SimulationService struct {
 	stCl         *libstate.Client
 	execCl       *libexec.Client
 	receipts     map[string]*core.OpcodeReceipt
+	outputData   []map[string][]byte
 
 	threshMap   map[string]int
 	rdata       *execbase.ByzData
@@ -133,9 +138,7 @@ func (s *SimulationService) initContract() error {
 		log.Error(err)
 		return err
 	}
-	if s.LocalSign {
-		time.Sleep(1 * time.Second)
-	}
+	//time.Sleep(time.Duration(s.BlockTime/2) * time.Second)
 	return nil
 }
 
@@ -157,25 +160,114 @@ func (s *SimulationService) executeSign(config *onet.SimulationConfig) error {
 		Index: 0,
 		EP:    &itReply.Plan,
 	}
-
-	// Get signer service
-	outputData := commons.PrepareData(s.NumOutput, s.Size)
 	signer := config.GetService(service.ServiceName).(*service.Signer)
 
-	for round := 0; round < s.Rounds; round++ {
-		signMonitor := monitor.NewTimeMeasure("sign")
-		req := service.SignRequest{
-			Roster:     s.signerRoster,
-			OutputData: outputData,
-			ExecReq:    execReq,
+	idx := 0
+	for _, ns := range s.NumSizes {
+		for _, no := range s.NumOutputs {
+			log.Info("starting:", no, ns)
+			for round := 0; round < s.Rounds; round++ {
+				signMonitor := monitor.NewTimeMeasure(fmt.Sprintf("sign_%d_%d", no, ns))
+				req := service.SignRequest{
+					Roster:     s.signerRoster,
+					OutputData: s.outputData[idx],
+					ExecReq:    execReq,
+				}
+				_, err = signer.Sign(&req)
+				if err != nil {
+					log.Error(err)
+				}
+				signMonitor.Record()
+			}
+			idx++
 		}
-		_, err = signer.Sign(&req)
-		if err != nil {
-			log.Error(err)
-		}
-		signMonitor.Record()
 	}
 	return err
+}
+
+func (s *SimulationService) executeSignLocalRoot() error {
+	execCl := libexec.NewClient(s.execRoster)
+	stCl := libstate.NewClient(byzcoin.NewClient(s.byzID, *s.stRoster))
+	defer execCl.Close()
+	defer stCl.Close()
+	// Get state
+	gcs, err := stCl.GetState(s.CID)
+	if err != nil {
+		log.Errorf("getting state: %v", err)
+		return err
+	}
+	cdata := &execbase.ByzData{IID: s.CID, Proof: gcs.Proof.Proof,
+		Genesis: s.contractGen}
+	itReply, err := execCl.InitTransaction(s.rdata, cdata, "signwf", "sign")
+	execReq := &core.ExecutionRequest{
+		Index: 0,
+		EP:    &itReply.Plan,
+	}
+	pks := make([]kyber.Point, len(s.signerRoster.List))
+	sks := make([]kyber.Scalar, len(s.signerRoster.List))
+	for i, sid := range s.signerRoster.List {
+		pks[i] = sid.ServicePublic(blscosi.ServiceName)
+		sks[i] = sid.ServicePrivate(blscosi.ServiceName)
+	}
+
+	sz := len(s.signerRoster.List)
+	threshold := sz - ((sz - 1) / 3)
+	idx := 0
+	for _, ns := range s.NumSizes {
+		for _, no := range s.NumOutputs {
+			allSigs := make([]map[string]blsproto.BlsSignature, threshold)
+			outputData := s.outputData[idx]
+			for i := 1; i < threshold; i++ {
+				sigs, err := s.signData(sks[i], outputData, execReq, false)
+				if err != nil {
+					log.Error(err)
+					return err
+				}
+				allSigs[i] = sigs
+			}
+			for round := 0; round < s.Rounds; round++ {
+				s.receipts = make(map[string]*core.OpcodeReceipt)
+				signMonitor := monitor.NewTimeMeasure(fmt.Sprintf("sign_local_root_%d_%d", no, ns))
+				sigs, err := s.signData(sks[0], outputData, execReq, true)
+				if err != nil {
+					log.Error(err)
+					return err
+				}
+				allSigs[0] = sigs
+				mask, err := sign.NewMask(suite, s.signerRoster.ServicePublics(blscosi.
+					ServiceName), pks[0])
+				if err != nil {
+					log.Error(err)
+					return err
+				}
+				for i := 1; i < threshold; i++ {
+					mask.SetBit(i, true)
+				}
+				for name, receipt := range s.receipts {
+					aggSignature := suite.G1().Point()
+					counter := 0
+					for _, allSig := range allSigs {
+						sig, err := allSig[name].Point(suite)
+						if err != nil {
+							log.Error(err)
+							return err
+						}
+						aggSignature = aggSignature.Add(aggSignature, sig)
+						counter++
+					}
+					sig, err := aggSignature.MarshalBinary()
+					if err != nil {
+						log.Error(err)
+						return err
+					}
+					receipt.Sig = append(sig, mask.Mask()...)
+				}
+				signMonitor.Record()
+			}
+			idx++
+		}
+	}
+	return nil
 }
 
 func (s *SimulationService) executeSignLocal() error {
@@ -196,86 +288,23 @@ func (s *SimulationService) executeSignLocal() error {
 		Index: 0,
 		EP:    &itReply.Plan,
 	}
-	outputData := commons.PrepareData(s.NumOutput, s.Size)
 
-	pks := make([]kyber.Point, len(s.signerRoster.List))
-	sks := make([]kyber.Scalar, len(s.signerRoster.List))
-	for i, sid := range s.signerRoster.List {
-		pks[i] = sid.ServicePublic(blscosi.ServiceName)
-		sks[i] = sid.ServicePrivate(blscosi.ServiceName)
-	}
-
-	for round := 0; round < s.Rounds; round++ {
-		signMonitor := monitor.NewTimeMeasure("sign_local")
-		_, err := s.signData(sks[round], outputData, execReq, false)
-		if err != nil {
-			log.Error(err)
-			return err
-		}
-		signMonitor.Record()
-	}
-
-	s.receipts = make(map[string]*core.OpcodeReceipt)
-
-	sz := len(s.signerRoster.List)
-	threshold := sz - ((sz - 1) / 3)
-	allSigs := make([]map[string]blsproto.BlsSignature, threshold)
-	for i := 1; i < threshold; i++ {
-		sigs, err := s.signData(sks[i], outputData, execReq, false)
-		if err != nil {
-			log.Error(err)
-			return err
-		}
-		allSigs[i] = sigs
-	}
-
-	for round := 0; round < s.Rounds; round++ {
-		signMonitor := monitor.NewTimeMeasure("sign_local_root")
-		sigs, err := s.signData(sks[0], outputData, execReq, true)
-		if err != nil {
-			log.Error(err)
-			return err
-		}
-		allSigs[0] = sigs
-		mask, err := sign.NewMask(suite, s.signerRoster.ServicePublics(blscosi.
-			ServiceName), pks[0])
-		if err != nil {
-			log.Error(err)
-			return err
-		}
-		for i := 1; i < threshold; i++ {
-			mask.SetBit(i, true)
-		}
-		for name, receipt := range s.receipts {
-			aggSignature := suite.G1().Point()
-			for _, allSig := range allSigs {
-				sig, err := allSig[name].Point(suite)
+	sk := s.signerRoster.List[0].ServicePrivate(blscosi.ServiceName)
+	idx := 0
+	for _, ns := range s.NumSizes {
+		for _, no := range s.NumOutputs {
+			for round := 0; round < s.Rounds; round++ {
+				signMonitor := monitor.NewTimeMeasure(fmt.Sprintf("sign_local_%d_%d", no, ns))
+				_, err := s.signData(sk, s.outputData[idx], execReq, false)
 				if err != nil {
 					log.Error(err)
 					return err
 				}
-				aggSignature = aggSignature.Add(aggSignature, sig)
+				signMonitor.Record()
 			}
-			sig, err := aggSignature.MarshalBinary()
-			if err != nil {
-				log.Error(err)
-				return err
-			}
-			receipt.Sig = append(sig, mask.Mask()...)
-		}
-		signMonitor.Record()
-
-		for _, r := range s.receipts {
-			hash := r.Hash()
-			err := r.Sig.VerifyWithPolicy(suite, hash, s.signerRoster.ServicePublics(blscosi.
-				ServiceName), sign.NewThresholdPolicy(threshold))
-			if err != nil {
-				log.Error(err)
-				return err
-			}
+			idx++
 		}
 	}
-
 	return nil
 }
 
@@ -305,6 +334,27 @@ func (s *SimulationService) signData(sk kyber.Scalar,
 	return sigs, nil
 }
 
+func (s *SimulationService) generateSignData() {
+	for _, ns := range s.NumSizes {
+		for _, no := range s.NumOutputs {
+			s.outputData = append(s.outputData, commons.PrepareData(no, ns))
+		}
+	}
+}
+
+func (s *SimulationService) stringSliceToIntSlice() {
+	numOutputsSlice := strings.Split(s.NumOutputStr, ";")
+	for _, n := range numOutputsSlice {
+		numOutput, _ := strconv.Atoi(n)
+		s.NumOutputs = append(s.NumOutputs, numOutput)
+	}
+	numSizesSlice := strings.Split(s.NumSizesStr, ";")
+	for _, n := range numSizesSlice {
+		numSizes, _ := strconv.Atoi(n)
+		s.NumSizes = append(s.NumSizes, numSizes)
+	}
+}
+
 func (s *SimulationService) runMicrobenchmark(config *onet.SimulationConfig) error {
 	err := s.initDFUs()
 	if err != nil {
@@ -316,7 +366,11 @@ func (s *SimulationService) runMicrobenchmark(config *onet.SimulationConfig) err
 	if err != nil {
 		return err
 	}
+	s.stringSliceToIntSlice()
+	s.generateSignData()
 	if s.LocalSign {
+		//TODO: Pick one
+		err = s.executeSignLocalRoot()
 		err = s.executeSignLocal()
 	} else {
 		err = s.executeSign(config)
