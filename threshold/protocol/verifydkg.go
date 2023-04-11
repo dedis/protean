@@ -91,7 +91,7 @@ func (v *VerifyDKG) Start() error {
 		log.Lvl1("verifydkg protocol timeout")
 		v.finish(false)
 	})
-	errs := v.Broadcast(vr)
+	errs := v.SendToChildrenInParallel(vr)
 	if len(errs) > (len(v.Roster().List) - v.Threshold) {
 		log.Errorf("some nodes failed with error(s) %v", errs)
 		return xerrors.New("too many nodes failed in broadcast")

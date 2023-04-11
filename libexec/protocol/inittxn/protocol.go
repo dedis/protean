@@ -93,7 +93,7 @@ func (p *InitTxn) Start() error {
 		Input: p.Input,
 		Data:  planHash,
 	}
-	errs := p.Broadcast(req)
+	errs := p.SendToChildrenInParallel(req)
 	if len(errs) > (len(p.Roster().List) - p.Threshold) {
 		log.Errorf("some nodes failed with error(s) %v", errs)
 		return xerrors.New("too many nodes failed in broadcast")

@@ -82,7 +82,7 @@ func (v *Verify) Start() error {
 		log.Lvl1("Verify protocol timeout")
 		v.finish(false)
 	})
-	errs := v.Broadcast(&VerifyRequest{InputData: v.InputData,
+	errs := v.SendToChildrenInParallel(&VerifyRequest{InputData: v.InputData,
 		StateProofs: v.StateProofs, ExecReq: v.ExecReq})
 	if len(errs) > (len(v.Roster().List) - v.Threshold) {
 		log.Errorf("some nodes failed with error(s) %v", errs)

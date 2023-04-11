@@ -106,7 +106,7 @@ func (d *ThreshDecrypt) Start() error {
 		log.Lvl1("ThreshDecrypt protocol timeout")
 		d.finish(false)
 	})
-	errs := d.Broadcast(&DecryptShare{
+	errs := d.SendToChildrenInParallel(&DecryptShare{
 		DecryptInput: d.DecInput,
 		ExecReq:      d.ExecReq,
 	})
@@ -225,7 +225,7 @@ func (d *ThreshDecrypt) decryptShareResponse(r structDecryptShareResponse) error
 		}
 		// add root's reconstruct response to the array
 		d.reconstructResponses = append(d.reconstructResponses, resp)
-		errs := d.Broadcast(&Reconstruct{
+		errs := d.SendToChildrenInParallel(&Reconstruct{
 			Partials: d.partials,
 			Publics:  d.pubShares,
 		})

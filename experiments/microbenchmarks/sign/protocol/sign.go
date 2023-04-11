@@ -88,7 +88,7 @@ func (s *Sign) Start() error {
 		log.Lvl1("Sign protocol timeout")
 		s.finish(false)
 	})
-	errs := s.Broadcast(&SignRequest{OutputData: s.OutputData, ExecReq: s.ExecReq})
+	errs := s.SendToChildrenInParallel(&SignRequest{OutputData: s.OutputData, ExecReq: s.ExecReq})
 	if len(errs) > (len(s.Roster().List) - s.Threshold) {
 		log.Errorf("some nodes failed with error(s) %s", errs)
 		return xerrors.New("too many nodes failed in broadcast")

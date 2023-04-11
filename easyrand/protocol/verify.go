@@ -97,7 +97,7 @@ func (rv *RandomnessVerify) Start() error {
 		log.Lvl1("RandomnessVerify protocol timeout")
 		rv.finish(false)
 	})
-	errs := rv.Broadcast(&VerifyRand{Input: rv.Input, ExecReq: rv.ExecReq})
+	errs := rv.SendToChildrenInParallel(&VerifyRand{Input: rv.Input, ExecReq: rv.ExecReq})
 	if len(errs) > (len(rv.Roster().List) - rv.Threshold) {
 		log.Errorf("some nodes failed with error(s) %v", errs)
 		return xerrors.New("too many nodes failed in broadcast")

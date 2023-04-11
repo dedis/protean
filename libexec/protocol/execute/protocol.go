@@ -111,7 +111,7 @@ func (p *Execute) Start() error {
 		log.Lvl1("execute protocol timeout")
 		p.finish(false)
 	})
-	errs := p.Broadcast(&Request{Input: p.Input, ExecReq: p.ExecReq})
+	errs := p.SendToChildrenInParallel(&Request{Input: p.Input, ExecReq: p.ExecReq})
 	if len(errs) > (len(p.Roster().List) - p.Threshold) {
 		log.Errorf("some nodes failed with error(s) %v", errs)
 		return xerrors.New("too many nodes failed in broadcast")

@@ -105,7 +105,7 @@ func (s *ShuffleVerify) Start() error {
 		log.Lvl1("ShuffleVerify protocol timeout")
 		s.finish(false)
 	})
-	errs := s.Broadcast(vp)
+	errs := s.SendToChildrenInParallel(vp)
 	if len(errs) > (len(s.Roster().List) - s.Threshold) {
 		log.Errorf("some nodes failed with error(s) %v", errs)
 		return xerrors.New("too many nodes failed in broadcast")
