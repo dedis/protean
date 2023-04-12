@@ -63,6 +63,28 @@ func Vote(genInput *base.GenericInput) (*base.GenericOutput, error) {
 	return &base.GenericOutput{O: VoteOutput{WS: args}}, nil
 }
 
+func BatchVote(genInput *base.GenericInput) (*base.GenericOutput, error) {
+	input, ok := genInput.I.(BatchVoteInput)
+	if !ok {
+		return nil, xerrors.New("missing input")
+	}
+	kvDict, ok := genInput.KVInput["readset"]
+	if !ok {
+		return nil, xerrors.New("missing keyvalue data")
+	}
+	ballots, err := getBallots(&kvDict)
+	if err != nil {
+		return nil, err
+	}
+	ballots.Data.Pairs = append(ballots.Data.Pairs, input.Ballots.Data.Pairs...)
+	buf, err := protobuf.Encode(ballots)
+	if err != nil {
+		return nil, xerrors.Errorf("couldn't encode ballots: %v", err)
+	}
+	args := byzcoin.Arguments{{Name: "enc_ballots", Value: buf}}
+	return &base.GenericOutput{O: VoteOutput{WS: args}}, nil
+}
+
 func Lock(genInput *base.GenericInput) (*base.GenericOutput, error) {
 	input, ok := genInput.I.(LockInput)
 	if !ok {

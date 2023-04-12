@@ -37,6 +37,17 @@ func DemuxRequest(input *base.ExecuteInput, vdata *core.VerificationData) (
 		inputHashes["fnname"] = utils.HashString(input.FnName)
 		vdata.InputHashes = inputHashes
 		return Vote, &base.GenericInput{I: voteIn}, vdata, nil, nil
+	case "batch_vote_pc":
+		var batchVoteIn BatchVoteInput
+		err := protobuf.Decode(input.Data, &batchVoteIn)
+		if err != nil {
+			return nil, nil, nil, nil, err
+		}
+		vdata.StateProofs = input.StateProofs
+		inputHashes := make(map[string][]byte)
+		inputHashes["fnname"] = utils.HashString(input.FnName)
+		vdata.InputHashes = inputHashes
+		return BatchVote, &base.GenericInput{I: batchVoteIn}, vdata, nil, nil
 	case "lock":
 		var lockIn LockInput
 		err := protobuf.Decode(input.Data, &lockIn)
@@ -112,6 +123,20 @@ func MuxRequest(fnName string, genericOut *base.GenericOutput) (*base.ExecuteOut
 		outputHashes["writeset"] = wsHash
 		return output, outputHashes, nil
 	case "vote_pc":
+		voteOut, ok := genericOut.O.(VoteOutput)
+		if !ok {
+			return nil, nil, xerrors.New("missing output")
+		}
+		data, err := protobuf.Encode(&voteOut)
+		if err != nil {
+			return nil, nil, err
+		}
+		output := &base.ExecuteOutput{Data: data}
+		wsHash := libstate.Hash(voteOut.WS)
+		outputHashes := make(map[string][]byte)
+		outputHashes["writeset"] = wsHash
+		return output, outputHashes, nil
+	case "batch_vote_pc":
 		voteOut, ok := genericOut.O.(VoteOutput)
 		if !ok {
 			return nil, nil, xerrors.New("missing output")

@@ -15,7 +15,7 @@ import (
 )
 
 func SetupRegistry(dfuFile *string, regRoster *onet.Roster,
-	dfuRoster *onet.Roster) (*registry.Client, byzcoin.InstanceID,
+	rosters map[string]*onet.Roster) (*registry.Client, byzcoin.InstanceID,
 	*byzcoin.Proof, error) {
 	var id byzcoin.InstanceID
 	dfuReg, err := libclient.ReadDFUJSON(dfuFile)
@@ -24,11 +24,11 @@ func SetupRegistry(dfuFile *string, regRoster *onet.Roster,
 	}
 	for k := range dfuReg.Units {
 		if k == "easyneff" || k == "threshold" || k == "easyrand" {
-			dfuReg.Units[k].Keys = dfuRoster.ServicePublics(blscosi.ServiceName)
+			dfuReg.Units[k].Keys = rosters[k].ServicePublics(blscosi.ServiceName)
 		} else if k == "codeexec" {
-			dfuReg.Units[k].Keys = dfuRoster.ServicePublics(libexec.ServiceName)
+			dfuReg.Units[k].Keys = rosters[k].ServicePublics(libexec.ServiceName)
 		} else if k == "state" {
-			dfuReg.Units[k].Keys = dfuRoster.ServicePublics(skipchain.ServiceName)
+			dfuReg.Units[k].Keys = rosters[k].ServicePublics(skipchain.ServiceName)
 		} else {
 			os.Exit(1)
 		}

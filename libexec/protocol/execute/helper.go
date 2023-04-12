@@ -21,8 +21,9 @@ func demuxRequest(input *base.ExecuteInput) (base.ExecutionFn,
 	case "setup_vote", "vote", "close_vote", "prepare_shuffle",
 		"prepare_proofs", "prepare_decrypt_vote", "tally":
 		return evoting.DemuxRequest(input, vdata)
-	case "setup_vote_pc", "vote_pc", "lock", "prepare_shuffle_pc",
-		"prepare_proofs_pc", "prepare_decrypt_vote_pc", "tally_pc":
+	case "setup_vote_pc", "vote_pc", "batch_vote_pc", "lock",
+		"prepare_shuffle_pc", "prepare_proofs_pc", "prepare_decrypt_vote_pc",
+		"tally_pc":
 		return evotingpc.DemuxRequest(input, vdata)
 	default:
 	}
@@ -39,8 +40,9 @@ func muxRequest(fnName string, genericOut *base.GenericOutput) (*base.ExecuteOut
 	case "setup_vote", "vote", "close_vote", "prepare_shuffle",
 		"prepare_proofs", "prepare_decrypt_vote", "tally":
 		return evoting.MuxRequest(fnName, genericOut)
-	case "setup_vote_pc", "vote_pc", "lock", "prepare_shuffle_pc",
-		"prepare_proofs_pc", "prepare_decrypt_vote_pc", "tally_pc":
+	case "setup_vote_pc", "vote_pc", "batch_vote_pc", "lock",
+		"prepare_shuffle_pc", "prepare_proofs_pc", "prepare_decrypt_vote_pc",
+		"tally_pc":
 		return evotingpc.MuxRequest(fnName, genericOut)
 	default:
 	}

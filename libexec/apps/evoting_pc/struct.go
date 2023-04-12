@@ -24,8 +24,16 @@ type Ballot struct {
 	Data protean.ElGamalPair
 }
 
+type BatchBallot struct {
+	Data protean.ElGamalPairs
+}
+
 type VoteInput struct {
 	Ballot Ballot
+}
+
+type BatchVoteInput struct {
+	Ballots BatchBallot
 }
 
 type VoteOutput struct {

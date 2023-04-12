@@ -51,26 +51,48 @@ func TestMain(m *testing.M) {
 func Test_VotingPC(t *testing.T) {
 	log.SetDebugVisible(1)
 	l := onet.NewTCPTest(cothority.Suite)
-	_, all, _ := l.GenTree(14, true)
+	//_, all, _ := l.GenTree(14, true)
+	//defer l.CloseAll()
+	//regRoster := onet.NewRoster(all.List[0:4])
+	//dfuRoster := onet.NewRoster(all.List[4:])
+	_, all, _ := l.GenTree(19, true)
 	defer l.CloseAll()
 	regRoster := onet.NewRoster(all.List[0:4])
-	dfuRoster := onet.NewRoster(all.List[4:])
+	byzRoster := onet.NewRoster(all.List[:])
+	smallRoster := onet.NewRoster(all.List[:13])
 
-	regCl, rid, regPr, err := libtest.SetupRegistry(&dfuFile, regRoster, dfuRoster)
+	rosters := make(map[string]*onet.Roster)
+	rosters["state"] = byzRoster
+	rosters["threshold"] = byzRoster
+	rosters["easyrand"] = byzRoster
+	rosters["codeexec"] = smallRoster
+	rosters["easyneff"] = smallRoster
+
+	//regCl, rid, regPr, err := libtest.SetupRegistry(&dfuFile, regRoster, dfuRoster)
+	regCl, rid, regPr, err := libtest.SetupRegistry(&dfuFile, regRoster, rosters)
 	require.NoError(t, err)
 	regGenesis, err := regCl.FetchGenesisBlock(regPr.Latest.SkipChainID())
 	require.NoError(t, err)
 
 	// Initialize DFUs
-	adminCl, _, err := libtest.SetupStateUnit(dfuRoster, 5)
+	//adminCl, _, err := libtest.SetupStateUnit(dfuRoster, 5)
+	//require.NoError(t, err)
+	//execCl := libexec.NewClient(dfuRoster)
+	//_, err = execCl.InitUnit()
+	//require.NoError(t, err)
+	//neffCl := easyneff.NewClient(dfuRoster)
+	//neffCl.InitUnit()
+	//thCl := threshold.NewClient(dfuRoster)
+	//thCl.InitUnit()
+	adminCl, _, err := libtest.SetupStateUnit(byzRoster, 5)
 	require.NoError(t, err)
-	execCl := libexec.NewClient(dfuRoster)
-	_, err = execCl.InitUnit()
+	execCl := libexec.NewClient(smallRoster)
+	_, err = execCl.InitUnit(7)
 	require.NoError(t, err)
-	neffCl := easyneff.NewClient(dfuRoster)
-	neffCl.InitUnit()
-	thCl := threshold.NewClient(dfuRoster)
-	thCl.InitUnit()
+	neffCl := easyneff.NewClient(smallRoster)
+	neffCl.InitUnit(7)
+	thCl := threshold.NewClient(byzRoster)
+	thCl.InitUnit(13)
 
 	// Client-side operations: read JSON files
 	contract, err := libclient.ReadContractJSON(&contractFile)
@@ -150,7 +172,7 @@ func Test_VotingPC(t *testing.T) {
 
 	execReq.Index = 2
 	execReq.OpReceipts = execReply.OutputReceipts
-	_, err = adminCl.Cl.UpdateState(setupOut.WS, execReq, 5)
+	_, err = adminCl.Cl.UpdateState(setupOut.WS, execReq, nil, 5)
 	require.NoError(t, err)
 
 	_, err = adminCl.Cl.WaitProof(execReq.EP.CID, execReq.EP.StateRoot, 5)
@@ -164,16 +186,20 @@ func Test_VotingPC(t *testing.T) {
 		cid:     cid,
 		X:       dkgReply.Output.X,
 	}
-	executeVote(t, &d, "00100")
-	executeVote(t, &d, "01000")
-	executeVote(t, &d, "00001")
-	executeVote(t, &d, "00001")
-	executeVote(t, &d, "00100")
-	executeVote(t, &d, "10000")
-	executeVote(t, &d, "10000")
-	executeVote(t, &d, "01000")
-	executeVote(t, &d, "00100")
-	executeVote(t, &d, "00010")
+
+	for i := 0; i < 100; i++ {
+		executeVote(t, &d, "0010000000")
+	}
+	//executeVote(t, &d, "00100")
+	//executeVote(t, &d, "01000")
+	//executeVote(t, &d, "00001")
+	//executeVote(t, &d, "00001")
+	//executeVote(t, &d, "00100")
+	//executeVote(t, &d, "10000")
+	//executeVote(t, &d, "10000")
+	//executeVote(t, &d, "01000")
+	//executeVote(t, &d, "00100")
+	//executeVote(t, &d, "00010")
 
 	// execute lock txn
 	gcs, err = adminCl.Cl.GetState(cid)
@@ -216,7 +242,7 @@ func Test_VotingPC(t *testing.T) {
 
 	execReq.Index = 1
 	execReq.OpReceipts = execReply.OutputReceipts
-	_, err = adminCl.Cl.UpdateState(lockOut.WS, execReq, 5)
+	_, err = adminCl.Cl.UpdateState(lockOut.WS, execReq, nil, 5)
 	require.NoError(t, err)
 
 	pr, err := adminCl.Cl.WaitProof(execReq.EP.CID, execReq.EP.StateRoot, 5)
@@ -266,6 +292,7 @@ func Test_VotingPC(t *testing.T) {
 		Data:        data,
 		StateProofs: sp,
 	}
+	log.Info("Size of shuffle proofs:", len(data))
 	execReq.Index = 2
 	execReq.OpReceipts = shReply.OutputReceipts
 	execReply, err = execCl.Execute(execInput, execReq)
@@ -278,7 +305,7 @@ func Test_VotingPC(t *testing.T) {
 
 	execReq.Index = 3
 	execReq.OpReceipts = execReply.OutputReceipts
-	_, err = adminCl.Cl.UpdateState(prepPrOut.WS, execReq, 5)
+	_, err = adminCl.Cl.UpdateState(prepPrOut.WS, execReq, nil, 5)
 
 	pr, err = adminCl.Cl.WaitProof(execReq.EP.CID, execReq.EP.StateRoot, 5)
 	require.NoError(t, err)
@@ -312,6 +339,8 @@ func Test_VotingPC(t *testing.T) {
 	var prepDecOut evotingpc.PrepDecOutput
 	err = protobuf.Decode(execReply.Output.Data, &prepDecOut)
 	require.NoError(t, err)
+	log.Info("Input to decrypt size:", len(execReply.Output.Data),
+		len(prepDecOut.Input.Pairs), prepDecOut.Input.Pairs[0].C.MarshalSize(), prepDecOut.Input.Pairs[0].K.MarshalSize())
 
 	execReq.Index = 1
 	execReq.OpReceipts = execReply.OutputReceipts
@@ -320,7 +349,7 @@ func Test_VotingPC(t *testing.T) {
 
 	// Step 3: exec
 	tallyIn := evotingpc.TallyInput{
-		CandCount: 5,
+		CandCount: 10,
 		Ps:        decReply.Output.Ps,
 	}
 	data, err = protobuf.Encode(&tallyIn)
@@ -334,15 +363,18 @@ func Test_VotingPC(t *testing.T) {
 	execReq.OpReceipts = decReply.OutputReceipts
 	execReply, err = execCl.Execute(execInput, execReq)
 	require.NoError(t, err)
+	log.Info("decrypt output size:", len(data), len(tallyIn.Ps), tallyIn.Ps[0].MarshalSize())
 
 	// Step 4: update_state
 	var tallyOut evotingpc.TallyOutput
 	err = protobuf.Decode(execReply.Output.Data, &tallyOut)
 	require.NoError(t, err)
 
+	log.Info("Final size:", len(execReply.Output.Data))
+
 	execReq.Index = 3
 	execReq.OpReceipts = execReply.OutputReceipts
-	_, err = adminCl.Cl.UpdateState(tallyOut.WS, execReq, 5)
+	_, err = adminCl.Cl.UpdateState(tallyOut.WS, execReq, nil, 5)
 	require.NoError(t, err)
 }
 
@@ -384,7 +416,7 @@ func executeVote(t *testing.T, d *JoinData, ballot string) {
 
 	execReq.Index = 1
 	execReq.OpReceipts = execReply.OutputReceipts
-	_, err = d.adminCl.Cl.UpdateState(voteOut.WS, execReq, 5)
+	_, err = d.adminCl.Cl.UpdateState(voteOut.WS, execReq, nil, 5)
 	require.NoError(t, err)
 
 	_, err = d.adminCl.Cl.WaitProof(execReq.EP.CID, execReq.EP.StateRoot, 10)
