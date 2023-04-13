@@ -93,7 +93,7 @@ func (s *ShuffleVerify) Start() error {
 		ShufInput:  s.ShufInput,
 		ShufOutput: s.ShufOutput,
 	}
-	s.timeout = time.AfterFunc(300*time.Second, func() {
+	s.timeout = time.AfterFunc(600*time.Second, func() {
 		log.Lvl1("Verify protocol timeout")
 		s.finish(false)
 	})

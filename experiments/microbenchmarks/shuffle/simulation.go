@@ -17,7 +17,9 @@ type SimulationService struct {
 	NodeCount      int
 	Threshold      int
 	NumCiphertexts int
-	IsRegular      bool
+	//NumCiphertextsStr string
+	//NumCiphertexts    []int
+	IsRegular bool
 }
 
 func init() {
@@ -57,7 +59,11 @@ func (s *SimulationService) runMicrobenchmark(config *onet.SimulationConfig) err
 	kp := key.NewKeyPair(cothority.Suite)
 	_, ctexts := protean.GenerateMesgs(s.NumCiphertexts, "shuffle_micro", kp.Public)
 	shufSvc := config.GetService(service.ServiceName).(*service.ShuffleSvc)
+
+	//for _, numCt := range s.NumCiphertexts {
+	//_, ctexts := protean.GenerateMesgs(numCt, "shuffle_micro", kp.Public)
 	for round := 0; round < s.Rounds; round++ {
+		//m := monitor.NewTimeMeasure(fmt.Sprintf("shuffle_%d", numCt))
 		m := monitor.NewTimeMeasure("shuffle")
 		reply, err := shufSvc.Shuffle(&service.ShuffleRequest{
 			Roster:    config.Roster,
@@ -84,11 +90,14 @@ func (s *SimulationService) runMicrobenchmark(config *onet.SimulationConfig) err
 		}
 		m.Record()
 	}
+	//}
+
 	return nil
 }
 
 func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 	s.NodeCount = len(config.Roster.List)
 	s.Threshold = s.NodeCount - (s.NodeCount-1)/3
+	//s.NumCiphertexts = commons.StringToIntSlice(s.NumCiphertextsStr)
 	return s.runMicrobenchmark(config)
 }

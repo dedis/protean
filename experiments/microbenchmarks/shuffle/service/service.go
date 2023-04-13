@@ -1,6 +1,8 @@
 package service
 
 import (
+	"time"
+
 	"github.com/dedis/protean/easyneff/base"
 	"github.com/dedis/protean/easyneff/protocol"
 	"github.com/dedis/protean/experiments/microbenchmarks/shuffle/protocol/verify"
@@ -14,13 +16,12 @@ import (
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
 	"golang.org/x/xerrors"
-	"time"
 )
 
 var shuffleID onet.ServiceID
 
 const ServiceName = "ShuffleMicroService"
-const shuffleTimeout = 150 * time.Second
+const shuffleTimeout = 600 * time.Second
 
 func init() {
 	var err error

@@ -5,9 +5,14 @@ import (
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/share"
 	"go.dedis.ch/onet/v3"
+	"go.dedis.ch/onet/v3/network"
 )
 
 const RegularDecryptProtoName = "decrypt_reg"
+
+func init() {
+	network.RegisterMessages(&DecryptShare{}, &DecryptShareResponse{})
+}
 
 type Partial struct {
 	Shares []*share.PubShare

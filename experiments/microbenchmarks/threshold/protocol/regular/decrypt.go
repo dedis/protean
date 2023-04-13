@@ -71,7 +71,7 @@ func (d *ThreshDecrypt) Start() error {
 	}
 	d.Partials = make([]Partial, len(d.DecInput.Pairs))
 	//d.pubShares = make(map[int]kyber.Point)
-	d.timeout = time.AfterFunc(300*time.Second, func() {
+	d.timeout = time.AfterFunc(600*time.Second, func() {
 		log.Lvl1("ThreshDecrypt protocol timeout")
 		d.finish(false)
 	})

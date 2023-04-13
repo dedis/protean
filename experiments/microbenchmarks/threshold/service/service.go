@@ -25,7 +25,7 @@ var thresholdID onet.ServiceID
 var ServiceName = "ThresholdMicroService"
 var storageKey = []byte("storage")
 
-const propagationTimeout = 300 * time.Second
+const propagationTimeout = 900 * time.Second
 
 type storage struct {
 	Shared map[DKGID]*dkgprotocol.SharedSecret
