@@ -82,7 +82,19 @@ def process_sign(data_read, local):
         for data_size, val in sorted(val_dict.items()):
             print("%d,%d,%.6f" % (output_num, data_size, float(val)))
 
-def process_evote(data_read, local):
+def process_dfu_mb(data_read, prefix):
+    data = dict()
+    label = prefix + "_wall_avg"
+    for dr in data_read:
+        num_ctexts = int(dr['numciphertexts'])
+        if num_ctexts > 5:
+            data[num_ctexts] = float(dr[label])
+
+    print("num_ctexts,total")
+    for k in data:
+        print("%d,%6f" % (k,data[k]))
+
+def process_evote(data_read):
     data = dict()
     for dr in data_read:
         num_participants = int(dr['numparticipants'])
@@ -98,12 +110,11 @@ def process_evote(data_read, local):
             print(",%6f" % (v), end='')
         print()
 
-
-
 def main():
     parser = argparse.ArgumentParser(description='Parsing csv files')
     parser.add_argument('fname', type=str)
-    parser.add_argument('exp_type', choices=['v_kv', 'v_opc', 'sign', 'evote'], type=str)
+    parser.add_argument('exp_type', choices=['kv', 'opc', 'sign', 'shuf',
+                                             'dec', 'evote'], type=str)
     parser.add_argument('-l', dest='local', action='store_true')
     args = parser.parse_args()
     data_read = read_data(args.fname)
@@ -113,8 +124,12 @@ def main():
         process_opc(data_read, args.local)
     elif "sign" in args.exp_type:
         process_sign(data_read, args.local)
+    elif "shuf" in args.exp_type:
+        process_dfu_mb(data_read, "shuffle")
+    elif "dec" in args.exp_type:
+        process_dfu_mb(data_read, "decrypt")
     elif "evote" in args.exp_type:
-        process_evote(data_read, args.local)
+        process_evote(data_read)
 
 if __name__ == '__main__':
     main()
