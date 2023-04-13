@@ -23,7 +23,8 @@ import (
 	"go.dedis.ch/onet/v3"
 )
 
-const UPDATE_WAIT int = 1
+const UPDATE_WAIT int = 10
+const PROOF_WAIT int = 15
 
 func SetupStateUnit(roster *onet.Roster, blockTime int) (skipchain.SkipBlockID, error) {
 	adminCl, byzID, err := libstate.SetupByzcoin(roster, blockTime)

@@ -39,8 +39,7 @@ type SimulationService struct {
 	BlockTime       int
 	NumCandidates   int
 	NumParticipants int
-	//SlotFactor      int
-	//Seed            int
+	Batched         bool
 
 	// internal structs
 	byzID        skipchain.SkipBlockID
@@ -114,21 +113,6 @@ func (s *SimulationService) initDFUs() error {
 	}
 	return nil
 }
-
-//func (s *SimulationService) generateSchedule() []int {
-//	if s.NumParticipants < 1000 {
-//		numSlots := s.NumParticipants * s.SlotFactor
-//		return commons.GenerateSchedule(s.Seed, s.NumParticipants, numSlots)
-//	} else {
-//		// if s.NumParticipants == 1000, use the schedule from 500
-//		halfSlots := (s.NumParticipants / 2) * s.SlotFactor
-//		half := commons.GenerateSchedule(s.Seed, s.NumParticipants/2, halfSlots)
-//		slots := make([]int, halfSlots*2)
-//		copy(slots, half)
-//		copy(slots[halfSlots:], half)
-//		return slots
-//	}
-//}
 
 func (s *SimulationService) initContract() error {
 	contract, err := libclient.ReadContractJSON(&s.ContractFile)
@@ -241,7 +225,7 @@ func (s *SimulationService) executeSetup() error {
 		log.Error(err)
 		return err
 	}
-	_, err = s.stCl.WaitProof(execReq.EP.CID, execReq.EP.StateRoot, s.BlockTime)
+	_, err = s.stCl.WaitProof(execReq.EP.CID, execReq.EP.StateRoot, commons.PROOF_WAIT)
 	if err != nil {
 		log.Error(err)
 	}
@@ -249,6 +233,81 @@ func (s *SimulationService) executeSetup() error {
 	m4.Record()
 	//setupMonitor.Record()
 	return err
+}
+
+func (s *SimulationService) executeBatchVote(ballots []string) error {
+	execCl := libexec.NewClient(s.execRoster)
+	stCl := libstate.NewClient(byzcoin.NewClient(s.byzID, *s.stRoster))
+	defer execCl.Close()
+	defer stCl.Close()
+
+	voteMonitor := monitor.NewTimeMeasure("batch_vote")
+
+	var encBallots utils.ElGamalPairs
+	for _, b := range ballots {
+		encBallot := utils.ElGamalEncrypt(s.X, []byte(b))
+		encBallots.Pairs = append(encBallots.Pairs, encBallot)
+	}
+
+	input := evotingpc.BatchVoteInput{
+		Ballots: evotingpc.BatchBallot{Data: encBallots},
+	}
+	data, err := protobuf.Encode(&input)
+	if err != nil {
+		log.Errorf("encoding input: %v", err)
+		return err
+	}
+
+	// Get state
+	gcs, err := stCl.GetState(s.CID)
+	if err != nil {
+		log.Errorf("getting state: %v", err)
+		return err
+	}
+	cdata := &execbase.ByzData{IID: s.CID, Proof: gcs.Proof.Proof,
+		Genesis: s.contractGen}
+	lastRoot := gcs.Proof.Proof.InclusionProof.GetRoot()
+
+	itReply, err := execCl.InitTransaction(s.rdata, cdata, "votewf", "vote")
+	if err != nil {
+		log.Errorf("initializing txn: %v", err)
+		return err
+	}
+	// Step 1: execute
+	sp := make(map[string]*core.StateProof)
+	sp["readset"] = &gcs.Proof
+	execInput := execbase.ExecuteInput{
+		FnName:      "batch_vote_pc",
+		Data:        data,
+		StateProofs: sp,
+	}
+	execReq := &core.ExecutionRequest{
+		Index: 0,
+		EP:    &itReply.Plan,
+	}
+	execReply, err := execCl.Execute(execInput, execReq)
+	if err != nil {
+		log.Errorf("executing batch_vote_pc: %v", err)
+		return err
+	}
+	// Step 2: update_state
+	var voteOut evotingpc.VoteOutput
+	err = protobuf.Decode(execReply.Output.Data, &voteOut)
+	if err != nil {
+		log.Errorf("decoding vote output: %v", err)
+		return err
+	}
+	execReq.Index = 1
+	execReq.OpReceipts = execReply.OutputReceipts
+	log.Info("adding votes")
+	_, err = stCl.UpdateState(voteOut.WS, execReq, nil, commons.UPDATE_WAIT)
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+	_, err = stCl.WaitProof(s.CID[:], lastRoot, commons.PROOF_WAIT)
+	voteMonitor.Record()
+	return nil
 }
 
 func (s *SimulationService) executeVote(ballot string, idx int) error {
@@ -314,7 +373,7 @@ func (s *SimulationService) executeVote(ballot string, idx int) error {
 		execReq.OpReceipts = execReply.OutputReceipts
 		_, err = stCl.UpdateState(voteOut.WS, execReq, nil, commons.UPDATE_WAIT)
 		if err != nil {
-			pr, err := stCl.WaitProof(s.CID[:], lastRoot, s.BlockTime)
+			pr, err := stCl.WaitProof(s.CID[:], lastRoot, commons.PROOF_WAIT)
 			if err != nil {
 				log.Errorf("wait proof: %v", err)
 				return err
@@ -323,7 +382,7 @@ func (s *SimulationService) executeVote(ballot string, idx int) error {
 			cdata.Proof = gcs.Proof.Proof
 			lastRoot = pr.InclusionProof.GetRoot()
 		} else {
-			_, err := stCl.WaitProof(s.CID[:], lastRoot, s.BlockTime)
+			_, err := stCl.WaitProof(s.CID[:], lastRoot, commons.PROOF_WAIT)
 			if err != nil {
 				log.Errorf("wait proof: %v", err)
 				return err
@@ -406,7 +465,7 @@ func (s *SimulationService) executeLock() error {
 	}
 
 	// Wait for proof
-	_, err = s.stCl.WaitProof(execReq.EP.CID, execReq.EP.StateRoot, s.BlockTime)
+	_, err = s.stCl.WaitProof(execReq.EP.CID, execReq.EP.StateRoot, commons.PROOF_WAIT)
 	if err != nil {
 		log.Errorf("wait proof: %v", err)
 	}
@@ -496,7 +555,7 @@ func (s *SimulationService) executeShuffle() error {
 	var prepPrOut evotingpc.PrepProofsOutput
 	err = protobuf.Decode(execReply.Output.Data, &prepPrOut)
 	if err != nil {
-		log.Errorf("protpbuf decode: %v", err)
+		log.Errorf("protobuf decode: %v", err)
 		return err
 	}
 	inReceipts[execReq.Index] = execReply.InputReceipts
@@ -508,7 +567,7 @@ func (s *SimulationService) executeShuffle() error {
 		return err
 	}
 
-	_, err = s.stCl.WaitProof(execReq.EP.CID, execReq.EP.StateRoot, s.BlockTime)
+	_, err = s.stCl.WaitProof(execReq.EP.CID, execReq.EP.StateRoot, commons.PROOF_WAIT)
 	if err != nil {
 		log.Errorf("wait proof: %v", err)
 	}
@@ -614,7 +673,7 @@ func (s *SimulationService) executeTally() error {
 	}
 
 	// Wait for proof
-	_, err = s.stCl.WaitProof(execReq.EP.CID, execReq.EP.StateRoot, s.BlockTime)
+	_, err = s.stCl.WaitProof(execReq.EP.CID, execReq.EP.StateRoot, commons.PROOF_WAIT)
 	if err != nil {
 		log.Errorf("wait proof: %v", err)
 	}
@@ -625,7 +684,6 @@ func (s *SimulationService) executeTally() error {
 
 func (s *SimulationService) runEvoting() error {
 	ballots := commons.GenerateBallots(s.NumCandidates, s.NumParticipants)
-	//schedule := commons.GenerateSchedule(s.Seed, s.NumParticipants, s.NumParticipants*s.SlotFactor)
 	schedule, err := commons.ReadSchedule(s.ScheduleFile, s.NumParticipants)
 	if err != nil {
 		log.Error(err)
@@ -702,6 +760,59 @@ func (s *SimulationService) runEvoting() error {
 	return nil
 }
 
+func (s *SimulationService) runBatchedEvoting() error {
+	ballots := commons.GenerateBallots(s.NumCandidates, s.NumParticipants)
+	// Initialize DFUs
+	err := s.initDFUs()
+	if err != nil {
+		return err
+	}
+
+	for round := 0; round < s.Rounds; round++ {
+		// Setting up the state unit in this loop otherwise we would build
+		// on a single blockchain, which means later rounds would have larger
+		// Byzcoin proofs
+		s.byzID, err = commons.SetupStateUnit(s.stRoster, s.BlockTime)
+		if err != nil {
+			log.Error(err)
+		}
+		s.stCl = libstate.NewClient(byzcoin.NewClient(s.byzID, *s.stRoster))
+
+		// Initialize contract
+		err = s.initContract()
+		if err != nil {
+			return err
+		}
+		// setup_txn
+		err = s.executeSetup()
+		if err != nil {
+			return err
+		}
+		// vote_txn
+		for i := 0; i < 5; i++ {
+			s.executeBatchVote(ballots[100*i : 100*(i+1)])
+		}
+		// lock_txn
+		err = s.executeLock()
+		if err != nil {
+			return err
+		}
+		// shuffle_txn
+		log.Info("Executing shuffle now")
+		err = s.executeShuffle()
+		if err != nil {
+			return err
+		}
+		// tally_txn
+		log.Info("Executing tally now")
+		err = s.executeTally()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *SimulationService) dummyRecords() {
 	for i := s.NumParticipants; i < 1000; i++ {
 		label := fmt.Sprintf("p%d_vote", i)
@@ -736,7 +847,11 @@ func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 	if err != nil {
 		log.Error(err)
 	}
-	err = s.runEvoting()
-	s.dummyRecords()
+	if s.Batched {
+		err = s.runBatchedEvoting()
+	} else {
+		err = s.runEvoting()
+		s.dummyRecords()
+	}
 	return err
 }

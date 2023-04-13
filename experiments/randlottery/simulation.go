@@ -38,8 +38,6 @@ type SimulationService struct {
 	ScheduleFile    string
 	BlockTime       int
 	NumParticipants int
-	//SlotFactor      int
-	//Seed            int
 
 	// internal structs
 	byzID      skipchain.SkipBlockID
@@ -113,21 +111,6 @@ func (s *SimulationService) initDFUs() error {
 	s.randCl.CreateRandomness()
 	return nil
 }
-
-//func (s *SimulationService) generateSchedule() []int {
-//	if s.NumParticipants < 1000 {
-//		numSlots := s.NumParticipants * s.SlotFactor
-//		return commons.GenerateSchedule(s.Seed, s.NumParticipants, numSlots)
-//	} else {
-//		// if s.NumParticipants == 1000, use the schedule from 500
-//		halfSlots := (s.NumParticipants / 2) * s.SlotFactor
-//		half := commons.GenerateSchedule(s.Seed, s.NumParticipants/2, halfSlots)
-//		slots := make([]int, halfSlots*2)
-//		copy(slots, half)
-//		copy(slots[halfSlots:], half)
-//		return slots
-//	}
-//}
 
 func (s *SimulationService) initContract() error {
 	contract, err := libclient.ReadContractJSON(&s.ContractFile)
@@ -243,7 +226,7 @@ func (s *SimulationService) executeJoin(signer darc.Signer, idx int) error {
 		execReq.OpReceipts = execReply.OutputReceipts
 		_, err = stCl.UpdateState(joinOut.WS, execReq, nil, commons.UPDATE_WAIT)
 		if err != nil {
-			pr, err := stCl.WaitProof(s.CID[:], lastRoot, s.BlockTime)
+			pr, err := stCl.WaitProof(s.CID[:], lastRoot, commons.PROOF_WAIT)
 			if err != nil {
 				log.Errorf("wait proof: %v", err)
 				return err
@@ -252,7 +235,7 @@ func (s *SimulationService) executeJoin(signer darc.Signer, idx int) error {
 			cdata.Proof = gcs.Proof.Proof
 			lastRoot = pr.InclusionProof.GetRoot()
 		} else {
-			_, err = stCl.WaitProof(s.CID[:], lastRoot, s.BlockTime)
+			_, err = stCl.WaitProof(s.CID[:], lastRoot, commons.PROOF_WAIT)
 			if err != nil {
 				log.Errorf("wait proof: %v", err)
 				return err
@@ -327,7 +310,7 @@ func (s *SimulationService) executeClose() error {
 	}
 
 	// Wait for proof
-	_, err = s.stCl.WaitProof(execReq.EP.CID, execReq.EP.StateRoot, s.BlockTime)
+	_, err = s.stCl.WaitProof(execReq.EP.CID, execReq.EP.StateRoot, commons.PROOF_WAIT)
 	if err != nil {
 		log.Errorf("wait proof: %v", err)
 	}
@@ -414,7 +397,7 @@ func (s *SimulationService) executeFinalize() error {
 	}
 
 	// Wait for proof
-	_, err = s.stCl.WaitProof(execReq.EP.CID, execReq.EP.StateRoot, s.BlockTime)
+	_, err = s.stCl.WaitProof(execReq.EP.CID, execReq.EP.StateRoot, commons.PROOF_WAIT)
 	if err != nil {
 		log.Errorf("wait proof: %v", err)
 	}
@@ -425,7 +408,6 @@ func (s *SimulationService) executeFinalize() error {
 
 func (s *SimulationService) runRandLottery() error {
 	participants := commons.GenerateWriters(s.NumParticipants)
-	//schedule := commons.GenerateSchedule(s.Seed, s.NumParticipants, s.NumParticipants*s.SlotFactor)
 	schedule, err := commons.ReadSchedule(s.ScheduleFile, s.NumParticipants)
 	if err != nil {
 		log.Error(err)

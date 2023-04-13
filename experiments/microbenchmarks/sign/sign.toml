@@ -13,5 +13,5 @@ FSMFile = "../input/fsm.json"
 DFUFile = "../input/units.json"
 LocalSign = false
 
-NumOutputStr,NumSizesStr
+NumOutputStr,DataSizesStr
 "1;2;3;4","4096;8192;65536;524288;4194304"

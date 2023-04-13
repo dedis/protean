@@ -39,9 +39,9 @@ type SimulationService struct {
 	BlockTime    int
 	LocalSign    bool
 	NumOutputStr string
-	NumSizesStr  string
+	DataSizesStr string
 	NumOutputs   []int
-	NumSizes     []int
+	DataSizes    []int
 
 	// internal structs
 	byzID        skipchain.SkipBlockID
@@ -139,7 +139,6 @@ func (s *SimulationService) initContract() error {
 		log.Error(err)
 		return err
 	}
-	//time.Sleep(time.Duration(s.BlockTime/2) * time.Second)
 	return nil
 }
 
@@ -164,9 +163,8 @@ func (s *SimulationService) executeSign(config *onet.SimulationConfig) error {
 	signer := config.GetService(service.ServiceName).(*service.Signer)
 
 	idx := 0
-	for _, ns := range s.NumSizes {
+	for _, ns := range s.DataSizes {
 		for _, no := range s.NumOutputs {
-			log.Info("starting:", no, ns)
 			for round := 0; round < s.Rounds; round++ {
 				signMonitor := monitor.NewTimeMeasure(fmt.Sprintf("sign_%d_%d", no, ns))
 				req := service.SignRequest{
@@ -214,7 +212,7 @@ func (s *SimulationService) executeSignLocalRoot() error {
 	sz := len(s.signerRoster.List)
 	threshold := sz - ((sz - 1) / 3)
 	idx := 0
-	for _, ns := range s.NumSizes {
+	for _, ns := range s.DataSizes {
 		for _, no := range s.NumOutputs {
 			allSigs := make([]map[string]blsproto.BlsSignature, threshold)
 			outputData := s.outputData[idx]
@@ -292,7 +290,7 @@ func (s *SimulationService) executeSignLocal() error {
 
 	sk := s.signerRoster.List[0].ServicePrivate(blscosi.ServiceName)
 	idx := 0
-	for _, ns := range s.NumSizes {
+	for _, ns := range s.DataSizes {
 		for _, no := range s.NumOutputs {
 			for round := 0; round < s.Rounds; round++ {
 				signMonitor := monitor.NewTimeMeasure(fmt.Sprintf("sign_local_%d_%d", no, ns))
@@ -336,7 +334,7 @@ func (s *SimulationService) signData(sk kyber.Scalar,
 }
 
 func (s *SimulationService) generateSignData() {
-	for _, ns := range s.NumSizes {
+	for _, ns := range s.DataSizes {
 		for _, no := range s.NumOutputs {
 			s.outputData = append(s.outputData, commons.PrepareData(no, ns))
 		}
@@ -349,10 +347,10 @@ func (s *SimulationService) stringSliceToIntSlice() {
 		numOutput, _ := strconv.Atoi(n)
 		s.NumOutputs = append(s.NumOutputs, numOutput)
 	}
-	numSizesSlice := strings.Split(s.NumSizesStr, ";")
-	for _, n := range numSizesSlice {
-		numSizes, _ := strconv.Atoi(n)
-		s.NumSizes = append(s.NumSizes, numSizes)
+	dataSizesSlice := strings.Split(s.DataSizesStr, ";")
+	for _, n := range dataSizesSlice {
+		dataSizes, _ := strconv.Atoi(n)
+		s.DataSizes = append(s.DataSizes, dataSizes)
 	}
 }
 

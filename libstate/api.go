@@ -166,7 +166,8 @@ func (c *AdminClient) SpawnDarc(newSigner darc.Signer, gDarc darc.Darc, wait int
 func (c *Client) WaitProof(id []byte, currRoot []byte, interval int) (
 	*byzcoin.Proof, error) {
 	var pr byzcoin.Proof
-	for i := 0; i < 10; i++ {
+	//for i := 0; i < 10; i++ {
+	for i := 0; i < interval; i++ {
 		// try to get the darc back, we should get the genesis back instead
 		resp, err := c.bcClient.GetProof(id)
 		if err != nil {

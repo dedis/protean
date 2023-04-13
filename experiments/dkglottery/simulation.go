@@ -232,7 +232,7 @@ func (s *SimulationService) executeSetup() error {
 		log.Error(err)
 		return err
 	}
-	_, err = s.stCl.WaitProof(execReq.EP.CID, execReq.EP.StateRoot, s.BlockTime)
+	_, err = s.stCl.WaitProof(execReq.EP.CID, execReq.EP.StateRoot, commons.PROOF_WAIT)
 	if err != nil {
 		log.Error(err)
 	}
@@ -307,7 +307,7 @@ func (s *SimulationService) executeJoin(idx int) error {
 		execReq.OpReceipts = execReply.OutputReceipts
 		_, err = stCl.UpdateState(joinOut.WS, execReq, nil, commons.UPDATE_WAIT)
 		if err != nil {
-			pr, err := stCl.WaitProof(execReq.EP.CID, lastRoot, s.BlockTime)
+			pr, err := stCl.WaitProof(execReq.EP.CID, lastRoot, commons.PROOF_WAIT)
 			if err != nil {
 				log.Errorf("wait proof: %v", err)
 				return err
@@ -315,9 +315,8 @@ func (s *SimulationService) executeJoin(idx int) error {
 			gcs.Proof.Proof = pr
 			cdata.Proof = gcs.Proof.Proof
 			lastRoot = pr.InclusionProof.GetRoot()
-			//log.Info("going to retry @index:", idx)
 		} else {
-			_, err := stCl.WaitProof(s.CID[:], lastRoot, s.BlockTime)
+			_, err := stCl.WaitProof(s.CID[:], lastRoot, commons.PROOF_WAIT)
 			if err != nil {
 				log.Errorf("wait proof: %v", err)
 				return err
@@ -392,7 +391,7 @@ func (s *SimulationService) executeClose() error {
 		return err
 	}
 	// Wait for proof
-	_, err = s.stCl.WaitProof(execReq.EP.CID, execReq.EP.StateRoot, s.BlockTime)
+	_, err = s.stCl.WaitProof(execReq.EP.CID, execReq.EP.StateRoot, commons.PROOF_WAIT)
 	if err != nil {
 		log.Errorf("wait proof: %v", err)
 	}
@@ -496,7 +495,7 @@ func (s *SimulationService) executeFinalize() error {
 	}
 
 	// Wait for proof
-	_, err = s.stCl.WaitProof(execReq.EP.CID, execReq.EP.StateRoot, s.BlockTime)
+	_, err = s.stCl.WaitProof(execReq.EP.CID, execReq.EP.StateRoot, commons.PROOF_WAIT)
 	if err != nil {
 		log.Errorf("wait proof: %v", err)
 	}
@@ -506,7 +505,6 @@ func (s *SimulationService) executeFinalize() error {
 }
 
 func (s *SimulationService) runDKGLottery() error {
-	//schedule := commons.GenerateSchedule(s.Seed, s.NumParticipants, s.NumParticipants*s.SlotFactor)
 	schedule, err := commons.ReadSchedule(s.ScheduleFile, s.NumParticipants)
 	if err != nil {
 		return err

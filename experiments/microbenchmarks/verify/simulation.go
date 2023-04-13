@@ -38,19 +38,20 @@ type SimulationService struct {
 	BlockTime    int
 	LocalVerify  bool
 	NumInputsStr string
+	NumInputs    []int
 	execReqs     []*core.ExecutionRequest
 
 	// verify_opc structs
-	NumSizesStr  string
-	NumInputsOPC []int
-	NumSizes     []int
-	outputData   []map[string][]byte
+	DataSizesStr string
+	//NumInputsOPC []int
+	DataSizes  []int
+	outputData []map[string][]byte
 
 	// verify_kv structs
 	NumBlocksStr string
-	NumInputsKV  []int
-	NumBlocks    []int
-	latestProof  map[int]*byzcoin.GetProofResponse
+	//NumInputsKV  []int
+	NumBlocks   []int
+	latestProof map[int]*byzcoin.GetProofResponse
 
 	// internal structs
 	byzID          skipchain.SkipBlockID
@@ -147,7 +148,6 @@ func (s *SimulationService) initContract() error {
 		log.Error(err)
 		return err
 	}
-	time.Sleep(time.Duration(s.BlockTime/2) * time.Second)
 	return nil
 }
 
@@ -156,8 +156,8 @@ func (s *SimulationService) executeVerifyOpc(config *onet.SimulationConfig) erro
 	// Get verifier service
 	verifier := config.GetService(verifysvc.ServiceName).(*verifysvc.Verifier)
 	idx := 0
-	for _, ns := range s.NumSizes {
-		for _, ni := range s.NumInputsOPC {
+	for _, ns := range s.DataSizes {
+		for _, ni := range s.NumInputs {
 			execReq := s.execReqs[idx]
 			outputData := s.outputData[idx]
 			for round := 0; round < s.Rounds; round++ {
@@ -187,8 +187,8 @@ func (s *SimulationService) executeLocalVerifyOPC() error {
 		StateProofs: make(map[string]*core.StateProof),
 		InputHashes: make(map[string][]byte),
 	}
-	for _, ns := range s.NumSizes {
-		for _, ni := range s.NumInputsOPC {
+	for _, ns := range s.DataSizes {
+		for _, ni := range s.NumInputs {
 			execReq := s.execReqs[idx]
 			outputData := s.outputData[idx]
 			for round := 0; round < s.Rounds; round++ {
@@ -230,7 +230,7 @@ func (s *SimulationService) generateVerifyOPCData(config *onet.SimulationConfig)
 	}
 	cdata := &execbase.ByzData{IID: s.CID, Proof: gcs.Proof.Proof,
 		Genesis: s.contractGen}
-	for _, ni := range s.NumInputsOPC {
+	for _, ni := range s.NumInputs {
 		txnName := fmt.Sprintf("verify_%d", ni)
 		itReply, err := execCl.InitTransaction(s.rdata, cdata, "verifywf", txnName)
 		if err != nil {
@@ -242,8 +242,8 @@ func (s *SimulationService) generateVerifyOPCData(config *onet.SimulationConfig)
 			EP:    &itReply.Plan,
 		}
 	}
-	for _, ns := range s.NumSizes {
-		for _, ni := range s.NumInputsOPC {
+	for _, ns := range s.DataSizes {
+		for _, ni := range s.NumInputs {
 			txnName := fmt.Sprintf("verify_%d", ni)
 			execReq := reqMap[txnName]
 			outputData := commons.PrepareData(ni, ns)
@@ -273,7 +273,7 @@ func (s *SimulationService) executeVerifyKv(config *onet.SimulationConfig) error
 	verifier := config.GetService(verifysvc.ServiceName).(*verifysvc.Verifier)
 
 	for _, nb := range s.NumBlocks {
-		for _, ni := range s.NumInputsKV {
+		for _, ni := range s.NumInputs {
 			pr := &s.latestProof[nb].Proof
 			sp := commons.PrepareStateProof(ni, pr, s.contractGen)
 			cdata := &execbase.ByzData{IID: s.CID, Proof: pr, Genesis: s.contractGen}
@@ -313,7 +313,7 @@ func (s *SimulationService) executeLocalVerifyKV() error {
 		InputHashes: make(map[string][]byte),
 	}
 	for _, nb := range s.NumBlocks {
-		for _, ni := range s.NumInputsKV {
+		for _, ni := range s.NumInputs {
 			pr := &s.latestProof[nb].Proof
 			sp := commons.PrepareStateProof(ni, pr, s.contractGen)
 			cdata := &execbase.ByzData{IID: s.CID, Proof: pr, Genesis: s.contractGen}
@@ -351,7 +351,6 @@ func (s *SimulationService) generateBlocks() error {
 	buf := make([]byte, 128)
 	blkCount := s.NumBlocks[len(s.NumBlocks)-1]
 	for i := 1; i <= blkCount; i++ {
-		//log.Info("Dummy update:", i)
 		rand.Read(buf)
 		args := byzcoin.Arguments{{Name: "test_key", Value: buf}}
 		_, err := s.stCl.DummyUpdate(s.CID, args, 2)
@@ -378,17 +377,13 @@ func (s *SimulationService) stringSliceToIntSlice() {
 	numInputsSlice := strings.Split(s.NumInputsStr, ";")
 	for _, n := range numInputsSlice {
 		numInput, _ := strconv.Atoi(n)
-		if s.DepType == "OPC" {
-			s.NumInputsOPC = append(s.NumInputsOPC, numInput)
-		} else {
-			s.NumInputsKV = append(s.NumInputsKV, numInput)
-		}
+		s.NumInputs = append(s.NumInputs, numInput)
 	}
 	if s.DepType == "OPC" {
-		numSizesSlice := strings.Split(s.NumSizesStr, ";")
-		for _, n := range numSizesSlice {
-			numSizes, _ := strconv.Atoi(n)
-			s.NumSizes = append(s.NumSizes, numSizes)
+		dataSizesSlice := strings.Split(s.DataSizesStr, ";")
+		for _, n := range dataSizesSlice {
+			dataSizes, _ := strconv.Atoi(n)
+			s.DataSizes = append(s.DataSizes, dataSizes)
 		}
 	} else {
 		numBlocksSlice := strings.Split(s.NumBlocksStr, ";")

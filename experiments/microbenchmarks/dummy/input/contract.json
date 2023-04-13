@@ -1,0 +1,29 @@
+{
+	"workflows": {
+		"dummywf": {
+			"txns": {
+				"dummy": {
+					"opcodes": [
+						{
+							"name": "sign",
+							"dfu_id": "dummyunit"
+						},
+						{
+							"name": "exec",
+							"dfu_id": "codeexec"
+						},
+						{
+							"name": "update_state",
+							"dfu_id": "state"
+						}
+					]
+				}
+			}
+		}
+	},
+	"dfus": [
+		"dummyunit",
+		"state",
+		"codeexec"
+	]
+}

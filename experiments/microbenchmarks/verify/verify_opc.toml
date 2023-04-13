@@ -9,9 +9,10 @@ Delay = 100
 Bandwidth = 100
 Suite = "Ed25519"
 BlockTime = 5
+ContractFile = "../input/opc/opc.json"
 FSMFile = "../input/opc/fsm.json"
 DFUFile = "../input/opc/units.json"
 LocalVerify = false
 
-NumInputsStr,NumSizesStr,ContractFile
-"1;2;3;4","4096;8192;65536;524288;4194304","../input/opc/opc.json"
+NumInputsStr,DataSizesStr
+"1;2;3;4","4096;8192;65536;524288;4194304"
