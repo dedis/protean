@@ -93,10 +93,11 @@ func (s *Service) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
 		reply = &InitDKGReply{
 			Output: base.DKGOutput{X: shared.X},
 		}
+		dkgID := NewDKGID(req.ID)
 		s.storage.Lock()
-		s.storage.Shared[req.ID] = shared
-		s.storage.Polys[req.ID] = &pubPoly{s.Suite().Point().Base(), dks.Commits}
-		s.storage.DKS[req.ID] = dks
+		s.storage.Shared[dkgID] = shared
+		s.storage.Polys[dkgID] = &pubPoly{s.Suite().Point().Base(), dks.Commits}
+		s.storage.DKS[dkgID] = dks
 		s.storage.Unlock()
 		err = s.save()
 		if err != nil {
@@ -119,7 +120,7 @@ func (s *Service) regularDecrypt(req *DecryptRequest) (*DecryptReply, error) {
 	// create protocol
 	nodeCount := len(req.Roster.List)
 	tree := req.Roster.GenerateNaryTreeWithRoot(nodeCount-1, s.ServerIdentity())
-	pi, err := s.CreateProtocol(dfu.DFUDecryptProtoName, tree)
+	pi, err := s.CreateProtocol(regular.RegularDecryptProtoName, tree)
 	if err != nil {
 		return nil, xerrors.New("failed to create decryptShare protocol: " + err.Error())
 	}
@@ -131,18 +132,19 @@ func (s *Service) regularDecrypt(req *DecryptRequest) (*DecryptReply, error) {
 		log.Errorf("Could not set config: %v", err)
 		return nil, err
 	}
+	dkgID := NewDKGID(req.ID)
 	s.storage.Lock()
-	shared, ok := s.storage.Shared[req.ID]
+	shared, ok := s.storage.Shared[dkgID]
 	if !ok {
 		s.storage.Unlock()
-		log.Errorf("Cannot find ID: %v", req.ID)
+		log.Errorf("Cannot find ID: %v", dkgID)
 		return nil, xerrors.New("no DKG entry found for the given ID")
 	}
 	decProto.Shared = shared.Clone()
-	pp, ok := s.storage.Polys[req.ID]
+	pp, ok := s.storage.Polys[dkgID]
 	if !ok {
 		s.storage.Unlock()
-		log.Errorf("Cannot find ID: %v", req.ID)
+		log.Errorf("Cannot find ID: %v", dkgID)
 		return nil, xerrors.New("no DKG entry found for the given ID")
 	}
 	commits := make([]kyber.Point, len(pp.Commits))
@@ -185,18 +187,19 @@ func (s *Service) dfuDecrypt(req *DecryptRequest) (*DecryptReply, error) {
 		log.Errorf("Could not set config: %v", err)
 		return nil, err
 	}
+	dkgID := NewDKGID(req.ID)
 	s.storage.Lock()
-	shared, ok := s.storage.Shared[req.ID]
+	shared, ok := s.storage.Shared[dkgID]
 	if !ok {
 		s.storage.Unlock()
-		log.Errorf("Cannot find ID: %v", req.ID)
+		log.Errorf("Cannot find ID: %v", dkgID)
 		return nil, xerrors.New("no DKG entry found for the given ID")
 	}
 	decProto.Shared = shared.Clone()
-	pp, ok := s.storage.Polys[req.ID]
+	pp, ok := s.storage.Polys[dkgID]
 	if !ok {
 		s.storage.Unlock()
-		log.Errorf("Cannot find ID: %v", req.ID)
+		log.Errorf("Cannot find ID: %v", dkgID)
 		return nil, xerrors.New("no DKG entry found for the given ID")
 	}
 	commits := make([]kyber.Point, len(pp.Commits))

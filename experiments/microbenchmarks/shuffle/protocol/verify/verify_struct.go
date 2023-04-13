@@ -12,27 +12,27 @@ import (
 const VerifyProtoName = "mb_shuffle_verify"
 
 func init() {
-	network.RegisterMessages(&Verify{}, &VerifyResponse{})
+	network.RegisterMessages(&VerifyProofs{}, &VerifyProofsResponse{})
 }
 
 type VerificationFn func(*base.ShuffleOutput, kyber.Point, kyber.Point,
 	utils.ElGamalPairs, []kyber.Point) error
 
-type Verify struct {
+type VerifyProofs struct {
 	ShufInput  *base.ShuffleInput
 	ShufOutput *base.ShuffleOutput
 }
 
-type structVerify struct {
+type structVerifyProofs struct {
 	*onet.TreeNode
-	Verify
+	VerifyProofs
 }
 
-type VerifyResponse struct {
+type VerifyProofsResponse struct {
 	Signatures map[string]blscosi.BlsSignature
 }
 
-type structVerifyResponse struct {
+type structVerifyProofsResponse struct {
 	*onet.TreeNode
-	VerifyResponse
+	VerifyProofsResponse
 }

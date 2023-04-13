@@ -1,0 +1,13 @@
+Simulation = "ThresholdMicrobenchmark"
+Servers = 1
+Hosts = 19
+Bf = 18
+Rounds = 1
+RunWait = "30000s"
+Delay = 100
+Bandwidth = 100
+Suite = "Ed25519"
+
+NumCiphertexts,IsRegular
+10, false
+10, true

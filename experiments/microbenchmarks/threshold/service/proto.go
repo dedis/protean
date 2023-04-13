@@ -18,7 +18,7 @@ type DKGID [32]byte
 type InitDKGRequest struct {
 	Roster    *onet.Roster
 	Threshold int
-	ID        DKGID
+	ID        []byte
 }
 
 type InitDKGReply struct {
@@ -28,9 +28,9 @@ type InitDKGReply struct {
 type DecryptRequest struct {
 	Roster    *onet.Roster
 	Threshold int
-	IsRegular bool
-	ID        DKGID
+	ID        []byte
 	Input     base.DecryptInput
+	IsRegular bool
 }
 
 type DecryptReply struct {

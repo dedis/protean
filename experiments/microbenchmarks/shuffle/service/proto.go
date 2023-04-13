@@ -15,7 +15,7 @@ type ShuffleRequest struct {
 	Roster    *onet.Roster
 	Threshold int
 	Input     base.ShuffleInput
-	IsBasic   bool
+	IsRegular bool
 }
 
 type ShuffleReply struct {

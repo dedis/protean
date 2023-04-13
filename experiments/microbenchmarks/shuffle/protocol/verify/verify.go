@@ -44,7 +44,7 @@ type ShuffleVerify struct {
 	Verified  chan bool
 
 	suite     *pairing.SuiteBn256
-	responses []*VerifyResponse
+	responses []*VerifyProofsResponse
 	mask      *sign.Mask
 	timeout   *time.Timer
 	doneOnce  sync.Once
@@ -89,7 +89,7 @@ func (s *ShuffleVerify) Start() error {
 		s.finish(false)
 		return err
 	}
-	vp := &Verify{
+	vp := &VerifyProofs{
 		ShufInput:  s.ShufInput,
 		ShufOutput: s.ShufOutput,
 	}
@@ -105,7 +105,7 @@ func (s *ShuffleVerify) Start() error {
 	return nil
 }
 
-func (s *ShuffleVerify) verify(r structVerify) error {
+func (s *ShuffleVerify) verify(r structVerifyProofs) error {
 	defer s.Done()
 	var err error
 	s.ShufInput = r.ShufInput
@@ -114,18 +114,18 @@ func (s *ShuffleVerify) verify(r structVerify) error {
 		s.Roster().Publics())
 	if err != nil {
 		log.Lvl2(s.ServerIdentity(), "failed to verify the proofs")
-		return cothority.ErrorOrNil(s.SendToParent(&VerifyResponse{}),
-			"sending VerifyResponse to parent")
+		return cothority.ErrorOrNil(s.SendToParent(&VerifyProofsResponse{}),
+			"sending VerifyProofsResponse to parent")
 	}
 	resp, err := s.generateResponse()
 	if err != nil {
 		log.Errorf("%s couldn't generate response: %v", s.Name(), err)
 	}
 	return cothority.ErrorOrNil(s.SendToParent(resp),
-		"sending VerifyResponse to parent")
+		"sending VerifyProofsResponse to parent")
 }
 
-func (s *ShuffleVerify) verifyResponse(r structVerifyResponse) error {
+func (s *ShuffleVerify) verifyResponse(r structVerifyProofsResponse) error {
 	index := utils.SearchPublicKey(s.TreeNodeInstance, r.ServerIdentity)
 	if len(r.Signatures) == 0 || index < 0 {
 		log.Lvl2(r.ServerIdentity, "refused to respond")
@@ -138,7 +138,7 @@ func (s *ShuffleVerify) verifyResponse(r structVerifyResponse) error {
 	}
 
 	s.mask.SetBit(index, true)
-	s.responses = append(s.responses, &r.VerifyResponse)
+	s.responses = append(s.responses, &r.VerifyProofsResponse)
 	if len(s.responses) == s.Threshold {
 		for name, receipt := range s.OutputReceipts {
 			aggSignature := s.suite.G1().Point()
@@ -162,11 +162,11 @@ func (s *ShuffleVerify) verifyResponse(r structVerifyResponse) error {
 	return nil
 }
 
-func (s *ShuffleVerify) generateResponse() (*VerifyResponse, error) {
+func (s *ShuffleVerify) generateResponse() (*VerifyProofsResponse, error) {
 	sigs := make(map[string]blsproto.BlsSignature)
 	hash, err := s.ShufOutput.Hash()
 	if err != nil {
-		return &VerifyResponse{}, err
+		return &VerifyProofsResponse{}, err
 	}
 	r := &core.OpcodeReceipt{
 		EPID:      make([]byte, 32),
@@ -179,10 +179,10 @@ func (s *ShuffleVerify) generateResponse() (*VerifyResponse, error) {
 	}
 	sig, err := bls.Sign(s.suite, s.KP.Private, r.Hash())
 	if err != nil {
-		return &VerifyResponse{}, err
+		return &VerifyProofsResponse{}, err
 	}
 	sigs["proofs"] = sig
-	return &VerifyResponse{Signatures: sigs}, nil
+	return &VerifyProofsResponse{Signatures: sigs}, nil
 }
 
 func (s *ShuffleVerify) finish(result bool) {

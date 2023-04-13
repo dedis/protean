@@ -28,10 +28,9 @@ func init() {
 type ThreshDecrypt struct {
 	*onet.TreeNodeInstance
 
-	DKGID  [32]byte
-	Shared *dkgprotocol.SharedSecret
-	Poly   *share.PubPoly
-
+	DKGID    [32]byte
+	Shared   *dkgprotocol.SharedSecret
+	Poly     *share.PubPoly
 	DecInput *base.DecryptInput
 
 	Threshold int
@@ -41,7 +40,6 @@ type ThreshDecrypt struct {
 
 	// private fields
 	suite       *pairing.SuiteBn256
-	pubShares   map[int]kyber.Point
 	dsResponses []*DecryptShareResponse
 	mask        *sign.Mask
 	timeout     *time.Timer
@@ -72,7 +70,7 @@ func (d *ThreshDecrypt) Start() error {
 		return xerrors.New("empty ciphertext list")
 	}
 	d.Partials = make([]Partial, len(d.DecInput.Pairs))
-	d.pubShares = make(map[int]kyber.Point)
+	//d.pubShares = make(map[int]kyber.Point)
 	d.timeout = time.AfterFunc(300*time.Second, func() {
 		log.Lvl1("ThreshDecrypt protocol timeout")
 		d.finish(false)
@@ -113,11 +111,10 @@ func (d *ThreshDecrypt) decryptShareResponse(r structDecryptShareResponse) error
 	} else {
 		// Verify decryption proof
 		idx := r.Shares[0].Sh.I
-		d.pubShares[idx] = d.Poly.Eval(idx).V
+		pub := d.Poly.Eval(idx).V
 		for i, c := range d.DecInput.Pairs {
 			tmpSh := r.Shares[i]
-			ok := verifyDecProof(tmpSh.Sh.V, tmpSh.Ei, tmpSh.Fi, c.K,
-				d.pubShares[tmpSh.Sh.I])
+			ok := verifyDecProof(tmpSh.Sh.V, tmpSh.Ei, tmpSh.Fi, c.K, pub)
 			if !ok {
 				log.Lvl2("received invalid share for ciphertext %d from"+
 					" node %d", i, tmpSh.Sh.I)
@@ -134,7 +131,7 @@ func (d *ThreshDecrypt) decryptShareResponse(r structDecryptShareResponse) error
 	d.dsResponses = append(d.dsResponses, &r.DecryptShareResponse)
 
 	if len(d.dsResponses) >= d.Threshold-1 {
-		idx := -1
+		pub := d.Poly.Eval(d.Shared.Index).V
 		for i, c := range d.DecInput.Pairs {
 			// Root prepares its shares
 			sh := cothority.Suite.Point().Mul(d.Shared.V, c.K)
@@ -143,17 +140,26 @@ func (d *ThreshDecrypt) decryptShareResponse(r structDecryptShareResponse) error
 			d.Partials[i].Shares = append(d.Partials[i].Shares, ps)
 			d.Partials[i].Eis = append(d.Partials[i].Eis, ei)
 			d.Partials[i].Fis = append(d.Partials[i].Fis, fi)
-			for _, rep := range d.dsResponses {
-				tmpSh := rep.Shares[i]
+			d.Partials[i].Pubs = append(d.Partials[i].Pubs, pub)
+		}
+
+		pubs := make([]kyber.Point, len(d.List()))
+		for _, resp := range d.dsResponses {
+			idx := resp.Shares[0].Sh.I
+			pubs[idx] = d.Poly.Eval(idx).V
+		}
+
+		for i, _ := range d.DecInput.Pairs {
+			for _, resp := range d.dsResponses {
+				tmpSh := resp.Shares[i]
 				d.Partials[i].Shares = append(d.Partials[i].Shares, tmpSh.Sh)
 				d.Partials[i].Eis = append(d.Partials[i].Eis, tmpSh.Ei)
 				d.Partials[i].Fis = append(d.Partials[i].Fis, tmpSh.Fi)
+				d.Partials[i].Pubs = append(d.Partials[i].Pubs, pubs[tmpSh.Sh.I])
 			}
-			idx = ps.I
 		}
-		d.pubShares[idx] = d.Poly.Eval(idx).V
+		d.finish(true)
 	}
-	d.finish(true)
 	return nil
 }
 

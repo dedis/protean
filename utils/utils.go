@@ -3,18 +3,17 @@ package utils
 import (
 	"crypto/sha256"
 	"encoding/binary"
+	"fmt"
 	"go.dedis.ch/cothority/v3/blscosi"
 	"go.dedis.ch/kyber/v3/util/key"
 	"go.dedis.ch/onet/v3/network"
 	"golang.org/x/xerrors"
 
 	"go.dedis.ch/cothority/v3"
-	"go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/pairing"
 	"go.dedis.ch/kyber/v3/util/random"
 	"go.dedis.ch/onet/v3"
-	"go.dedis.ch/protobuf"
 )
 
 var ps = pairing.NewSuiteBn256()
@@ -115,6 +114,21 @@ func GetCodeHash() []byte {
 	return h.Sum(nil)
 }
 
+// Generator functions
+
+func GenerateMesgs(count int, m string, key kyber.Point) ([][]byte, ElGamalPairs) {
+	mesgs := make([][]byte, count)
+	var cs ElGamalPairs
+	cs.Pairs = make([]ElGamalPair, count)
+	for i := 0; i < count; i++ {
+		s := fmt.Sprintf("%s%s%d%s", m, " -- ", i, "!")
+		mesgs[i] = []byte(s)
+		c := ElGamalEncrypt(key, mesgs[i])
+		cs.Pairs[i] = c
+	}
+	return mesgs, cs
+}
+
 // Utility functions for BLS
 
 func GetBLSKeyPair(id *network.ServerIdentity) *key.Pair {
@@ -122,16 +136,6 @@ func GetBLSKeyPair(id *network.ServerIdentity) *key.Pair {
 		Public:  id.ServicePublic(blscosi.ServiceName),
 		Private: id.ServicePrivate(blscosi.ServiceName),
 	}
-}
-
-func VerifyBLSSignature(s interface{}, sig protocol.BlsSignature, publics []kyber.Point) error {
-	data, err := protobuf.Encode(s)
-	if err != nil {
-		return err
-	}
-	h := sha256.New()
-	h.Write(data)
-	return sig.Verify(ps, h.Sum(nil), publics)
 }
 
 func SearchPublicKey(p *onet.TreeNodeInstance, servID *network.ServerIdentity) int {

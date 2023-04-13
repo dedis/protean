@@ -49,14 +49,14 @@ func (s *ShuffleSvc) Shuffle(req *ShuffleRequest) (*ShuffleReply, error) {
 	}
 	select {
 	case shufProof := <-neff.FinalProof:
-		if req.IsBasic {
+		if req.IsRegular {
 			// Shuffle done
 			return &ShuffleReply{Proofs: shufProof}, nil
 		} else {
 			// 2nd stage: collectively verify the shuffles
 			nodeCount := len(req.Roster.List)
 			tree := req.Roster.GenerateNaryTreeWithRoot(nodeCount-1, s.ServerIdentity())
-			pi, err := s.CreateProtocol(protocol.VerifyProtoName, tree)
+			pi, err := s.CreateProtocol(verify.VerifyProtoName, tree)
 			if err != nil {
 				return nil, err
 			}
@@ -83,7 +83,6 @@ func (s *ShuffleSvc) Shuffle(req *ShuffleRequest) (*ShuffleReply, error) {
 	case <-time.After(shuffleTimeout):
 		return nil, xerrors.New("timeout waiting for shuffle")
 	}
-	return nil, nil
 }
 
 func (s *ShuffleSvc) ShuffleVerify(sp *base.ShuffleOutput, G, H kyber.Point,
@@ -138,11 +137,11 @@ func (s *ShuffleSvc) NewProtocol(tn *onet.TreeNodeInstance,
 		proto := pi.(*protocol.NeffShuffle)
 		return proto, nil
 	case verify.VerifyProtoName:
-		pi, err := protocol.NewShuffleVerify(tn)
+		pi, err := verify.NewShuffleVerify(tn)
 		if err != nil {
 			return nil, err
 		}
-		proto := pi.(*protocol.ShuffleVerify)
+		proto := pi.(*verify.ShuffleVerify)
 		proto.KP = protean.GetBLSKeyPair(s.ServerIdentity())
 		proto.ShufVerify = s.ShuffleVerify
 		return proto, nil
