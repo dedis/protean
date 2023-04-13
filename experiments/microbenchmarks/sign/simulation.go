@@ -3,9 +3,6 @@ package main
 import (
 	"crypto/sha256"
 	"fmt"
-	"strconv"
-	"strings"
-
 	"github.com/BurntSushi/toml"
 	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/experiments/commons"
@@ -341,19 +338,6 @@ func (s *SimulationService) generateSignData() {
 	}
 }
 
-func (s *SimulationService) stringSliceToIntSlice() {
-	numOutputsSlice := strings.Split(s.NumOutputStr, ";")
-	for _, n := range numOutputsSlice {
-		numOutput, _ := strconv.Atoi(n)
-		s.NumOutputs = append(s.NumOutputs, numOutput)
-	}
-	dataSizesSlice := strings.Split(s.DataSizesStr, ";")
-	for _, n := range dataSizesSlice {
-		dataSizes, _ := strconv.Atoi(n)
-		s.DataSizes = append(s.DataSizes, dataSizes)
-	}
-}
-
 func (s *SimulationService) runMicrobenchmark(config *onet.SimulationConfig) error {
 	err := s.initDFUs()
 	if err != nil {
@@ -365,7 +349,6 @@ func (s *SimulationService) runMicrobenchmark(config *onet.SimulationConfig) err
 	if err != nil {
 		return err
 	}
-	s.stringSliceToIntSlice()
 	s.generateSignData()
 	if s.LocalSign {
 		err = s.executeSignLocalRoot()
@@ -392,6 +375,8 @@ func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 	if err != nil {
 		log.Error(err)
 	}
+	s.NumOutputs = commons.StringToIntSlice(s.NumOutputStr)
+	s.DataSizes = commons.StringToIntSlice(s.DataSizesStr)
 	err = s.runMicrobenchmark(config)
 	return err
 }

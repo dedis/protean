@@ -199,3 +199,13 @@ func PrepareStateProof(numInputs int, pr *byzcoin.Proof,
 	}
 	return sp
 }
+
+func StringToIntSlice(src string) []int {
+	var dstSlice []int
+	srcSlice := strings.Split(src, ";")
+	for _, x := range srcSlice {
+		xx, _ := strconv.Atoi(x)
+		dstSlice = append(dstSlice, xx)
+	}
+	return dstSlice
+}

@@ -8,8 +8,6 @@ import (
 	"go.dedis.ch/cothority/v3/blscosi"
 	"go.dedis.ch/kyber/v3"
 	"golang.org/x/xerrors"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -43,15 +41,13 @@ type SimulationService struct {
 
 	// verify_opc structs
 	DataSizesStr string
-	//NumInputsOPC []int
-	DataSizes  []int
-	outputData []map[string][]byte
+	DataSizes    []int
+	outputData   []map[string][]byte
 
 	// verify_kv structs
 	NumBlocksStr string
-	//NumInputsKV  []int
-	NumBlocks   []int
-	latestProof map[int]*byzcoin.GetProofResponse
+	NumBlocks    []int
+	latestProof  map[int]*byzcoin.GetProofResponse
 
 	// internal structs
 	byzID          skipchain.SkipBlockID
@@ -373,27 +369,6 @@ func (s *SimulationService) generateBlocks() error {
 	return nil
 }
 
-func (s *SimulationService) stringSliceToIntSlice() {
-	numInputsSlice := strings.Split(s.NumInputsStr, ";")
-	for _, n := range numInputsSlice {
-		numInput, _ := strconv.Atoi(n)
-		s.NumInputs = append(s.NumInputs, numInput)
-	}
-	if s.DepType == "OPC" {
-		dataSizesSlice := strings.Split(s.DataSizesStr, ";")
-		for _, n := range dataSizesSlice {
-			dataSizes, _ := strconv.Atoi(n)
-			s.DataSizes = append(s.DataSizes, dataSizes)
-		}
-	} else {
-		numBlocksSlice := strings.Split(s.NumBlocksStr, ";")
-		for _, n := range numBlocksSlice {
-			numBlocks, _ := strconv.Atoi(n)
-			s.NumBlocks = append(s.NumBlocks, numBlocks)
-		}
-	}
-}
-
 func (s *SimulationService) runMicrobenchmark(config *onet.SimulationConfig) error {
 	err := s.initDFUs()
 	if err != nil {
@@ -405,7 +380,6 @@ func (s *SimulationService) runMicrobenchmark(config *onet.SimulationConfig) err
 	if err != nil {
 		return err
 	}
-	s.stringSliceToIntSlice()
 	if s.DepType == "OPC" {
 		err := s.generateVerifyOPCData(config)
 		if err != nil {
@@ -458,6 +432,12 @@ func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 	if err != nil {
 		log.Error(err)
 		return err
+	}
+	s.NumInputs = commons.StringToIntSlice(s.NumInputsStr)
+	if s.DepType == "OPC" {
+		s.DataSizes = commons.StringToIntSlice(s.DataSizesStr)
+	} else {
+		s.NumBlocks = commons.StringToIntSlice(s.NumBlocksStr)
 	}
 	err = s.runMicrobenchmark(config)
 	return err
