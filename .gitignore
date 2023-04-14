@@ -14,3 +14,6 @@ conode/conode
 **/test_data/*
 **/scripts/*pdf
 **/scripts/data/
+**/experiments/microbenchmarks/dummy/*
+**/experiments/microbenchmarks/threshold/threshold
+**/experiments/microbenchmarks/shuffle/shuffle
