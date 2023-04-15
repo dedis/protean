@@ -4,7 +4,11 @@ import re
 import argparse
 
 vpattern = 'verify_(\d+)_(\d+)_wall_avg'
+vpattern_min = 'verify_(\d+)_(\d+)_wall_min'
+vpattern_max = 'verify_(\d+)_(\d+)_wall_max'
+
 vpattern_local = 'verify_local_(\d+)_(\d+)_wall_avg'
+
 spattern = 'sign_(\d+)_(\d+)_wall_avg'
 
 def read_data(fname):
@@ -110,18 +114,68 @@ def process_evote(data_read):
             print(",%6f" % (v), end='')
         print()
 
+
+def dump_kv(data_read):
+    data = dict()
+    for label, value in data_read[0].items():
+        avg_match = re.search(vpattern, label)
+        # max_match = re.search(vpattern_max, label)
+        # if avg_match is not None and min_match is not None and max_match is not None:
+        if avg_match is not None:
+            input_num = int(avg_match.group(1))
+            blk_num = int(avg_match.group(2))
+            if blk_num > 5:
+                if input_num not in data:
+                    data[input_num] = {blk_num: [value]}
+                else:
+                    d = data[input_num]
+                    d[blk_num] = [value]
+
+    for label, value in data_read[0].items():
+        min_match = re.search(vpattern_min, label)
+        if min_match is not None:
+            input_num = int(min_match.group(1))
+            blk_num = int(min_match.group(2))
+            if blk_num > 5:
+                d = data[input_num]
+                d[blk_num].append(value)
+
+    for label, value in data_read[0].items():
+        max_match = re.search(vpattern_max, label)
+        if max_match is not None:
+            input_num = int(max_match.group(1))
+            blk_num = int(max_match.group(2))
+            if blk_num > 5:
+                d = data[input_num]
+                d[blk_num].append(value)
+
+
+    print("input_num,block_num,avg,min,max")
+    for input_num, val_dict in sorted(data.items()):
+        for blk_num, val in sorted(val_dict.items()):
+            print("%d,\t%d,\t%.6f,\t%.6f,\t%.6f" % (input_num, blk_num,
+                                            float(val[0]), float(val[1]),
+                                            float(val[2])))
+
 def main():
     parser = argparse.ArgumentParser(description='Parsing csv files')
     parser.add_argument('fname', type=str)
     parser.add_argument('exp_type', choices=['kv', 'opc', 'sign', 'shuf',
                                              'dec', 'evote'], type=str)
     parser.add_argument('-l', dest='local', action='store_true')
+    parser.add_argument('-d', dest='dump', action='store_true')
     args = parser.parse_args()
     data_read = read_data(args.fname)
     if "kv" in args.exp_type:
-        process_kv(data_read, args.local)
+        if args.dump:
+            dump_kv(data_read)
+        else:
+            process_kv(data_read, args.local)
     elif "opc" in args.exp_type:
-        process_opc(data_read, args.local)
+        if args.dump:
+            dump_opc(data_read)
+        else:
+            process_opc(data_read, args.local)
     elif "sign" in args.exp_type:
         process_sign(data_read, args.local)
     elif "shuf" in args.exp_type:
