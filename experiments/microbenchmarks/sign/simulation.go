@@ -160,8 +160,8 @@ func (s *SimulationService) executeSign(config *onet.SimulationConfig) error {
 	signer := config.GetService(service.ServiceName).(*service.Signer)
 
 	idx := 0
-	for _, ns := range s.DataSizes {
-		for _, no := range s.NumOutputs {
+	for _, no := range s.NumOutputs {
+		for _, ns := range s.DataSizes {
 			for round := 0; round < s.Rounds; round++ {
 				signMonitor := monitor.NewTimeMeasure(fmt.Sprintf("sign_%d_%d", no, ns))
 				req := service.SignRequest{
@@ -209,8 +209,8 @@ func (s *SimulationService) executeSignLocalRoot() error {
 	sz := len(s.signerRoster.List)
 	threshold := sz - ((sz - 1) / 3)
 	idx := 0
-	for _, ns := range s.DataSizes {
-		for _, no := range s.NumOutputs {
+	for _, no := range s.NumOutputs {
+		for _, ns := range s.DataSizes {
 			allSigs := make([]map[string]blsproto.BlsSignature, threshold)
 			outputData := s.outputData[idx]
 			for i := 1; i < threshold; i++ {
@@ -287,8 +287,8 @@ func (s *SimulationService) executeSignLocal() error {
 
 	sk := s.signerRoster.List[0].ServicePrivate(blscosi.ServiceName)
 	idx := 0
-	for _, ns := range s.DataSizes {
-		for _, no := range s.NumOutputs {
+	for _, no := range s.NumOutputs {
+		for _, ns := range s.DataSizes {
 			for round := 0; round < s.Rounds; round++ {
 				signMonitor := monitor.NewTimeMeasure(fmt.Sprintf("sign_local_%d_%d", no, ns))
 				_, err := s.signData(sk, s.outputData[idx], execReq, false)
@@ -331,8 +331,8 @@ func (s *SimulationService) signData(sk kyber.Scalar,
 }
 
 func (s *SimulationService) generateSignData() {
-	for _, ns := range s.DataSizes {
-		for _, no := range s.NumOutputs {
+	for _, no := range s.NumOutputs {
+		for _, ns := range s.DataSizes {
 			s.outputData = append(s.outputData, commons.PrepareData(no, ns))
 		}
 	}
@@ -351,7 +351,7 @@ func (s *SimulationService) runMicrobenchmark(config *onet.SimulationConfig) err
 	}
 	s.generateSignData()
 	if s.LocalSign {
-		err = s.executeSignLocalRoot()
+		err = s.executeSignLocal()
 	} else {
 		err = s.executeSign(config)
 	}

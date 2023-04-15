@@ -202,7 +202,6 @@ func (d *ThreshDecrypt) reconstruct(r structReconstruct) error {
 	defer d.Done()
 	d.Threshold = r.Threshold
 	if d.DecInput == nil {
-		log.Info("%s missing input", d.ServerIdentity().String())
 		return cothority.ErrorOrNil(d.SendToParent(&ReconstructResponse{}),
 			"sending ReconstructResponse to parent")
 	}

@@ -3,7 +3,7 @@ DepType = "KV"
 Servers = 1
 Hosts = 38
 Bf = 37
-Rounds = 10
+Rounds = 50
 RunWait = "30000s"
 Delay = 100
 Bandwidth = 100
@@ -14,5 +14,5 @@ FSMFile = "../input/kv/fsm.json"
 DFUFile = "../input/kv/units.json"
 LocalVerify = false
 
-NumInputsStr,NumBlocksStr,
+NumInputsStr,NumBlocksStr
 "1;2;3;4","1;2;5;10;20;50;100;200;500;1000"

@@ -2,13 +2,12 @@ package main
 
 import (
 	"fmt"
-	"sync"
-	"sync/atomic"
-	"time"
-
 	statebase "github.com/dedis/protean/libstate/base"
 	"go.dedis.ch/cothority/v3/blscosi"
 	"go.dedis.ch/kyber/v3"
+	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/BurntSushi/toml"
 	"github.com/dedis/protean/core"
@@ -161,6 +160,16 @@ func (s *SimulationService) executeJoin(signer darc.Signer, idx int) error {
 	defer execCl.Close()
 	defer stCl.Close()
 
+	// Get state
+	gcs, err := stCl.GetState(s.CID)
+	if err != nil {
+		log.Errorf("getting state: %v", err)
+		return err
+	}
+	cdata := &execbase.ByzData{IID: s.CID, Proof: gcs.Proof.Proof,
+		Genesis: s.contractGen}
+	lastRoot := gcs.Proof.Proof.InclusionProof.GetRoot()
+
 	label := fmt.Sprintf("p%d_join", idx)
 	joinMonitor := monitor.NewTimeMeasure(label)
 
@@ -182,15 +191,7 @@ func (s *SimulationService) executeJoin(signer darc.Signer, idx int) error {
 		log.Errorf("encoding input: %v", err)
 		return err
 	}
-	// Get state
-	gcs, err := stCl.GetState(s.CID)
-	if err != nil {
-		log.Errorf("getting state: %v", err)
-		return err
-	}
-	cdata := &execbase.ByzData{IID: s.CID, Proof: gcs.Proof.Proof,
-		Genesis: s.contractGen}
-	lastRoot := gcs.Proof.Proof.InclusionProof.GetRoot()
+
 	done := false
 	for !done {
 		itReply, err := execCl.InitTransaction(s.rdata, cdata, "joinwf", "join")
@@ -234,6 +235,7 @@ func (s *SimulationService) executeJoin(signer darc.Signer, idx int) error {
 			gcs.Proof.Proof = pr
 			cdata.Proof = gcs.Proof.Proof
 			lastRoot = pr.InclusionProof.GetRoot()
+			fmt.Println("retry:", idx)
 		} else {
 			_, err = stCl.WaitProof(s.CID[:], lastRoot, commons.PROOF_WAIT)
 			if err != nil {
@@ -248,26 +250,32 @@ func (s *SimulationService) executeJoin(signer darc.Signer, idx int) error {
 }
 
 func (s *SimulationService) executeClose() error {
-	//closeMonitor := monitor.NewTimeMeasure("close")
-	m1 := monitor.NewTimeMeasure("close_inittxn")
 	// Get state
+	m0 := monitor.NewTimeMeasure("close_getstate")
 	gcs, err := s.stCl.GetState(s.CID)
 	if err != nil {
 		log.Errorf("getting state: %v", err)
 		return err
 	}
-	cdata := &execbase.ByzData{IID: s.CID, Proof: gcs.Proof.Proof,
-		Genesis: s.contractGen}
+	m0.Record()
 
 	// Initialize transaction
+	m1 := monitor.NewTimeMeasure("close_inittxn")
+	cdata := &execbase.ByzData{IID: s.CID, Proof: gcs.Proof.Proof,
+		Genesis: s.contractGen}
 	itReply, err := s.execCl.InitTransaction(s.rdata, cdata, "closewf", "close")
 	if err != nil {
 		log.Errorf("initializing txn: %v", err)
 		return err
 	}
+	execReq := &core.ExecutionRequest{
+		Index: 0,
+		EP:    &itReply.Plan,
+	}
 	m1.Record()
-	m2 := monitor.NewTimeMeasure("close_exec")
+
 	// Step 1: exec
+	m2 := monitor.NewTimeMeasure("close_exec")
 	closeInput := randlottery.CloseInput{
 		Barrier: 0,
 	}
@@ -283,18 +291,15 @@ func (s *SimulationService) executeClose() error {
 		Data:        data,
 		StateProofs: sp,
 	}
-	execReq := &core.ExecutionRequest{
-		Index: 0,
-		EP:    &itReply.Plan,
-	}
 	execReply, err := s.execCl.Execute(execInput, execReq)
 	if err != nil {
 		log.Errorf("executing close_randlot: %v", err)
 		return err
 	}
 	m2.Record()
-	m3 := monitor.NewTimeMeasure("close_update")
+
 	// Step 2: update_state
+	m3 := monitor.NewTimeMeasure("close_update")
 	var closeOut randlottery.CloseOutput
 	err = protobuf.Decode(execReply.Output.Data, &closeOut)
 	if err != nil {
@@ -315,46 +320,49 @@ func (s *SimulationService) executeClose() error {
 		log.Errorf("wait proof: %v", err)
 	}
 	m3.Record()
-	//closeMonitor.Record()
 	return err
 }
 
 func (s *SimulationService) executeFinalize() error {
 	inReceipts := make(map[int]map[string]*core.OpcodeReceipt)
-	//finalizeMonitor := monitor.NewTimeMeasure("finalize")
-	m1 := monitor.NewTimeMeasure("finalize_inittxn")
+
 	// Get state
+	m0 := monitor.NewTimeMeasure("finalize_getstate")
 	gcs, err := s.stCl.GetState(s.CID)
 	if err != nil {
 		log.Errorf("getting state: %v", err)
 		return err
 	}
-	cdata := &execbase.ByzData{IID: s.CID, Proof: gcs.Proof.Proof,
-		Genesis: s.contractGen}
+	m0.Record()
 
 	// Initialize transaction
+	m1 := monitor.NewTimeMeasure("finalize_inittxn")
+	cdata := &execbase.ByzData{IID: s.CID, Proof: gcs.Proof.Proof,
+		Genesis: s.contractGen}
 	itReply, err := s.execCl.InitTransaction(s.rdata, cdata, "finalizewf",
 		"finalize")
 	if err != nil {
 		log.Errorf("initializing txn: %v", err)
 		return err
 	}
-	m1.Record()
-	round := uint64(2)
-	m2 := monitor.NewTimeMeasure("finalize_getrand")
-	// Step 1: randomness
 	execReq := &core.ExecutionRequest{
 		Index: 0,
 		EP:    &itReply.Plan,
 	}
+	m1.Record()
+
+	// Step 1: randomness
+	round := uint64(2)
+	m2 := monitor.NewTimeMeasure("finalize_getrand")
 	randReply, err := s.randCl.GetRandomness(round, execReq)
 	if err != nil {
 		log.Errorf("getting randomness: %v", err)
 		return err
 	}
 	m2.Record()
-	m3 := monitor.NewTimeMeasure("finalize_exec")
+
 	// Step 2: exec
+	m3 := monitor.NewTimeMeasure("finalize_exec")
 	finalizeInput := randlottery.FinalizeInput{
 		Round:      round,
 		Randomness: randReply.Output,
@@ -379,8 +387,9 @@ func (s *SimulationService) executeFinalize() error {
 		return err
 	}
 	m3.Record()
-	m4 := monitor.NewTimeMeasure("finalize_update")
+
 	// Step 3: update_state
+	m4 := monitor.NewTimeMeasure("finalize_update")
 	var finalOut randlottery.FinalizeOutput
 	err = protobuf.Decode(execReply.Output.Data, &finalOut)
 	if err != nil {
@@ -402,7 +411,6 @@ func (s *SimulationService) executeFinalize() error {
 		log.Errorf("wait proof: %v", err)
 	}
 	m4.Record()
-	//finalizeMonitor.Record()
 	return err
 }
 
@@ -438,9 +446,12 @@ func (s *SimulationService) runRandLottery() error {
 			return err
 		}
 		// join_txn
-		for i := 0; i < len(schedule); i++ {
+		i := 0
+		for i < len(schedule) {
 			pCount := schedule[i]
-			if pCount != 0 {
+			if pCount == 0 {
+				i++
+			} else {
 				wg.Add(pCount)
 				for j := 0; j < pCount; j++ {
 					go func(idx int) {
@@ -451,15 +462,10 @@ func (s *SimulationService) runRandLottery() error {
 					}(ctr)
 					ctr++
 				}
-			} else {
-				count := atomic.LoadInt64(&ongoing)
-				if count == 0 {
-					continue
-				}
+				wg.Wait()
+				i++
 			}
-			time.Sleep(time.Duration(s.BlockTime) * time.Second)
 		}
-		wg.Wait()
 		// close_txn
 		err = s.executeClose()
 		if err != nil {

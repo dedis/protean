@@ -152,8 +152,8 @@ func (s *SimulationService) executeVerifyOpc(config *onet.SimulationConfig) erro
 	// Get verifier service
 	verifier := config.GetService(verifysvc.ServiceName).(*verifysvc.Verifier)
 	idx := 0
-	for _, ns := range s.DataSizes {
-		for _, ni := range s.NumInputs {
+	for _, ni := range s.NumInputs {
+		for _, ns := range s.DataSizes {
 			execReq := s.execReqs[idx]
 			outputData := s.outputData[idx]
 			for round := 0; round < s.Rounds; round++ {
@@ -183,8 +183,8 @@ func (s *SimulationService) executeLocalVerifyOPC() error {
 		StateProofs: make(map[string]*core.StateProof),
 		InputHashes: make(map[string][]byte),
 	}
-	for _, ns := range s.DataSizes {
-		for _, ni := range s.NumInputs {
+	for _, ni := range s.NumInputs {
+		for _, ns := range s.DataSizes {
 			execReq := s.execReqs[idx]
 			outputData := s.outputData[idx]
 			for round := 0; round < s.Rounds; round++ {
@@ -238,10 +238,10 @@ func (s *SimulationService) generateVerifyOPCData(config *onet.SimulationConfig)
 			EP:    &itReply.Plan,
 		}
 	}
-	for _, ns := range s.DataSizes {
-		for _, ni := range s.NumInputs {
-			txnName := fmt.Sprintf("verify_%d", ni)
-			execReq := reqMap[txnName]
+	for _, ni := range s.NumInputs {
+		txnName := fmt.Sprintf("verify_%d", ni)
+		execReq := reqMap[txnName]
+		for _, ns := range s.DataSizes {
 			outputData := commons.PrepareData(ni, ns)
 			signer := config.GetService(signsvc.ServiceName).(*signsvc.Signer)
 			signReq := signsvc.SignRequest{
@@ -268,8 +268,8 @@ func (s *SimulationService) executeVerifyKv(config *onet.SimulationConfig) error
 
 	verifier := config.GetService(verifysvc.ServiceName).(*verifysvc.Verifier)
 
-	for _, nb := range s.NumBlocks {
-		for _, ni := range s.NumInputs {
+	for _, ni := range s.NumInputs {
+		for _, nb := range s.NumBlocks {
 			pr := &s.latestProof[nb].Proof
 			sp := commons.PrepareStateProof(ni, pr, s.contractGen)
 			cdata := &execbase.ByzData{IID: s.CID, Proof: pr, Genesis: s.contractGen}
@@ -308,8 +308,8 @@ func (s *SimulationService) executeLocalVerifyKV() error {
 		OpcodeName:  "verify",
 		InputHashes: make(map[string][]byte),
 	}
-	for _, nb := range s.NumBlocks {
-		for _, ni := range s.NumInputs {
+	for _, ni := range s.NumInputs {
+		for _, nb := range s.NumBlocks {
 			pr := &s.latestProof[nb].Proof
 			sp := commons.PrepareStateProof(ni, pr, s.contractGen)
 			cdata := &execbase.ByzData{IID: s.CID, Proof: pr, Genesis: s.contractGen}

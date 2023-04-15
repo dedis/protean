@@ -36,8 +36,6 @@ type SimulationService struct {
 	ScheduleFile    string
 	BlockTime       int
 	NumParticipants int
-	//SlotFactor      int
-	//Seed            int
 
 	// internal structs
 	byzID        skipchain.SkipBlockID
@@ -104,21 +102,6 @@ func (s *SimulationService) initDFUs() error {
 	return nil
 }
 
-//func (s *SimulationService) generateSchedule() []int {
-//	if s.NumParticipants < 1000 {
-//		numSlots := s.NumParticipants * s.SlotFactor
-//		return commons.GenerateSchedule(s.Seed, s.NumParticipants, numSlots)
-//	} else {
-//		// if s.NumParticipants == 1000, use the schedule from 500
-//		halfSlots := (s.NumParticipants / 2) * s.SlotFactor
-//		half := commons.GenerateSchedule(s.Seed, s.NumParticipants/2, halfSlots)
-//		slots := make([]int, halfSlots*2)
-//		copy(slots, half)
-//		copy(slots[halfSlots:], half)
-//		return slots
-//	}
-//}
-
 func (s *SimulationService) initContract() error {
 	contract, err := libclient.ReadContractJSON(&s.ContractFile)
 	if err != nil {
@@ -158,20 +141,24 @@ func (s *SimulationService) initContract() error {
 		log.Error(err)
 		return err
 	}
-	//time.Sleep(time.Duration(s.BlockTime/2) * time.Second)
 	time.Sleep(time.Duration(s.BlockTime/2) * time.Second)
 	return nil
 }
 
 func (s *SimulationService) executeSetup() error {
 	inReceipts := make(map[int]map[string]*core.OpcodeReceipt)
-	//setupMonitor := monitor.NewTimeMeasure("setup")
-	m1 := monitor.NewTimeMeasure("setup_inittxn")
+
 	// Get state
+	m0 := monitor.NewTimeMeasure("setup_getstate")
 	gcs, err := s.stCl.GetState(s.CID)
 	if err != nil {
+		log.Errorf("getting state: %v", err)
 		return err
 	}
+	m0.Record()
+
+	// Initialize transaction
+	m1 := monitor.NewTimeMeasure("setup_inittxn")
 	cdata := &execbase.ByzData{IID: s.CID, Proof: gcs.Proof.Proof,
 		Genesis: s.contractGen}
 	itReply, err := s.execCl.InitTransaction(s.rdata, cdata, "setupwf", "setup")
@@ -184,16 +171,18 @@ func (s *SimulationService) executeSetup() error {
 		EP:    &itReply.Plan,
 	}
 	m1.Record()
-	m2 := monitor.NewTimeMeasure("setup_initdkg")
+
 	// Step 1: init_dkg
+	m2 := monitor.NewTimeMeasure("setup_initdkg")
 	dkgReply, err := s.thCl.InitDKG(execReq)
 	if err != nil {
 		log.Error(err)
 		return err
 	}
 	m2.Record()
-	m3 := monitor.NewTimeMeasure("setup_exec")
+
 	// Step 2: exec
+	m3 := monitor.NewTimeMeasure("setup_exec")
 	setupInput := dkglottery.SetupInput{Pk: dkgReply.Output.X}
 	data, err := protobuf.Encode(&setupInput)
 	if err != nil {
@@ -215,8 +204,9 @@ func (s *SimulationService) executeSetup() error {
 		return err
 	}
 	m3.Record()
-	m4 := monitor.NewTimeMeasure("setup_update")
+
 	// Step 3: update_state
+	m4 := monitor.NewTimeMeasure("setup_update")
 	var setupOut dkglottery.SetupOutput
 	err = protobuf.Decode(execReply.Output.Data, &setupOut)
 	if err != nil {
@@ -238,7 +228,6 @@ func (s *SimulationService) executeSetup() error {
 	}
 	s.X = dkgReply.Output.X
 	m4.Record()
-	//setupMonitor.Record()
 	return err
 }
 
@@ -247,6 +236,16 @@ func (s *SimulationService) executeJoin(idx int) error {
 	stCl := libstate.NewClient(byzcoin.NewClient(s.byzID, *s.stRoster))
 	defer execCl.Close()
 	defer stCl.Close()
+
+	// Get state
+	gcs, err := stCl.GetState(s.CID)
+	if err != nil {
+		log.Errorf("getting state: %v", err)
+		return err
+	}
+	cdata := &execbase.ByzData{IID: s.CID, Proof: gcs.Proof.Proof,
+		Genesis: s.contractGen}
+	lastRoot := gcs.Proof.Proof.InclusionProof.GetRoot()
 
 	label := fmt.Sprintf("p%d_join", idx)
 	joinMonitor := monitor.NewTimeMeasure(label)
@@ -263,15 +262,7 @@ func (s *SimulationService) executeJoin(idx int) error {
 		log.Errorf("encoding input: %v", err)
 		return err
 	}
-	// Get state
-	gcs, err := stCl.GetState(s.CID)
-	if err != nil {
-		log.Errorf("getting state: %v", err)
-		return err
-	}
-	cdata := &execbase.ByzData{IID: s.CID, Proof: gcs.Proof.Proof,
-		Genesis: s.contractGen}
-	lastRoot := gcs.Proof.Proof.InclusionProof.GetRoot()
+
 	done := false
 	for !done {
 		itReply, err := execCl.InitTransaction(s.rdata, cdata, "joinwf", "join")
@@ -279,6 +270,7 @@ func (s *SimulationService) executeJoin(idx int) error {
 			log.Errorf("initializing txn: %v", err)
 			return err
 		}
+
 		// Step 1: execute
 		sp := make(map[string]*core.StateProof)
 		sp["readset"] = &gcs.Proof
@@ -296,6 +288,7 @@ func (s *SimulationService) executeJoin(idx int) error {
 			log.Errorf("executing join_dkglot: %v", err)
 			return err
 		}
+
 		// Step 2: update_state
 		var joinOut dkglottery.JoinOutput
 		err = protobuf.Decode(execReply.Output.Data, &joinOut)
@@ -329,26 +322,32 @@ func (s *SimulationService) executeJoin(idx int) error {
 }
 
 func (s *SimulationService) executeClose() error {
-	//closeMonitor := monitor.NewTimeMeasure("close")
-	m1 := monitor.NewTimeMeasure("close_inittxn")
 	// Get state
+	m0 := monitor.NewTimeMeasure("close_getstate")
 	gcs, err := s.stCl.GetState(s.CID)
 	if err != nil {
 		log.Errorf("getting state: %v", err)
 		return err
 	}
-	cdata := &execbase.ByzData{IID: s.CID, Proof: gcs.Proof.Proof,
-		Genesis: s.contractGen}
+	m0.Record()
 
 	// Initialize transaction
+	m1 := monitor.NewTimeMeasure("close_inittxn")
+	cdata := &execbase.ByzData{IID: s.CID, Proof: gcs.Proof.Proof,
+		Genesis: s.contractGen}
 	itReply, err := s.execCl.InitTransaction(s.rdata, cdata, "closewf", "close")
 	if err != nil {
 		log.Errorf("initializing txn: %v", err)
 		return err
 	}
+	execReq := &core.ExecutionRequest{
+		Index: 0,
+		EP:    &itReply.Plan,
+	}
 	m1.Record()
-	m2 := monitor.NewTimeMeasure("close_exec")
+
 	// Step 1: exec
+	m2 := monitor.NewTimeMeasure("close_exec")
 	closeInput := dkglottery.CloseInput{
 		Barrier: 0,
 	}
@@ -364,18 +363,15 @@ func (s *SimulationService) executeClose() error {
 		Data:        data,
 		StateProofs: sp,
 	}
-	execReq := &core.ExecutionRequest{
-		Index: 0,
-		EP:    &itReply.Plan,
-	}
 	execReply, err := s.execCl.Execute(execInput, execReq)
 	if err != nil {
 		log.Errorf("executing close_dkglot: %v", err)
 		return err
 	}
 	m2.Record()
-	m3 := monitor.NewTimeMeasure("close_update")
+
 	// Step 2: update_state
+	m3 := monitor.NewTimeMeasure("close_update")
 	var closeOut dkglottery.CloseOutput
 	err = protobuf.Decode(execReply.Output.Data, &closeOut)
 	if err != nil {
@@ -396,42 +392,44 @@ func (s *SimulationService) executeClose() error {
 		log.Errorf("wait proof: %v", err)
 	}
 	m3.Record()
-	//closeMonitor.Record()
 	return err
 }
 
 func (s *SimulationService) executeFinalize() error {
 	inReceipts := make(map[int]map[string]*core.OpcodeReceipt)
-	//finalizeMonitor := monitor.NewTimeMeasure("finalize")
-	m1 := monitor.NewTimeMeasure("finalize_inittxn")
+
 	// Get state
+	m0 := monitor.NewTimeMeasure("finalize_getstate")
 	gcs, err := s.stCl.GetState(s.CID)
 	if err != nil {
 		log.Errorf("getting state: %v", err)
 		return err
 	}
-	cdata := &execbase.ByzData{IID: s.CID, Proof: gcs.Proof.Proof,
-		Genesis: s.contractGen}
+	m0.Record()
 
 	// Initialize transaction
+	m1 := monitor.NewTimeMeasure("finalize_inittxn")
+	cdata := &execbase.ByzData{IID: s.CID, Proof: gcs.Proof.Proof,
+		Genesis: s.contractGen}
 	itReply, err := s.execCl.InitTransaction(s.rdata, cdata, "finalizewf",
 		"finalize")
 	if err != nil {
 		log.Errorf("initializing txn: %v", err)
 		return err
 	}
+	execReq := &core.ExecutionRequest{
+		Index: 0,
+		EP:    &itReply.Plan,
+	}
 	m1.Record()
-	m2 := monitor.NewTimeMeasure("finalize_exec_1")
+
 	// Step 1: exec
+	m2 := monitor.NewTimeMeasure("finalize_exec_1")
 	sp := make(map[string]*core.StateProof)
 	sp["readset"] = &gcs.Proof
 	execInput := execbase.ExecuteInput{
 		FnName:      "prepare_decrypt_dkglot",
 		StateProofs: sp,
-	}
-	execReq := &core.ExecutionRequest{
-		Index: 0,
-		EP:    &itReply.Plan,
 	}
 	execReply, err := s.execCl.Execute(execInput, execReq)
 	if err != nil {
@@ -439,8 +437,9 @@ func (s *SimulationService) executeFinalize() error {
 		return err
 	}
 	m2.Record()
-	m3 := monitor.NewTimeMeasure("finalize_decrypt")
+
 	// Step 2: decrypt
+	m3 := monitor.NewTimeMeasure("finalize_decrypt")
 	var prepOut dkglottery.PrepDecOutput
 	err = protobuf.Decode(execReply.Output.Data, &prepOut)
 	if err != nil {
@@ -455,8 +454,9 @@ func (s *SimulationService) executeFinalize() error {
 		return err
 	}
 	m3.Record()
-	m4 := monitor.NewTimeMeasure("finalize_exec_2")
+
 	// Step 3: exec
+	m4 := monitor.NewTimeMeasure("finalize_exec_2")
 	finalInput := dkglottery.FinalizeInput{Ps: decReply.Output.Ps}
 	data, err := protobuf.Encode(&finalInput)
 	if err != nil {
@@ -477,8 +477,9 @@ func (s *SimulationService) executeFinalize() error {
 		return err
 	}
 	m4.Record()
-	m5 := monitor.NewTimeMeasure("finalize_update")
+
 	// Step 4: update_state
+	m5 := monitor.NewTimeMeasure("finalize_update")
 	var finalOut dkglottery.FinalizeOutput
 	err = protobuf.Decode(execReply.Output.Data, &finalOut)
 	if err != nil {
@@ -500,7 +501,6 @@ func (s *SimulationService) executeFinalize() error {
 		log.Errorf("wait proof: %v", err)
 	}
 	m5.Record()
-	//finalizeMonitor.Record()
 	return err
 }
 
@@ -539,9 +539,12 @@ func (s *SimulationService) runDKGLottery() error {
 			return err
 		}
 		// join_txn
-		for i := 0; i < len(schedule); i++ {
+		i := 0
+		for i < len(schedule) {
 			pCount := schedule[i]
-			if pCount != 0 {
+			if pCount == 0 {
+				i++
+			} else {
 				wg.Add(pCount)
 				for j := 0; j < pCount; j++ {
 					go func(idx int) {
@@ -552,15 +555,10 @@ func (s *SimulationService) runDKGLottery() error {
 					}(ctr)
 					ctr++
 				}
-			} else {
-				count := atomic.LoadInt64(&ongoing)
-				if count == 0 {
-					continue
-				}
+				wg.Wait()
+				i++
 			}
-			time.Sleep(time.Duration(s.BlockTime) * time.Second)
 		}
-		wg.Wait()
 		// close_txn
 		err = s.executeClose()
 		if err != nil {
