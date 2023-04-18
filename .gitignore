@@ -11,9 +11,15 @@ conode/conode
 **/experiments/evoting/evoting
 **/sign/sign
 **/verify/verify
-**/test_data/*
 **/scripts/*pdf
 **/scripts/data/
 **/experiments/microbenchmarks/dummy/*
 **/experiments/microbenchmarks/threshold/threshold
 **/experiments/microbenchmarks/shuffle/shuffle
+
+**/test_data/*csv
+#**/test_data/save/*
+**/test_data/save/bcast/*
+**/test_data/save/old/*
+**/test_data/old/*
+**/test_data/vm_local/*
