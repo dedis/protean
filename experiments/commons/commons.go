@@ -23,6 +23,7 @@ import (
 	"go.dedis.ch/onet/v3"
 )
 
+const BATCH_COUNT int = 10
 const UPDATE_WAIT int = 10
 const PROOF_WAIT int = 15
 

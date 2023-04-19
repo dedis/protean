@@ -32,14 +32,16 @@ import (
 
 type SimulationService struct {
 	onet.SimulationBFTree
-	ContractFile    string
-	FSMFile         string
-	DFUFile         string
-	ScheduleFile    string
-	BlockTime       int
-	NumCandidates   int
-	NumParticipants int
-	Batched         bool
+	ContractFile      string
+	BatchContractFile string
+	FSMFile           string
+	DFUFile           string
+	ScheduleFile      string
+	BlockTime         int
+	NumCandidates     int
+	NumParticipants   int
+	Batched           bool
+	BatchSize         int
 
 	// internal structs
 	byzID        skipchain.SkipBlockID
@@ -115,6 +117,9 @@ func (s *SimulationService) initDFUs() error {
 }
 
 func (s *SimulationService) initContract() error {
+	if s.Batched {
+		s.ContractFile = s.BatchContractFile
+	}
 	contract, err := libclient.ReadContractJSON(&s.ContractFile)
 	if err != nil {
 		log.Error(err)
@@ -161,13 +166,13 @@ func (s *SimulationService) executeSetup() error {
 	inReceipts := make(map[int]map[string]*core.OpcodeReceipt)
 
 	// Get state
-	m0 := monitor.NewTimeMeasure("setup_getstate")
+	//m0 := monitor.NewTimeMeasure("setup_getstate")
 	gcs, err := s.stCl.GetState(s.CID)
 	if err != nil {
 		log.Errorf("getting state: %v", err)
 		return err
 	}
-	m0.Record()
+	//m0.Record()
 
 	// Initialize transaction
 	m1 := monitor.NewTimeMeasure("setup_inittxn")
@@ -243,13 +248,23 @@ func (s *SimulationService) executeSetup() error {
 	return err
 }
 
-func (s *SimulationService) executeBatchVote(ballots []string) error {
+func (s *SimulationService) executeBatchVote(ballots []string, idx int) error {
 	execCl := libexec.NewClient(s.execRoster)
 	stCl := libstate.NewClient(byzcoin.NewClient(s.byzID, *s.stRoster))
 	defer execCl.Close()
 	defer stCl.Close()
 
-	voteMonitor := monitor.NewTimeMeasure("batch_vote")
+	// Get state
+	gcs, err := stCl.GetState(s.CID)
+	if err != nil {
+		log.Errorf("getting state: %v", err)
+		return err
+	}
+	cdata := &execbase.ByzData{IID: s.CID, Proof: gcs.Proof.Proof,
+		Genesis: s.contractGen}
+	lastRoot := gcs.Proof.Proof.InclusionProof.GetRoot()
+
+	voteMonitor := monitor.NewTimeMeasure(fmt.Sprintf("batch_vote_%d", idx))
 
 	var encBallots utils.ElGamalPairs
 	for _, b := range ballots {
@@ -265,16 +280,6 @@ func (s *SimulationService) executeBatchVote(ballots []string) error {
 		log.Errorf("encoding input: %v", err)
 		return err
 	}
-
-	// Get state
-	gcs, err := stCl.GetState(s.CID)
-	if err != nil {
-		log.Errorf("getting state: %v", err)
-		return err
-	}
-	cdata := &execbase.ByzData{IID: s.CID, Proof: gcs.Proof.Proof,
-		Genesis: s.contractGen}
-	lastRoot := gcs.Proof.Proof.InclusionProof.GetRoot()
 
 	itReply, err := execCl.InitTransaction(s.rdata, cdata, "votewf", "vote")
 	if err != nil {
@@ -307,13 +312,16 @@ func (s *SimulationService) executeBatchVote(ballots []string) error {
 	}
 	execReq.Index = 1
 	execReq.OpReceipts = execReply.OutputReceipts
-	log.Info("adding votes")
 	_, err = stCl.UpdateState(voteOut.WS, execReq, nil, commons.UPDATE_WAIT)
 	if err != nil {
 		log.Error(err)
 		return err
 	}
 	_, err = stCl.WaitProof(s.CID[:], lastRoot, commons.PROOF_WAIT)
+	if err != nil {
+		log.Error(err)
+		return err
+	}
 	voteMonitor.Record()
 	return nil
 }
@@ -393,6 +401,7 @@ func (s *SimulationService) executeVote(ballot string, idx int) error {
 			gcs.Proof.Proof = pr
 			cdata.Proof = gcs.Proof.Proof
 			lastRoot = pr.InclusionProof.GetRoot()
+			//fmt.Println("retry:", idx)
 		} else {
 			_, err := stCl.WaitProof(s.CID[:], lastRoot, commons.PROOF_WAIT)
 			if err != nil {
@@ -408,13 +417,13 @@ func (s *SimulationService) executeVote(ballot string, idx int) error {
 
 func (s *SimulationService) executeLock() error {
 	// Get state
-	m0 := monitor.NewTimeMeasure("lock_getstate")
+	//m0 := monitor.NewTimeMeasure("lock_getstate")
 	gcs, err := s.stCl.GetState(s.CID)
 	if err != nil {
 		log.Errorf("getting state: %v", err)
 		return err
 	}
-	m0.Record()
+	//m0.Record()
 
 	// Initialize transaction
 	m1 := monitor.NewTimeMeasure("lock_inittxn")
@@ -492,13 +501,13 @@ func (s *SimulationService) executeShuffle() error {
 	inReceipts := make(map[int]map[string]*core.OpcodeReceipt)
 
 	// Get state
-	m0 := monitor.NewTimeMeasure("shuffle_getstate")
+	//m0 := monitor.NewTimeMeasure("shuffle_getstate")
 	gcs, err := s.stCl.GetState(s.CID)
 	if err != nil {
 		log.Errorf("getting state: %v", err)
 		return err
 	}
-	m0.Record()
+	//m0.Record()
 
 	// Initialize transaction
 	m1 := monitor.NewTimeMeasure("shuffle_inittxn")
@@ -599,13 +608,13 @@ func (s *SimulationService) executeTally() error {
 	inReceipts := make(map[int]map[string]*core.OpcodeReceipt)
 
 	// Get state
-	m0 := monitor.NewTimeMeasure("tally_getstate")
+	//m0 := monitor.NewTimeMeasure("tally_getstate")
 	gcs, err := s.stCl.GetState(s.CID)
 	if err != nil {
 		log.Errorf("getting state: %v", err)
 		return err
 	}
-	m0.Record()
+	//m0.Record()
 
 	// Initialize transaction
 	m1 := monitor.NewTimeMeasure("tally_inittxn")
@@ -769,11 +778,13 @@ func (s *SimulationService) runEvoting() error {
 			return err
 		}
 		// shuffle_txn
+		log.Info("Shuffling...")
 		err = s.executeShuffle()
 		if err != nil {
 			return err
 		}
 		// tally_txn
+		log.Info("Tallying...")
 		err = s.executeTally()
 		if err != nil {
 			return err
@@ -811,8 +822,8 @@ func (s *SimulationService) runBatchedEvoting() error {
 			return err
 		}
 		// vote_txn
-		for i := 0; i < 5; i++ {
-			s.executeBatchVote(ballots[100*i : 100*(i+1)])
+		for i := 0; i < commons.BATCH_COUNT; i++ {
+			s.executeBatchVote(ballots[s.BatchSize*i:s.BatchSize*(i+1)], i)
 		}
 		// lock_txn
 		err = s.executeLock()
@@ -840,7 +851,7 @@ func (s *SimulationService) dummyRecords() {
 		label := fmt.Sprintf("p%d_vote", i)
 		for round := 0; round < s.Rounds; round++ {
 			dummy := monitor.NewTimeMeasure(label)
-			time.Sleep(5 * time.Microsecond)
+			time.Sleep(1 * time.Millisecond)
 			dummy.Record()
 		}
 	}
@@ -870,6 +881,7 @@ func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 		log.Error(err)
 	}
 	if s.Batched {
+		s.BatchSize = s.NumParticipants / 10
 		err = s.runBatchedEvoting()
 	} else {
 		err = s.runEvoting()

@@ -62,6 +62,28 @@ func JoinLottery(genInput *base.GenericInput) (*base.GenericOutput, error) {
 	return &base.GenericOutput{O: JoinOutput{WS: args}}, nil
 }
 
+func BatchJoinLottery(genInput *base.GenericInput) (*base.GenericOutput, error) {
+	input, ok := genInput.I.(BatchJoinInput)
+	if !ok {
+		return nil, xerrors.New("missing input")
+	}
+	kvDict, ok := genInput.KVInput["readset"]
+	if !ok {
+		return nil, xerrors.New("missing keyvalue data")
+	}
+	tickets, err := getTickets(&kvDict)
+	if err != nil {
+		return nil, err
+	}
+	tickets.Data.Pairs = append(tickets.Data.Pairs, input.Tickets.Data.Pairs...)
+	buf, err := protobuf.Encode(tickets)
+	if err != nil {
+		return nil, xerrors.Errorf("couldn't encode tickets: %v", err)
+	}
+	args := byzcoin.Arguments{{Name: "enc_tickets", Value: buf}}
+	return &base.GenericOutput{O: JoinOutput{WS: args}}, nil
+}
+
 func CloseLottery(genInput *base.GenericInput) (*base.GenericOutput, error) {
 	input, ok := genInput.I.(CloseInput)
 	if !ok {

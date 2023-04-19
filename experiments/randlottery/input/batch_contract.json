@@ -1,0 +1,131 @@
+{
+	"workflows": {
+		"joinwf": {
+			"txns": {
+				"join": {
+					"opcodes": [
+						{
+							"name": "exec",
+							"dfu_id": "codeexec",
+							"inputs": {
+								"fnname": {
+									"src": "CONST",
+									"value": "batch_join_randlot"
+								},
+								"readset": {
+									"src": "KEYVALUE",
+									"value": "tickets,header"
+								}
+							}
+						},
+						{
+							"name": "update_state",
+							"dfu_id": "state",
+							"inputs": {
+								"ws": {
+									"src": "OPCODE",
+									"src_name": "writeset",
+									"idx": 0
+								}
+							}
+						}
+					]
+				}
+			}
+		},
+		"closewf": {
+			"txns": {
+				"close": {
+					"opcodes": [
+						{
+							"name": "exec",
+							"dfu_id": "codeexec",
+							"inputs": {
+								"fnname": {
+									"src": "CONST",
+									"value": "close_randlot"
+								},
+								"barrier": {
+									"src": "CONST",
+									"value": 0
+								},
+								"readset": {
+									"src": "KEYVALUE",
+									"value": "header"
+								}
+							}
+						},
+						{
+							"name": "update_state",
+							"dfu_id": "state",
+							"inputs": {
+								"ws": {
+									"src": "OPCODE",
+									"src_name": "writeset",
+									"idx": 0
+								}
+							}
+						}
+					]
+				}
+			}
+		},
+		"finalizewf": {
+			"txns": {
+				"finalize": {
+					"opcodes": [
+						{
+							"name": "get_randomness",
+							"dfu_id": "easyrand",
+							"inputs": {
+								"round": {
+									"src": "CONST",
+									"value": 2
+								}
+							}
+						},
+						{
+							"name": "exec",
+							"dfu_id": "codeexec",
+							"inputs": {
+								"fnname": {
+									"src": "CONST",
+									"value": "finalize_randlot"
+								},
+								"round": {
+									"src": "CONST",
+									"value": 2
+								},
+								"readset": {
+									"src": "KEYVALUE",
+									"value": "tickets,header"
+								},
+								"randomness": {
+									"src": "OPCODE",
+									"src_name": "randomness",
+									"idx": 0
+								}
+							}
+						},
+						{
+							"name": "update_state",
+							"dfu_id": "state",
+							"inputs": {
+								"ws": {
+									"src": "OPCODE",
+									"src_name": "writeset",
+									"idx": 1
+								}
+							}
+						}
+					]
+				}
+			}
+		}
+	},
+	"dfus": [
+		"codeexec",
+		"state",
+		"easyrand"
+	]
+}

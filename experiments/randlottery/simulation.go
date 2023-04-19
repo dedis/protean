@@ -31,12 +31,15 @@ import (
 
 type SimulationService struct {
 	onet.SimulationBFTree
-	ContractFile    string
-	FSMFile         string
-	DFUFile         string
-	ScheduleFile    string
-	BlockTime       int
-	NumParticipants int
+	ContractFile      string
+	BatchContractFile string
+	FSMFile           string
+	DFUFile           string
+	ScheduleFile      string
+	BlockTime         int
+	NumParticipants   int
+	Batched           bool
+	BatchSize         int
 
 	// internal structs
 	byzID      skipchain.SkipBlockID
@@ -112,6 +115,9 @@ func (s *SimulationService) initDFUs() error {
 }
 
 func (s *SimulationService) initContract() error {
+	if s.Batched {
+		s.ContractFile = s.BatchContractFile
+	}
 	contract, err := libclient.ReadContractJSON(&s.ContractFile)
 	if err != nil {
 		log.Error(err)
@@ -154,6 +160,93 @@ func (s *SimulationService) initContract() error {
 	return nil
 }
 
+func (s *SimulationService) executeBatchJoin(signers []darc.Signer, idx int) error {
+	execCl := libexec.NewClient(s.execRoster)
+	stCl := libstate.NewClient(byzcoin.NewClient(s.byzID, *s.stRoster))
+	defer execCl.Close()
+	defer stCl.Close()
+
+	// Get state
+	gcs, err := stCl.GetState(s.CID)
+	if err != nil {
+		log.Errorf("getting state: %v", err)
+		return err
+	}
+	cdata := &execbase.ByzData{IID: s.CID, Proof: gcs.Proof.Proof,
+		Genesis: s.contractGen}
+	lastRoot := gcs.Proof.Proof.InclusionProof.GetRoot()
+
+	joinMonitor := monitor.NewTimeMeasure(fmt.Sprintf("batch_join_%d", idx))
+
+	var tickets randlottery.Tickets
+	for _, signer := range signers {
+		pkHash, err := utils.HashPoint(signer.Ed25519.Point)
+		if err != nil {
+			log.Errorf("hashing point: %v", err)
+			return err
+		}
+		sig, err := signer.Ed25519.Sign(pkHash)
+		if err != nil {
+			log.Errorf("signing: %v", err)
+			return err
+		}
+		tickets.Data = append(tickets.Data, randlottery.Ticket{
+			Key: signer.Ed25519.Point,
+			Sig: sig,
+		})
+	}
+	input := randlottery.BatchJoinInput{Tickets: tickets}
+	data, err := protobuf.Encode(&input)
+	if err != nil {
+		log.Errorf("encoding input: %v", err)
+		return err
+	}
+
+	itReply, err := execCl.InitTransaction(s.rdata, cdata, "joinwf", "join")
+	if err != nil {
+		log.Errorf("initializing txn: %v", err)
+		return err
+	}
+	// Step 1: execute
+	sp := make(map[string]*core.StateProof)
+	sp["readset"] = &gcs.Proof
+	execInput := execbase.ExecuteInput{
+		FnName:      "batch_join_randlot",
+		Data:        data,
+		StateProofs: sp,
+	}
+	execReq := &core.ExecutionRequest{
+		Index: 0,
+		EP:    &itReply.Plan,
+	}
+	execReply, err := s.execCl.Execute(execInput, execReq)
+	if err != nil {
+		log.Errorf("executing batch_join_randlot: %v", err)
+		return err
+	}
+	// Step 2: update_state
+	var joinOut randlottery.JoinOutput
+	err = protobuf.Decode(execReply.Output.Data, &joinOut)
+	if err != nil {
+		log.Errorf("decoding join output: %v", err)
+		return err
+	}
+	execReq.Index = 1
+	execReq.OpReceipts = execReply.OutputReceipts
+	_, err = stCl.UpdateState(joinOut.WS, execReq, nil, commons.UPDATE_WAIT)
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+	_, err = stCl.WaitProof(s.CID[:], lastRoot, commons.PROOF_WAIT)
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+	joinMonitor.Record()
+	return nil
+}
+
 func (s *SimulationService) executeJoin(signer darc.Signer, idx int) error {
 	execCl := libexec.NewClient(s.execRoster)
 	stCl := libstate.NewClient(byzcoin.NewClient(s.byzID, *s.stRoster))
@@ -180,6 +273,10 @@ func (s *SimulationService) executeJoin(signer darc.Signer, idx int) error {
 		return err
 	}
 	sig, err := signer.Ed25519.Sign(pkHash)
+	if err != nil {
+		log.Errorf("signing: %v", err)
+		return err
+	}
 	input := randlottery.JoinInput{
 		Ticket: randlottery.Ticket{
 			Key: signer.Ed25519.Point,
@@ -235,7 +332,7 @@ func (s *SimulationService) executeJoin(signer darc.Signer, idx int) error {
 			gcs.Proof.Proof = pr
 			cdata.Proof = gcs.Proof.Proof
 			lastRoot = pr.InclusionProof.GetRoot()
-			fmt.Println("retry:", idx)
+			//fmt.Println("retry:", idx)
 		} else {
 			_, err = stCl.WaitProof(s.CID[:], lastRoot, commons.PROOF_WAIT)
 			if err != nil {
@@ -251,13 +348,13 @@ func (s *SimulationService) executeJoin(signer darc.Signer, idx int) error {
 
 func (s *SimulationService) executeClose() error {
 	// Get state
-	m0 := monitor.NewTimeMeasure("close_getstate")
+	//m0 := monitor.NewTimeMeasure("close_getstate")
 	gcs, err := s.stCl.GetState(s.CID)
 	if err != nil {
 		log.Errorf("getting state: %v", err)
 		return err
 	}
-	m0.Record()
+	//m0.Record()
 
 	// Initialize transaction
 	m1 := monitor.NewTimeMeasure("close_inittxn")
@@ -327,13 +424,13 @@ func (s *SimulationService) executeFinalize() error {
 	inReceipts := make(map[int]map[string]*core.OpcodeReceipt)
 
 	// Get state
-	m0 := monitor.NewTimeMeasure("finalize_getstate")
+	//m0 := monitor.NewTimeMeasure("finalize_getstate")
 	gcs, err := s.stCl.GetState(s.CID)
 	if err != nil {
 		log.Errorf("getting state: %v", err)
 		return err
 	}
-	m0.Record()
+	//m0.Record()
 
 	// Initialize transaction
 	m1 := monitor.NewTimeMeasure("finalize_inittxn")
@@ -481,12 +578,54 @@ func (s *SimulationService) runRandLottery() error {
 	return nil
 }
 
+func (s *SimulationService) runBatchedLottery() error {
+	participants := commons.GenerateWriters(s.NumParticipants)
+	// Initialize DFUs
+	err := s.initDFUs()
+	if err != nil {
+		return err
+	}
+
+	for round := 0; round < s.Rounds; round++ {
+		// Setting up the state unit in this loop otherwise we would build
+		// on a single blockchain, which means later rounds would have larger
+		// Byzcoin proofs
+		s.byzID, err = commons.SetupStateUnit(s.stRoster, s.BlockTime)
+		if err != nil {
+			log.Error(err)
+		}
+		s.stCl = libstate.NewClient(byzcoin.NewClient(s.byzID, *s.stRoster))
+
+		// Initialize contract
+		err = s.initContract()
+		if err != nil {
+			return err
+		}
+		// join_txn
+		for i := 0; i < commons.BATCH_COUNT; i++ {
+			s.executeBatchJoin(participants[s.BatchSize*i:s.BatchSize*(i+1)], i)
+		}
+		// close_txn
+		err = s.executeClose()
+		if err != nil {
+			return err
+		}
+		// finalize_txn
+		err = s.executeFinalize()
+		if err != nil {
+			return err
+		}
+		s.stCl.Close()
+	}
+	return nil
+}
+
 func (s *SimulationService) dummyRecords() {
 	for i := s.NumParticipants; i < 1000; i++ {
 		label := fmt.Sprintf("p%d_join", i)
 		for round := 0; round < s.Rounds; round++ {
 			dummy := monitor.NewTimeMeasure(label)
-			time.Sleep(5 * time.Microsecond)
+			time.Sleep(1 * time.Millisecond)
 			dummy.Record()
 		}
 	}
@@ -512,7 +651,12 @@ func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 	if err != nil {
 		log.Error(err)
 	}
-	err = s.runRandLottery()
-	s.dummyRecords()
+	if s.Batched {
+		s.BatchSize = s.NumParticipants / 10
+		err = s.runBatchedLottery()
+	} else {
+		err = s.runRandLottery()
+		s.dummyRecords()
+	}
 	return err
 }

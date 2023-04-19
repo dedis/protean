@@ -19,6 +19,10 @@ type JoinInput struct {
 	Ticket Ticket
 }
 
+type BatchJoinInput struct {
+	Tickets Tickets
+}
+
 type JoinOutput struct {
 	WS byzcoin.Arguments
 }

@@ -23,8 +23,16 @@ type Ticket struct {
 	Data protean.ElGamalPair
 }
 
+type BatchTicket struct {
+	Data protean.ElGamalPairs
+}
+
 type JoinInput struct {
 	Ticket Ticket
+}
+
+type BatchJoinInput struct {
+	Tickets BatchTicket
 }
 
 type JoinOutput struct {

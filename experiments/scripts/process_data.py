@@ -5,6 +5,8 @@ import argparse
 import os
 import numpy as np
 
+num_batches = 10
+
 jv_header = ['num_participants', 'avg', 'min', 'max']
 txn_header = ['num_participants', 'total']
 
@@ -22,11 +24,10 @@ SHUFFLE = "shuffle"
 TALLY = "tally"
 FINALIZE = "finalize"
 
+# vpattern_local = 'verify_local_(\d+)_(\d+)_wall_avg'
 vpattern = 'verify_(\d+)_(\d+)_wall_avg'
 vpattern_min = 'verify_(\d+)_(\d+)_wall_min'
 vpattern_max = 'verify_(\d+)_(\d+)_wall_max'
-
-vpattern_local = 'verify_local_(\d+)_(\d+)_wall_avg'
 
 spattern = 'sign_(\d+)_(\d+)_wall_avg'
 
@@ -36,6 +37,9 @@ shuf_pattern = "shuffle_(\w+)_wall_avg"
 tpattern = "tally_(\w+)_wall_avg"
 cpattern = "close_(\w+)_wall_avg"
 fpattern = "finalize_(\w+)_wall_avg"
+
+pattern_dict = {SETUP: setup_pattern, CLOSE: cpattern, LOCK: lpattern, SHUFFLE:
+                shuf_pattern, TALLY: tpattern, FINALIZE: fpattern}
 
 cwd = os.getcwd()
 
@@ -126,7 +130,7 @@ def process_dfu_mb(data_read, prefix):
     for k in data:
         print("%d,%6f" % (k,data[k]))
 
-def process_jv(data_read, app_type, txn_type):
+def process_jv(data_read, app_type, txn_type, outfile):
     latency_vals = dict()
     for dr in data_read:
         num_participants = int(dr['numparticipants'])
@@ -138,7 +142,10 @@ def process_jv(data_read, app_type, txn_type):
                 # print(i, val)
             latency_vals[num_participants] = vals
 
-    fpath = os.path.join(cwd, BASE_DIR, app_type, f'{txn_type}.csv')
+    if outfile:
+        fpath = os.path.join(cwd, BASE_DIR, app_type, f'{outfile}_{txn_type}.csv')
+    else:
+        fpath = os.path.join(cwd, BASE_DIR, app_type, f'{txn_type}.csv')
     with open(fpath, 'w') as f:
         writer = csv.writer(f)
         writer.writerow(jv_header)
@@ -151,9 +158,40 @@ def process_jv(data_read, app_type, txn_type):
             writer.writerow(data)
             # print("%d,%.6f,%.6f,%.6f" % (k, mean_val, min_val, max_val))
 
-def process_txn(data_read, app_type, txn_type, pattern):
+def process_jv_batch(data_read, app_type, txn_type, outfile):
+    latency_vals = dict()
+    for dr in data_read:
+        num_participants = int(dr['numparticipants'])
+        if num_participants > 5:
+            vals = list()
+            for i in range(num_batches):
+                val = float(dr[f'batch_{txn_type}_{i}_wall_avg'])
+                vals.append(val)
+            latency_vals[num_participants] = vals
+
+    if outfile:
+        fpath = os.path.join(cwd, BASE_DIR, app_type, f'batch_{outfile}_{txn_type}.csv')
+    else:
+        fpath = os.path.join(cwd, BASE_DIR, app_type, f'batch_{txn_type}.csv')
+    with open(fpath, 'w') as f:
+        writer = csv.writer(f)
+        writer.writerow(jv_header)
+        for k in latency_vals:
+            vals = np.array(latency_vals[k])
+            min_val = vals.min()
+            max_val = vals.max()
+            mean_val = vals.mean()
+            data = [k, mean_val, min_val, max_val]
+            writer.writerow(data)
+            # print("%d,%.6f,%.6f,%.6f" % (k, mean_val, min_val, max_val))
+
+def process_txn(data_read, app_type, txn_type, outfile):
     print(">>>", txn_type)
-    fpath = os.path.join(cwd, BASE_DIR, app_type, f'{txn_type}.csv')
+    pattern = pattern_dict[txn_type]
+    if outfile:
+        fpath = os.path.join(cwd, BASE_DIR, app_type, f'{outfile}_{txn_type}.csv')
+    else:
+        fpath = os.path.join(cwd, BASE_DIR, app_type, f'{txn_type}.csv')
     with open(fpath, 'w') as f:
         writer = csv.writer(f)
         writer.writerow(txn_header)
@@ -164,29 +202,39 @@ def process_txn(data_read, app_type, txn_type, pattern):
                 total = 0.0
                 for label, value in dr.items():
                     match = re.search(pattern, label)
-                    if match is not None and match.group(1) != "getstate":
+                    # if match is not None and match.group(1) != "getstate":
+                    if match is not None: 
                         total += float(value)
                 data = [num_participants, total]
                 writer.writerow(data)
                 print("%d,%.6f" % (num_participants, total))
 
-def process_randlot(data_read):
-    process_jv(data_read, RANDLOTTERY, JOIN)
-    process_txn(data_read, RANDLOTTERY, CLOSE, cpattern)
-    process_txn(data_read, RANDLOTTERY, FINALIZE, fpattern)
+def process_randlot(data_read, outfile, batch):
+    if batch:
+        process_jv_batch(data_read, RANDLOTTERY, JOIN, outfile)
+    else:
+        process_jv(data_read, RANDLOTTERY, JOIN, outfile)
+    process_txn(data_read, RANDLOTTERY, CLOSE, outfile)
+    process_txn(data_read, RANDLOTTERY, FINALIZE, outfile)
 
-def process_dkglot(data_read):
-    process_jv(data_read, DKGLOTTERY, JOIN)
-    process_txn(data_read, DKGLOTTERY, SETUP, setup_pattern)
-    process_txn(data_read, DKGLOTTERY, CLOSE, cpattern)
-    process_txn(data_read, DKGLOTTERY, FINALIZE, fpattern)
+def process_dkglot(data_read, outfile, batch):
+    if batch:
+        process_jv_batch(data_read, DKGLOTTERY, JOIN, outfile)
+    else:
+        process_jv(data_read, DKGLOTTERY, JOIN, outfile)
+    process_txn(data_read, DKGLOTTERY, SETUP, outfile)
+    process_txn(data_read, DKGLOTTERY, CLOSE, outfile)
+    process_txn(data_read, DKGLOTTERY, FINALIZE, outfile)
 
-def process_evote(data_read):
-    process_jv(data_read, EVOTING, VOTE)
-    process_txn(data_read, EVOTING, SETUP, setup_pattern)
-    process_txn(data_read, EVOTING, LOCK, lpattern)
-    process_txn(data_read, EVOTING, SHUFFLE, shuf_pattern)
-    process_txn(data_read, EVOTING, TALLY, tpattern)
+def process_evote(data_read, outfile, batch):
+    if batch:
+        process_jv_batch(data_read, EVOTING, VOTE, outfile)
+    else:
+        process_jv(data_read, EVOTING, VOTE, outfile)
+    process_txn(data_read, EVOTING, SETUP, outfile)
+    process_txn(data_read, EVOTING, LOCK, outfile)
+    process_txn(data_read, EVOTING, SHUFFLE, outfile)
+    process_txn(data_read, EVOTING, TALLY, outfile)
 
 def dump_kv(data_read):
     data = dict()
@@ -235,8 +283,10 @@ def main():
     parser.add_argument('fname', type=str)
     parser.add_argument('exp_type', choices=['kv', 'opc', 'sign', 'shuf',
                                              'dec', 'rlot', 'dlot', 'evote'], type=str)
-    parser.add_argument('-l', dest='local', action='store_true')
+    parser.add_argument('-b', dest='batch', action='store_true')
+    parser.add_argument('-o', dest='outfile', type=str)
     parser.add_argument('-d', dest='dump', action='store_true')
+    parser.add_argument('-l', dest='local', action='store_true')
     args = parser.parse_args()
     data_read = read_data(args.fname)
     if "kv" in args.exp_type:
@@ -256,11 +306,11 @@ def main():
     elif "dec" in args.exp_type:
         process_dfu_mb(data_read, "decrypt")
     elif "rlot" in args.exp_type:
-    		process_randlot(data_read)
+        process_randlot(data_read, args.outfile, args.batch)
     elif "dlot" in args.exp_type:
-    		process_dkglot(data_read)
+        process_dkglot(data_read, args.outfile, args.batch)
     elif "evote" in args.exp_type:
-        process_evote(data_read)
+        process_evote(data_read, args.outfile, args.batch)
 
 if __name__ == '__main__':
     main()

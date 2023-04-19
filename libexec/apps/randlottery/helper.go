@@ -26,6 +26,18 @@ func DemuxRequest(input *base.ExecuteInput, vdata *core.VerificationData) (
 		inputHashes["fnname"] = utils.HashString(input.FnName)
 		vdata.InputHashes = inputHashes
 		return JoinLottery, &base.GenericInput{I: joinIn}, vdata, nil, nil
+	case "batch_join_randlot":
+		var batchJoinIn BatchJoinInput
+		err := protobuf.Decode(input.Data, &batchJoinIn)
+		if err != nil {
+			return nil, nil, nil, nil, err
+		}
+		vdata.StateProofs = input.StateProofs
+		inputHashes := make(map[string][]byte)
+		inputHashes["fnname"] = utils.HashString(input.FnName)
+		vdata.InputHashes = inputHashes
+		return BatchJoinLottery, &base.GenericInput{I: batchJoinIn}, vdata, nil,
+			nil
 	case "close_randlot":
 		var closeIn CloseInput
 		err := protobuf.Decode(input.Data, &closeIn)
@@ -60,6 +72,20 @@ func DemuxRequest(input *base.ExecuteInput, vdata *core.VerificationData) (
 func MuxRequest(fnName string, genericOut *base.GenericOutput) (*base.ExecuteOutput, map[string][]byte, error) {
 	switch fnName {
 	case "join_randlot":
+		joinOut, ok := genericOut.O.(JoinOutput)
+		if !ok {
+			return nil, nil, xerrors.New("missing output")
+		}
+		data, err := protobuf.Encode(&joinOut)
+		if err != nil {
+			return nil, nil, err
+		}
+		output := &base.ExecuteOutput{Data: data}
+		wsHash := libstate.Hash(joinOut.WS)
+		outputHashes := make(map[string][]byte)
+		outputHashes["writeset"] = wsHash
+		return output, outputHashes, nil
+	case "batch_join_randlot":
 		joinOut, ok := genericOut.O.(JoinOutput)
 		if !ok {
 			return nil, nil, xerrors.New("missing output")

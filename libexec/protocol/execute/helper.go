@@ -13,9 +13,9 @@ func demuxRequest(input *base.ExecuteInput) (base.ExecutionFn,
 	*base.GenericInput, *core.VerificationData, map[string][]byte, error) {
 	vdata := &core.VerificationData{UID: base.UID, OpcodeName: base.EXEC}
 	switch input.FnName {
-	case "join_randlot", "close_randlot", "finalize_randlot":
+	case "join_randlot", "close_randlot", "batch_join_randlot", "finalize_randlot":
 		return randlottery.DemuxRequest(input, vdata)
-	case "setup_dkglot", "join_dkglot", "close_dkglot",
+	case "setup_dkglot", "join_dkglot", "batch_join_dkglot", "close_dkglot",
 		"prepare_decrypt_dkglot", "finalize_dkglot":
 		return dkglottery.DemuxRequest(input, vdata)
 	case "setup_vote", "vote", "close_vote", "prepare_shuffle",
@@ -32,9 +32,9 @@ func demuxRequest(input *base.ExecuteInput) (base.ExecutionFn,
 
 func muxRequest(fnName string, genericOut *base.GenericOutput) (*base.ExecuteOutput, map[string][]byte, error) {
 	switch fnName {
-	case "join_randlot", "close_randlot", "finalize_randlot":
+	case "join_randlot", "close_randlot", "batch_join_randlot", "finalize_randlot":
 		return randlottery.MuxRequest(fnName, genericOut)
-	case "setup_dkglot", "join_dkglot", "close_dkglot",
+	case "setup_dkglot", "join_dkglot", "batch_join_dkglot", "close_dkglot",
 		"prepare_decrypt_dkglot", "finalize_dkglot":
 		return dkglottery.MuxRequest(fnName, genericOut)
 	case "setup_vote", "vote", "close_vote", "prepare_shuffle",

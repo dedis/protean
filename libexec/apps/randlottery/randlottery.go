@@ -23,8 +23,7 @@ func JoinLottery(genInput *base.GenericInput) (*base.GenericOutput, error) {
 	ticket := input.Ticket
 	pkHash, err := utils.HashPoint(ticket.Key)
 	if err != nil {
-		return nil, xerrors.Errorf("couldn't calculate the hash of pk: %v",
-			err)
+		return nil, xerrors.Errorf("couldn't calculate the hash of pk: %v", err)
 	}
 	err = schnorr.Verify(cothority.Suite, ticket.Key, pkHash, ticket.Sig)
 	if err != nil {
@@ -39,6 +38,38 @@ func JoinLottery(genInput *base.GenericInput) (*base.GenericOutput, error) {
 		return nil, err
 	}
 	tickets.Data = append(tickets.Data, ticket)
+	buf, err := protobuf.Encode(tickets)
+	if err != nil {
+		return nil, xerrors.Errorf("couldn't encode tickets: %v", err)
+	}
+	args := byzcoin.Arguments{{Name: "tickets", Value: buf}}
+	return &base.GenericOutput{O: JoinOutput{WS: args}}, nil
+}
+
+func BatchJoinLottery(genInput *base.GenericInput) (*base.GenericOutput, error) {
+	input, ok := genInput.I.(BatchJoinInput)
+	if !ok {
+		return nil, xerrors.New("missing input")
+	}
+	for _, ticket := range input.Tickets.Data {
+		pkHash, err := utils.HashPoint(ticket.Key)
+		if err != nil {
+			return nil, xerrors.Errorf("couldn't calculate the hash of pk: %v", err)
+		}
+		err = schnorr.Verify(cothority.Suite, ticket.Key, pkHash, ticket.Sig)
+		if err != nil {
+			return nil, xerrors.Errorf("couldn't verify signature: %v", err)
+		}
+	}
+	kvDict, ok := genInput.KVInput["readset"]
+	if !ok {
+		return nil, xerrors.New("missing keyvalue data")
+	}
+	tickets, err := getTickets(&kvDict)
+	if err != nil {
+		return nil, err
+	}
+	tickets.Data = append(tickets.Data, input.Tickets.Data...)
 	buf, err := protobuf.Encode(tickets)
 	if err != nil {
 		return nil, xerrors.Errorf("couldn't encode tickets: %v", err)
