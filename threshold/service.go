@@ -67,7 +67,13 @@ func (s *Service) InitUnit(req *InitUnitRequest) (*InitUnitReply, error) {
 
 func (s *Service) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
 	// Run DKG
-	dkgID := NewDKGID(req.ExecReq.EP.CID)
+	//dkgID := NewDKGID(req.ExecReq.EP.CID)
+	var dkgID DKGID
+	if req.ExecReq.EP == nil {
+		dkgID = NewDKGID([]byte("dummy"))
+	} else {
+		dkgID = NewDKGID(req.ExecReq.EP.CID)
+	}
 	reply := &InitDKGReply{}
 	nodeCount := len(s.roster.List)
 	tree := s.roster.GenerateNaryTreeWithRoot(nodeCount-1, s.ServerIdentity())
@@ -96,12 +102,17 @@ func (s *Service) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
 	log.Lvl3("Started DKG-protocol - waiting for done", nodeCount)
 	select {
 	case <-setupDKG.Finished:
+		if req.ExecReq.EP == nil {
+			return &InitDKGReply{
+				Output:   base.DKGOutput{},
+				Receipts: nil,
+			}, nil
+		}
 		shared, dks, err := setupDKG.SharedSecret()
 		if err != nil {
 			log.Errorf("SharedSecret call error: %v", err)
 			return nil, err
 		}
-		//threshold := nodeCount - (nodeCount-1)/3
 		receipts, err := s.verifyDKG(dkgID, shared.X, &req.ExecReq)
 		if err != nil {
 			return nil, err

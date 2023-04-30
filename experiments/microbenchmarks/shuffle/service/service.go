@@ -36,6 +36,26 @@ type ShuffleSvc struct {
 	blsService *blscosi.Service
 }
 
+func (s *ShuffleSvc) DummyShuffle(req *DummyRequest) (*DummyReply, error) {
+	tree := req.Roster.GenerateNaryTree(1)
+	pi, err := s.CreateProtocol(protocol.ShuffleProtoName, tree)
+	if err != nil {
+		return nil, err
+	}
+	neff := pi.(*protocol.NeffShuffle)
+	neff.ShufInput = &req.Input
+	neff.Threshold = req.Threshold
+	if err := pi.Start(); err != nil {
+		return nil, err
+	}
+	select {
+	case <-neff.FinalProof:
+		return &DummyReply{}, nil
+	case <-time.After(shuffleTimeout):
+		return nil, xerrors.New("timeout waiting for shuffle")
+	}
+}
+
 func (s *ShuffleSvc) Shuffle(req *ShuffleRequest) (*ShuffleReply, error) {
 	tree := req.Roster.GenerateNaryTree(1)
 	pi, err := s.CreateProtocol(protocol.ShuffleProtoName, tree)
@@ -154,7 +174,7 @@ func newService(c *onet.Context) (onet.Service, error) {
 	s := &ShuffleSvc{
 		ServiceProcessor: onet.NewServiceProcessor(c),
 		blsService:       c.Service(blscosi.ServiceName).(*blscosi.Service)}
-	err := s.RegisterHandlers(s.Shuffle)
+	err := s.RegisterHandlers(s.DummyShuffle, s.Shuffle)
 	if err != nil {
 		log.Errorf("Could not register handlers: %v", err)
 		return nil, err

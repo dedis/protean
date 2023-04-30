@@ -8,8 +8,18 @@ import (
 )
 
 func init() {
-	network.RegisterMessages(&ShuffleRequest{}, &ShuffleReply{})
+	network.RegisterMessages(&DummyRequest{}, &DummyReply{},
+		&ShuffleRequest{}, &ShuffleReply{})
 }
+
+type DummyRequest struct {
+	Roster    *onet.Roster
+	Threshold int
+	Input     base.ShuffleInput
+	IsRegular bool
+}
+
+type DummyReply struct{}
 
 type ShuffleRequest struct {
 	Roster    *onet.Roster

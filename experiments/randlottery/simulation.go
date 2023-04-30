@@ -603,7 +603,10 @@ func (s *SimulationService) runBatchedLottery() error {
 		}
 		// join_txn
 		for i := 0; i < commons.BATCH_COUNT; i++ {
-			s.executeBatchJoin(participants[s.BatchSize*i:s.BatchSize*(i+1)], i)
+			err := s.executeBatchJoin(participants[s.BatchSize*i:s.BatchSize*(i+1)], i)
+			if err != nil {
+				return err
+			}
 		}
 		// close_txn
 		err = s.executeClose()
@@ -615,7 +618,6 @@ func (s *SimulationService) runBatchedLottery() error {
 		if err != nil {
 			return err
 		}
-		s.stCl.Close()
 	}
 	return nil
 }

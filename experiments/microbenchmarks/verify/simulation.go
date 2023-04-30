@@ -268,8 +268,8 @@ func (s *SimulationService) executeVerifyKv(config *onet.SimulationConfig) error
 
 	verifier := config.GetService(verifysvc.ServiceName).(*verifysvc.Verifier)
 
-	for _, ni := range s.NumInputs {
-		for _, nb := range s.NumBlocks {
+	for _, nb := range s.NumBlocks {
+		for _, ni := range s.NumInputs {
 			pr := &s.latestProof[nb].Proof
 			sp := commons.PrepareStateProof(ni, pr, s.contractGen)
 			cdata := &execbase.ByzData{IID: s.CID, Proof: pr, Genesis: s.contractGen}
@@ -344,9 +344,9 @@ func (s *SimulationService) executeLocalVerifyKV() error {
 func (s *SimulationService) generateBlocks() error {
 	s.latestProof = make(map[int]*byzcoin.GetProofResponse)
 	idx := 0
-	buf := make([]byte, 128)
 	blkCount := s.NumBlocks[len(s.NumBlocks)-1]
 	for i := 1; i <= blkCount; i++ {
+		buf := make([]byte, 128*i)
 		rand.Read(buf)
 		args := byzcoin.Arguments{{Name: "test_key", Value: buf}}
 		_, err := s.stCl.DummyUpdate(s.CID, args, 2)

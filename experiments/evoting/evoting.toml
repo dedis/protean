@@ -9,6 +9,7 @@ Bandwidth = 100
 Suite = "Ed25519"
 BlockTime = 12
 ContractFile = "../input/contract.json"
+BatchContractFile = "../input/batch_contract.json"
 FSMFile = "../input/fsm.json"
 DFUFile = "../input/units.json"
 ScheduleFile = "../input/schedule.txt"
@@ -16,7 +17,7 @@ NumCandidates = 10
 Batched = false
 
 NumParticipants
-5
+10
 10
 20
 50

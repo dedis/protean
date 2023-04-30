@@ -3,7 +3,9 @@ package main
 import (
 	"fmt"
 	statebase "github.com/dedis/protean/libstate/base"
+	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/blscosi"
+	"go.dedis.ch/kyber/v3/util/key"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -21,6 +23,7 @@ import (
 	"github.com/dedis/protean/threshold"
 	thbase "github.com/dedis/protean/threshold/base"
 	"github.com/dedis/protean/utils"
+	protean "github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/kyber/v3"
@@ -727,6 +730,21 @@ func (s *SimulationService) runEvoting() error {
 	if err != nil {
 		return err
 	}
+	_, err = s.thCl.InitDKG(&core.ExecutionRequest{EP: nil})
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+	kp := key.NewKeyPair(cothority.Suite)
+	_, dummy := protean.GenerateMesgs(2, "dummy_shuf", kp.Public)
+	_, err = s.shCl.Shuffle(dummy, kp.Public, &core.ExecutionRequest{EP: nil})
+	if err != nil {
+		return err
+	}
+	if err != nil {
+		log.Error(err)
+		return err
+	}
 
 	for round := 0; round < s.Rounds; round++ {
 		// Setting up the state unit in this loop otherwise we would build
@@ -778,13 +796,11 @@ func (s *SimulationService) runEvoting() error {
 			return err
 		}
 		// shuffle_txn
-		log.Info("Shuffling...")
 		err = s.executeShuffle()
 		if err != nil {
 			return err
 		}
 		// tally_txn
-		log.Info("Tallying...")
 		err = s.executeTally()
 		if err != nil {
 			return err
@@ -795,9 +811,23 @@ func (s *SimulationService) runEvoting() error {
 
 func (s *SimulationService) runBatchedEvoting() error {
 	ballots := commons.GenerateBallots(s.NumCandidates, s.NumParticipants)
+
 	// Initialize DFUs
 	err := s.initDFUs()
 	if err != nil {
+		log.Error(err)
+		return err
+	}
+	_, err = s.thCl.InitDKG(&core.ExecutionRequest{EP: nil})
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+	kp := key.NewKeyPair(cothority.Suite)
+	_, dummy := protean.GenerateMesgs(2, "dummy_shuf", kp.Public)
+	_, err = s.shCl.Shuffle(dummy, kp.Public, &core.ExecutionRequest{EP: nil})
+	if err != nil {
+		log.Error(err)
 		return err
 	}
 
@@ -823,7 +853,10 @@ func (s *SimulationService) runBatchedEvoting() error {
 		}
 		// vote_txn
 		for i := 0; i < commons.BATCH_COUNT; i++ {
-			s.executeBatchVote(ballots[s.BatchSize*i:s.BatchSize*(i+1)], i)
+			err := s.executeBatchVote(ballots[s.BatchSize*i:s.BatchSize*(i+1)], i)
+			if err != nil {
+				return err
+			}
 		}
 		// lock_txn
 		err = s.executeLock()
@@ -831,13 +864,11 @@ func (s *SimulationService) runBatchedEvoting() error {
 			return err
 		}
 		// shuffle_txn
-		log.Info("Executing shuffle now")
 		err = s.executeShuffle()
 		if err != nil {
 			return err
 		}
 		// tally_txn
-		log.Info("Executing tally now")
 		err = s.executeTally()
 		if err != nil {
 			return err

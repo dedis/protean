@@ -61,6 +61,10 @@ func (s *EasyNeff) Shuffle(req *ShuffleRequest) (*ShuffleReply, error) {
 	}
 	select {
 	case shufProof := <-neff.FinalProof:
+		if req.ExecReq.EP == nil {
+			return &ShuffleReply{Proofs: shufProof,
+				InputReceipts: nil, OutputReceipts: nil}, nil
+		}
 		nodeCount := len(s.roster.List)
 		tree := s.roster.GenerateNaryTreeWithRoot(nodeCount-1, s.ServerIdentity())
 		pi, err := s.CreateProtocol(protocol.VerifyProtoName, tree)

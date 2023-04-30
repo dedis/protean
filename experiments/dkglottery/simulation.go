@@ -603,9 +603,14 @@ func (s *SimulationService) runDKGLottery() error {
 	// Initialize DFUs
 	err = s.initDFUs()
 	if err != nil {
+		log.Error(err)
 		return err
 	}
-
+	_, err = s.thCl.InitDKG(&core.ExecutionRequest{EP: nil})
+	if err != nil {
+		log.Error(err)
+		return err
+	}
 	for round := 0; round < s.Rounds; round++ {
 		// Setting up the state unit in this loop otherwise we would build
 		// on a single blockchain, which means later rounds would have larger
@@ -668,9 +673,14 @@ func (s *SimulationService) runBatchedLottery() error {
 	// Initialize DFUs
 	err := s.initDFUs()
 	if err != nil {
+		log.Error(err)
 		return err
 	}
-
+	_, err = s.thCl.InitDKG(&core.ExecutionRequest{EP: nil})
+	if err != nil {
+		log.Error(err)
+		return err
+	}
 	for round := 0; round < s.Rounds; round++ {
 		// Setting up the state unit in this loop otherwise we would build
 		// on a single blockchain, which means later rounds would have larger
@@ -693,7 +703,10 @@ func (s *SimulationService) runBatchedLottery() error {
 		}
 		// join_txn
 		for i := 0; i < commons.BATCH_COUNT; i++ {
-			s.executeBatchJoin(i)
+			err = s.executeBatchJoin(i)
+			if err != nil {
+				return err
+			}
 		}
 		// close_txn
 		err = s.executeClose()

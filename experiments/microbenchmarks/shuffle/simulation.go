@@ -17,9 +17,7 @@ type SimulationService struct {
 	NodeCount      int
 	Threshold      int
 	NumCiphertexts int
-	//NumCiphertextsStr string
-	//NumCiphertexts    []int
-	IsRegular bool
+	IsRegular      bool
 }
 
 func init() {
@@ -57,13 +55,22 @@ func (s *SimulationService) Node(config *onet.SimulationConfig) error {
 
 func (s *SimulationService) runMicrobenchmark(config *onet.SimulationConfig) error {
 	kp := key.NewKeyPair(cothority.Suite)
-	_, ctexts := protean.GenerateMesgs(s.NumCiphertexts, "shuffle_micro", kp.Public)
 	shufSvc := config.GetService(service.ServiceName).(*service.ShuffleSvc)
 
-	//for _, numCt := range s.NumCiphertexts {
-	//_, ctexts := protean.GenerateMesgs(numCt, "shuffle_micro", kp.Public)
+	_, dummyCts := protean.GenerateMesgs(2, "dummy_shuf", kp.Public)
+	_, _ = shufSvc.DummyShuffle(&service.DummyRequest{
+		Roster:    config.Roster,
+		Threshold: s.Threshold,
+		Input: base.ShuffleInput{
+			Pairs: dummyCts,
+			H:     kp.Public,
+		},
+		IsRegular: s.IsRegular,
+	})
+
 	for round := 0; round < s.Rounds; round++ {
-		//m := monitor.NewTimeMeasure(fmt.Sprintf("shuffle_%d", numCt))
+		kp = key.NewKeyPair(cothority.Suite)
+		_, ctexts := protean.GenerateMesgs(s.NumCiphertexts, "shuffle_micro", kp.Public)
 		m := monitor.NewTimeMeasure("shuffle")
 		reply, err := shufSvc.Shuffle(&service.ShuffleRequest{
 			Roster:    config.Roster,
@@ -78,6 +85,7 @@ func (s *SimulationService) runMicrobenchmark(config *onet.SimulationConfig) err
 			log.Error(err)
 			return err
 		}
+		m.Record()
 		cs := reply.Proofs.Proofs[len(reply.Proofs.Proofs)-1].Pairs
 		for _, p := range cs.Pairs {
 			pt := protean.ElGamalDecrypt(kp.Private, p)
@@ -86,18 +94,14 @@ func (s *SimulationService) runMicrobenchmark(config *onet.SimulationConfig) err
 				log.Error(err)
 				return err
 			}
-			//log.Info("Plaintext is", string(data))
 		}
-		m.Record()
 	}
-	//}
-
 	return nil
 }
 
 func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 	s.NodeCount = len(config.Roster.List)
-	s.Threshold = s.NodeCount - (s.NodeCount-1)/3
-	//s.NumCiphertexts = commons.StringToIntSlice(s.NumCiphertextsStr)
+	s.Threshold = s.NodeCount - (s.NodeCount-1)/2
+	log.Info("Threshold:", s.Threshold)
 	return s.runMicrobenchmark(config)
 }

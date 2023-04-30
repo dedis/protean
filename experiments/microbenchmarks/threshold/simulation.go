@@ -53,20 +53,34 @@ func (s *SimulationService) Node(config *onet.SimulationConfig) error {
 }
 
 func (s *SimulationService) runMicrobenchmark(config *onet.SimulationConfig) error {
+	//dkgID := make([]byte, 32)
+	//random.Bytes(dkgID, random.New())
+
+	threshSvc := config.GetService(service.ServiceName).(*service.Service)
+
 	dkgID := make([]byte, 32)
 	random.Bytes(dkgID, random.New())
-	threshSvc := config.GetService(service.ServiceName).(*service.Service)
-	reply, err := threshSvc.InitDKG(&service.InitDKGRequest{
+	dkgReply, _ := threshSvc.InitDKG(&service.InitDKGRequest{
 		Roster:    config.Roster,
 		Threshold: s.Threshold,
 		ID:        dkgID,
 	})
-	if err != nil {
-		log.Error(err)
-		return err
-	}
-	_, ctexts := protean.GenerateMesgs(s.NumCiphertexts, "thresh_micro", reply.Output.X)
+
 	for round := 0; round < s.Rounds; round++ {
+		//dkgID = make([]byte, 32)
+		//random.Bytes(dkgID, random.New())
+		//mm := monitor.NewTimeMeasure("initdkg")
+		//dkgReply, err := threshSvc.InitDKG(&service.InitDKGRequest{
+		//	Roster:    config.Roster,
+		//	Threshold: s.Threshold,
+		//	ID:        dkgID,
+		//})
+		//if err != nil {
+		//	log.Error(err)
+		//	return err
+		//}
+		//mm.Record()
+		_, ctexts := protean.GenerateMesgs(s.NumCiphertexts, "thresh_micro", dkgReply.Output.X)
 		m := monitor.NewTimeMeasure("decrypt")
 		req := &service.DecryptRequest{
 			Roster:    config.Roster,

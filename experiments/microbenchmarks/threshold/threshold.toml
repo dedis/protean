@@ -7,7 +7,7 @@ RunWait = "30000s"
 Delay = 100
 Bandwidth = 100
 Suite = "Ed25519"
-IsRegular = false
+IsRegular = true
 
 NumCiphertexts
 5
