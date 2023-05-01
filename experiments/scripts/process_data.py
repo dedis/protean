@@ -7,7 +7,7 @@ import numpy as np
 
 num_batches = 10
 
-jv_header = ['num_participants', 'avg', 'min', 'max']
+jv_header = ['num_participants', 'avg', 'min', 'max', 'std']
 txn_header = ['num_participants', 'total']
 
 BASE_DIR = "data"
@@ -139,7 +139,6 @@ def process_jv(data_read, app_type, txn_type, outfile):
             for i in range(num_participants):
                 val = float(dr[f'p{i}_{txn_type}_wall_avg'])
                 vals.append(val)
-                # print(i, val)
             latency_vals[num_participants] = vals
 
     if outfile:
@@ -151,10 +150,11 @@ def process_jv(data_read, app_type, txn_type, outfile):
         writer.writerow(jv_header)
         for k in latency_vals:
             vals = np.array(latency_vals[k])
-            min_val = vals.min()
-            max_val = vals.max()
-            mean_val = vals.mean()
-            data = [k, mean_val, min_val, max_val]
+            min_val = np.min(vals)
+            max_val = np.max(vals)
+            mean_val = np.mean(vals)
+            std_val = np.std(vals)
+            data = [k, mean_val, min_val, max_val, std_val]
             writer.writerow(data)
             # print("%d,%.6f,%.6f,%.6f" % (k, mean_val, min_val, max_val))
 
@@ -168,34 +168,43 @@ def process_jv_batch(data_read, app_type, txn_type, outfile):
                 val = float(dr[f'batch_{txn_type}_{i}_wall_avg'])
                 vals.append(val)
             latency_vals[num_participants] = vals
-
     if outfile:
-        fpath = os.path.join(cwd, BASE_DIR, app_type, f'batch_{outfile}_{txn_type}.csv')
+        fpath = os.path.join(cwd, BASE_DIR, app_type, f'{outfile}_{txn_type}_batch.csv')
     else:
-        fpath = os.path.join(cwd, BASE_DIR, app_type, f'batch_{txn_type}.csv')
+        fpath = os.path.join(cwd, BASE_DIR, app_type, f'{txn_type}_batch.csv')
     with open(fpath, 'w') as f:
         writer = csv.writer(f)
         writer.writerow(jv_header)
         for k in latency_vals:
             vals = np.array(latency_vals[k])
-            min_val = vals.min()
-            max_val = vals.max()
-            mean_val = vals.mean()
-            data = [k, mean_val, min_val, max_val]
+            # min_val = vals.min()
+            # max_val = vals.max()
+            # mean_val = vals.mean()
+            min_val = np.min(vals)
+            max_val = np.max(vals)
+            mean_val = np.mean(vals)
+            std_val = np.std(vals)
+            data = [k, mean_val, min_val, max_val, std_val]
             writer.writerow(data)
             # print("%d,%.6f,%.6f,%.6f" % (k, mean_val, min_val, max_val))
 
-def process_txn(data_read, app_type, txn_type, outfile):
+def process_txn(data_read, app_type, txn_type, outfile, batch):
     print(">>>", txn_type)
     pattern = pattern_dict[txn_type]
     if outfile:
-        fpath = os.path.join(cwd, BASE_DIR, app_type, f'{outfile}_{txn_type}.csv')
+        if batch:
+            fpath = os.path.join(cwd, BASE_DIR, app_type, f'{outfile}_{txn_type}_batch.csv')
+        else:
+            fpath = os.path.join(cwd, BASE_DIR, app_type, f'{outfile}_{txn_type}.csv')
     else:
-        fpath = os.path.join(cwd, BASE_DIR, app_type, f'{txn_type}.csv')
+        if batch:
+            fpath = os.path.join(cwd, BASE_DIR, app_type, f'{txn_type}_batch.csv')
+        else:
+            fpath = os.path.join(cwd, BASE_DIR, app_type, f'{txn_type}.csv')
     with open(fpath, 'w') as f:
         writer = csv.writer(f)
         writer.writerow(txn_header)
-        data = dict()
+        dedup = dict()
         for dr in data_read:
             num_participants = int(dr['numparticipants'])
             if num_participants > 5:
@@ -206,35 +215,38 @@ def process_txn(data_read, app_type, txn_type, outfile):
                     if match is not None: 
                         total += float(value)
                 data = [num_participants, total]
-                writer.writerow(data)
-                print("%d,%.6f" % (num_participants, total))
+                dedup[num_participants] = data
+                # writer.writerow(data)
+                # print("%d,%.6f" % (num_participants, total))
+        for nump in sorted(dedup):
+            writer.writerow(dedup[nump])
 
 def process_randlot(data_read, outfile, batch):
     if batch:
         process_jv_batch(data_read, RANDLOTTERY, JOIN, outfile)
     else:
         process_jv(data_read, RANDLOTTERY, JOIN, outfile)
-    process_txn(data_read, RANDLOTTERY, CLOSE, outfile)
-    process_txn(data_read, RANDLOTTERY, FINALIZE, outfile)
+    process_txn(data_read, RANDLOTTERY, CLOSE, outfile, batch)
+    process_txn(data_read, RANDLOTTERY, FINALIZE, outfile, batch)
 
 def process_dkglot(data_read, outfile, batch):
     if batch:
         process_jv_batch(data_read, DKGLOTTERY, JOIN, outfile)
     else:
         process_jv(data_read, DKGLOTTERY, JOIN, outfile)
-    process_txn(data_read, DKGLOTTERY, SETUP, outfile)
-    process_txn(data_read, DKGLOTTERY, CLOSE, outfile)
-    process_txn(data_read, DKGLOTTERY, FINALIZE, outfile)
+    process_txn(data_read, DKGLOTTERY, SETUP, outfile, batch)
+    process_txn(data_read, DKGLOTTERY, CLOSE, outfile, batch)
+    process_txn(data_read, DKGLOTTERY, FINALIZE, outfile, batch)
 
 def process_evote(data_read, outfile, batch):
     if batch:
         process_jv_batch(data_read, EVOTING, VOTE, outfile)
     else:
         process_jv(data_read, EVOTING, VOTE, outfile)
-    process_txn(data_read, EVOTING, SETUP, outfile)
-    process_txn(data_read, EVOTING, LOCK, outfile)
-    process_txn(data_read, EVOTING, SHUFFLE, outfile)
-    process_txn(data_read, EVOTING, TALLY, outfile)
+    process_txn(data_read, EVOTING, SETUP, outfile, batch)
+    process_txn(data_read, EVOTING, LOCK, outfile, batch)
+    process_txn(data_read, EVOTING, SHUFFLE, outfile, batch)
+    process_txn(data_read, EVOTING, TALLY, outfile, batch)
 
 def dump_kv(data_read):
     data = dict()
