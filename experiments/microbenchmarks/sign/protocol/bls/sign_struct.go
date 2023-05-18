@@ -1,4 +1,4 @@
-package protocol
+package bls
 
 import (
 	"github.com/dedis/protean/core"
@@ -7,27 +7,27 @@ import (
 	"go.dedis.ch/onet/v3/network"
 )
 
-const SignProtoName = "microbenchmark_sign"
+const BLSSignProtoName = "microbenchmark_bls_sign"
 
 func init() {
-	network.RegisterMessages(&SignRequest{}, &SignResponse{})
+	network.RegisterMessages(&BLSSignRequest{}, &BLSSignResponse{})
 }
 
-type SignRequest struct {
+type BLSSignRequest struct {
 	OutputData map[string][]byte
 	ExecReq    *core.ExecutionRequest
 }
 
-type structSign struct {
+type structBLSSign struct {
 	*onet.TreeNode
-	SignRequest
+	BLSSignRequest
 }
 
-type SignResponse struct {
+type BLSSignResponse struct {
 	Signatures map[string]blscosi.BlsSignature
 }
 
-type structSignResponse struct {
+type structBLSSignResponse struct {
 	*onet.TreeNode
-	SignResponse
+	BLSSignResponse
 }

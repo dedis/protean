@@ -91,7 +91,6 @@ func (s *EasyRand) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
 func (s *EasyRand) CreateRandomness(req *CreateRandomnessRequest) (*CreateRandomnessReply, error) {
 	// Generate randomness
 	nodeCount := len(s.roster.List)
-	//threshold := nodeCount - (nodeCount-1)/3
 	tree := s.roster.GenerateNaryTreeWithRoot(nodeCount-1, s.ServerIdentity())
 	pi, err := s.CreateProtocol(protocol.SignProtoName, tree)
 	if err != nil {

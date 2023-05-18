@@ -1,6 +1,9 @@
 package protocol
 
 import (
+	"go.dedis.ch/cothority/v3/blscosi/bdnproto"
+	"go.dedis.ch/kyber/v3/pairing/bn256"
+	"go.dedis.ch/kyber/v3/sign/bdn"
 	"sync"
 	"time"
 
@@ -8,13 +11,10 @@ import (
 	"github.com/dedis/protean/easyrand/base"
 	"github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3/blscosi"
-	blsproto "go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/kyber/v3/util/key"
 
 	"go.dedis.ch/cothority/v3"
-	"go.dedis.ch/kyber/v3/pairing"
 	"go.dedis.ch/kyber/v3/sign"
-	"go.dedis.ch/kyber/v3/sign/bls"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
 	"golang.org/x/xerrors"
@@ -40,10 +40,11 @@ type RandomnessVerify struct {
 	Receipts   map[string]*core.OpcodeReceipt
 
 	Threshold int
+	Success   int
 	Failures  int
 	Verified  chan bool
 
-	suite     *pairing.SuiteBn256
+	suite     *bn256.Suite
 	responses []*VerifyResponse
 	mask      *sign.Mask
 	timeout   *time.Timer
@@ -55,7 +56,8 @@ func NewRandomnessVerify(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error
 		TreeNodeInstance: n,
 		Verified:         make(chan bool, 1),
 		Receipts:         make(map[string]*core.OpcodeReceipt),
-		suite:            pairing.NewSuiteBn256(),
+		suite:            bn256.NewSuite(),
+		responses:        make([]*VerifyResponse, len(n.Roster().List)),
 	}
 	err := rv.RegisterHandlers(rv.verifyRandomness, rv.verifyResponse)
 	if err != nil {
@@ -85,7 +87,8 @@ func (rv *RandomnessVerify) Start() error {
 		rv.finish(false)
 		return err
 	}
-	rv.responses = append(rv.responses, resp)
+	rv.responses[rv.Index()] = resp
+	rv.Success++
 	rv.mask, err = sign.NewMask(rv.suite, rv.Roster().ServicePublics(blscosi.ServiceName),
 		rv.KP.Public)
 	if err != nil {
@@ -143,20 +146,25 @@ func (rv *RandomnessVerify) verifyResponse(r structVerifyResponse) error {
 	}
 
 	rv.mask.SetBit(index, true)
-	rv.responses = append(rv.responses, &r.VerifyResponse)
-	if len(rv.responses) == rv.Threshold {
+	rv.responses[r.RosterIndex] = &r.VerifyResponse
+	rv.Success++
+	if rv.Success == rv.Threshold {
 		for name, receipt := range rv.Receipts {
-			aggSignature := rv.suite.G1().Point()
+			var partialSigs [][]byte
 			for _, resp := range rv.responses {
-				sig, err := resp.Signatures[name].Point(rv.suite)
-				if err != nil {
-					rv.finish(false)
-					return err
+				if resp != nil {
+					partialSigs = append(partialSigs, resp.Signatures[name])
 				}
-				aggSignature = aggSignature.Add(aggSignature, sig)
 			}
-			sig, err := aggSignature.MarshalBinary()
+			aggSig, err := bdn.AggregateSignatures(rv.suite, partialSigs, rv.mask)
 			if err != nil {
+				log.Error(err)
+				rv.finish(false)
+				return err
+			}
+			sig, err := aggSig.MarshalBinary()
+			if err != nil {
+				log.Error(err)
 				rv.finish(false)
 				return err
 			}
@@ -181,11 +189,11 @@ func (rv *RandomnessVerify) generateResponse() (*VerifyResponse, error) {
 	if rv.IsRoot() {
 		rv.Receipts["randomness"] = r
 	}
-	sig, err := bls.Sign(rv.suite, rv.KP.Private, r.Hash())
+	sig, err := bdn.Sign(rv.suite, rv.KP.Private, r.Hash())
 	if err != nil {
 		return &VerifyResponse{}, err
 	}
-	sigs := make(map[string]blsproto.BlsSignature)
+	sigs := make(map[string]bdnproto.BdnSignature)
 	sigs["randomness"] = sig
 	return &VerifyResponse{Signatures: sigs}, nil
 }

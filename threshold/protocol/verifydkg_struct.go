@@ -2,7 +2,7 @@ package protocol
 
 import (
 	"github.com/dedis/protean/core"
-	blscosi "go.dedis.ch/cothority/v3/blscosi/protocol"
+	"go.dedis.ch/cothority/v3/blscosi/bdnproto"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/network"
 )
@@ -23,7 +23,7 @@ type structVerifyRequest struct {
 }
 
 type VerifyResponse struct {
-	Signatures map[string]blscosi.BlsSignature
+	Signatures map[string]bdnproto.BdnSignature
 }
 
 type structVerifyResponse struct {

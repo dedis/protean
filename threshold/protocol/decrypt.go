@@ -6,10 +6,10 @@ import (
 	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/threshold/base"
 	"go.dedis.ch/cothority/v3/blscosi"
-	blsproto "go.dedis.ch/cothority/v3/blscosi/protocol"
-	"go.dedis.ch/kyber/v3/pairing"
+	"go.dedis.ch/cothority/v3/blscosi/bdnproto"
+	"go.dedis.ch/kyber/v3/pairing/bn256"
 	"go.dedis.ch/kyber/v3/sign"
-	"go.dedis.ch/kyber/v3/sign/bls"
+	"go.dedis.ch/kyber/v3/sign/bdn"
 	"go.dedis.ch/kyber/v3/util/key"
 	"golang.org/x/xerrors"
 	"sync"
@@ -48,12 +48,13 @@ type ThreshDecrypt struct {
 	OutputReceipts map[string]*core.OpcodeReceipt
 
 	Threshold int
+	Success   int
 	Failures  int
 
 	Decrypted chan bool
 
 	// private fields
-	suite                *pairing.SuiteBn256
+	suite                *bn256.Suite
 	pubShares            map[int]kyber.Point
 	partials             []Partial // len(partials) == number of ciphertexts to be dec
 	dsResponses          []*DecryptShareResponse
@@ -65,11 +66,12 @@ type ThreshDecrypt struct {
 
 func NewThreshDecrypt(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
 	d := &ThreshDecrypt{
-		TreeNodeInstance: n,
-		Decrypted:        make(chan bool, 1),
-		InputReceipts:    make(map[string]*core.OpcodeReceipt),
-		OutputReceipts:   make(map[string]*core.OpcodeReceipt),
-		suite:            pairing.NewSuiteBn256(),
+		TreeNodeInstance:     n,
+		Decrypted:            make(chan bool, 1),
+		InputReceipts:        make(map[string]*core.OpcodeReceipt),
+		OutputReceipts:       make(map[string]*core.OpcodeReceipt),
+		suite:                bn256.NewSuite(),
+		reconstructResponses: make([]*ReconstructResponse, len(n.Roster().List)),
 	}
 	err := d.RegisterHandlers(d.decryptShare, d.decryptShareResponse,
 		d.reconstruct, d.reconstructResponse)
@@ -224,7 +226,8 @@ func (d *ThreshDecrypt) decryptShareResponse(r structDecryptShareResponse) error
 			return err
 		}
 		// add root's reconstruct response to the array
-		d.reconstructResponses = append(d.reconstructResponses, resp)
+		d.reconstructResponses[d.Index()] = resp
+		d.Success++
 		errs := d.SendToChildrenInParallel(&Reconstruct{
 			Partials: d.partials,
 			Publics:  d.pubShares,
@@ -278,37 +281,46 @@ func (d *ThreshDecrypt) reconstructResponse(r structReconstructResponse) error {
 	}
 
 	d.mask.SetBit(index, true)
-	d.reconstructResponses = append(d.reconstructResponses, &r.ReconstructResponse)
-	if len(d.reconstructResponses) == d.Threshold {
+	d.reconstructResponses[r.RosterIndex] = &r.ReconstructResponse
+	d.Success++
+	if d.Success == d.Threshold {
 		for name, receipt := range d.OutputReceipts {
-			aggSignature := d.suite.G1().Point()
+			var partialSigs [][]byte
 			for _, resp := range d.reconstructResponses {
-				sig, err := resp.OutSignatures[name].Point(d.suite)
-				if err != nil {
-					d.finish(false)
-					return err
+				if resp != nil {
+					partialSigs = append(partialSigs, resp.OutSignatures[name])
 				}
-				aggSignature = aggSignature.Add(aggSignature, sig)
 			}
-			sig, err := aggSignature.MarshalBinary()
+			aggSig, err := bdn.AggregateSignatures(d.suite, partialSigs, d.mask)
 			if err != nil {
+				log.Error(err)
+				d.finish(false)
+				return err
+			}
+			sig, err := aggSig.MarshalBinary()
+			if err != nil {
+				log.Error(err)
 				d.finish(false)
 				return err
 			}
 			receipt.Sig = append(sig, d.mask.Mask()...)
 		}
 		for name, receipt := range d.InputReceipts {
-			aggSignature := d.suite.G1().Point()
+			var partialSigs [][]byte
 			for _, resp := range d.reconstructResponses {
-				sig, err := resp.InSignatures[name].Point(d.suite)
-				if err != nil {
-					d.finish(false)
-					return err
+				if resp != nil {
+					partialSigs = append(partialSigs, resp.InSignatures[name])
 				}
-				aggSignature = aggSignature.Add(aggSignature, sig)
 			}
-			sig, err := aggSignature.MarshalBinary()
+			aggSig, err := bdn.AggregateSignatures(d.suite, partialSigs, d.mask)
 			if err != nil {
+				log.Error(err)
+				d.finish(false)
+				return err
+			}
+			sig, err := aggSig.MarshalBinary()
+			if err != nil {
+				log.Error(err)
 				d.finish(false)
 				return err
 			}
@@ -329,8 +341,8 @@ func (d *ThreshDecrypt) runVerification() error {
 }
 
 func (d *ThreshDecrypt) generateResponse() (*ReconstructResponse, error) {
-	inSigs := make(map[string]blsproto.BlsSignature)
-	outSigs := make(map[string]blsproto.BlsSignature)
+	inSigs := make(map[string]bdnproto.BdnSignature)
+	outSigs := make(map[string]bdnproto.BdnSignature)
 	epid := d.ExecReq.EP.Hash()
 	opIdx := d.ExecReq.Index
 	hash, err := utils.HashPoints(d.Ps)
@@ -347,7 +359,7 @@ func (d *ThreshDecrypt) generateResponse() (*ReconstructResponse, error) {
 	if d.IsRoot() {
 		d.OutputReceipts["plaintexts"] = r
 	}
-	sig, err := bls.Sign(d.suite, d.KP.Private, r.Hash())
+	sig, err := bdn.Sign(d.suite, d.KP.Private, r.Hash())
 	if err != nil {
 		return &ReconstructResponse{}, err
 	}
@@ -360,7 +372,7 @@ func (d *ThreshDecrypt) generateResponse() (*ReconstructResponse, error) {
 			Name:      inputName,
 			HashBytes: inputHash,
 		}
-		sig, err := bls.Sign(d.suite, d.KP.Private, r.Hash())
+		sig, err = bdn.Sign(d.suite, d.KP.Private, r.Hash())
 		if err != nil {
 			return &ReconstructResponse{}, err
 		}

@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"crypto/sha256"
+	"go.dedis.ch/kyber/v3/pairing/bn256"
 	"sync"
 	"time"
 
@@ -9,7 +10,6 @@ import (
 	"go.dedis.ch/kyber/v3/util/key"
 
 	"go.dedis.ch/cothority/v3"
-	"go.dedis.ch/kyber/v3/pairing"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
 	"golang.org/x/xerrors"
@@ -37,7 +37,7 @@ type Verify struct {
 	Verified  chan bool
 
 	responses []*VerifyResponse
-	suite     *pairing.SuiteBn256
+	suite     *bn256.Suite
 	timeout   *time.Timer
 	doneOnce  sync.Once
 }
@@ -47,7 +47,7 @@ func NewVerify(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
 		TreeNodeInstance: n,
 		Verified:         make(chan bool, 1),
 		InputHashes:      make(map[string][]byte),
-		suite:            pairing.NewSuiteBn256(),
+		suite:            bn256.NewSuite(),
 	}
 	err := v.RegisterHandlers(v.verify, v.verifyResponse)
 	if err != nil {

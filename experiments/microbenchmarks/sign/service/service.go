@@ -1,7 +1,8 @@
 package service
 
 import (
-	"github.com/dedis/protean/experiments/microbenchmarks/sign/protocol"
+	"github.com/dedis/protean/experiments/microbenchmarks/sign/protocol/bdn"
+	"github.com/dedis/protean/experiments/microbenchmarks/sign/protocol/bls"
 	protean "github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3/blscosi"
 	"go.dedis.ch/onet/v3"
@@ -26,16 +27,16 @@ type Signer struct {
 	blsService *blscosi.Service
 }
 
-func (s *Signer) Sign(req *SignRequest) (*SignReply, error) {
+func (s *Signer) BLSSign(req *BLSSignRequest) (*BLSSignReply, error) {
 	nodeCount := len(req.Roster.List)
 	threshold := nodeCount - (nodeCount-1)/3
 	tree := req.Roster.GenerateNaryTreeWithRoot(nodeCount-1, s.ServerIdentity())
-	pi, err := s.CreateProtocol(protocol.SignProtoName, tree)
+	pi, err := s.CreateProtocol(bls.BLSSignProtoName, tree)
 	if err != nil {
 		log.Errorf("Create protocol error: %v", err)
 		return nil, err
 	}
-	signPi := pi.(*protocol.Sign)
+	signPi := pi.(*bls.Sign)
 	signPi.Threshold = threshold
 	signPi.OutputData = req.OutputData
 	signPi.ExecReq = req.ExecReq
@@ -47,18 +48,50 @@ func (s *Signer) Sign(req *SignRequest) (*SignReply, error) {
 	if !<-signPi.Signed {
 		return nil, xerrors.New("sign protocol failed")
 	}
-	return &SignReply{Receipts: signPi.Receipts}, nil
+	return &BLSSignReply{Receipts: signPi.Receipts}, nil
+}
+
+func (s *Signer) BDNSign(req *BDNSignRequest) (*BDNSignReply, error) {
+	nodeCount := len(req.Roster.List)
+	threshold := nodeCount - (nodeCount-1)/3
+	tree := req.Roster.GenerateNaryTreeWithRoot(nodeCount-1, s.ServerIdentity())
+	pi, err := s.CreateProtocol(bdn.BDNSignProtoName, tree)
+	if err != nil {
+		log.Errorf("Create protocol error: %v", err)
+		return nil, err
+	}
+	signPi := pi.(*bdn.BDNSign)
+	signPi.Threshold = threshold
+	signPi.OutputData = req.OutputData
+	signPi.ExecReq = req.ExecReq
+	signPi.KP = protean.GetBLSKeyPair(s.ServerIdentity())
+	err = signPi.Start()
+	if err != nil {
+		return nil, xerrors.Errorf("Failed to start the protocol: " + err.Error())
+	}
+	if !<-signPi.Signed {
+		return nil, xerrors.New("sign protocol failed")
+	}
+	return &BDNSignReply{Receipts: signPi.Receipts}, nil
 }
 
 func (s *Signer) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConfig) (onet.ProtocolInstance, error) {
 	log.Lvl3(s.ServerIdentity(), tn.ProtocolName(), conf)
 	switch tn.ProtocolName() {
-	case protocol.SignProtoName:
-		pi, err := protocol.NewSign(tn)
+	case bls.BLSSignProtoName:
+		pi, err := bls.NewSign(tn)
 		if err != nil {
 			return nil, err
 		}
-		proto := pi.(*protocol.Sign)
+		proto := pi.(*bls.Sign)
+		proto.KP = protean.GetBLSKeyPair(s.ServerIdentity())
+		return proto, nil
+	case bdn.BDNSignProtoName:
+		pi, err := bdn.NewBDNSign(tn)
+		if err != nil {
+			return nil, err
+		}
+		proto := pi.(*bdn.BDNSign)
 		proto.KP = protean.GetBLSKeyPair(s.ServerIdentity())
 		return proto, nil
 	default:
@@ -71,7 +104,7 @@ func newService(c *onet.Context) (onet.Service, error) {
 		ServiceProcessor: onet.NewServiceProcessor(c),
 		blsService:       c.Service(blscosi.ServiceName).(*blscosi.Service),
 	}
-	err := s.RegisterHandlers(s.Sign)
+	err := s.RegisterHandlers(s.BLSSign, s.BDNSign)
 	if err != nil {
 		log.Errorf("Registering handlers failed: %v", err)
 		return nil, err

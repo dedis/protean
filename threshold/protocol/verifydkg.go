@@ -2,6 +2,9 @@ package protocol
 
 import (
 	"bytes"
+	"go.dedis.ch/cothority/v3/blscosi/bdnproto"
+	"go.dedis.ch/kyber/v3/pairing/bn256"
+	"go.dedis.ch/kyber/v3/sign/bdn"
 	"sync"
 	"time"
 
@@ -10,11 +13,8 @@ import (
 	"github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/blscosi"
-	blsproto "go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/kyber/v3"
-	"go.dedis.ch/kyber/v3/pairing"
 	"go.dedis.ch/kyber/v3/sign"
-	"go.dedis.ch/kyber/v3/sign/bls"
 	"go.dedis.ch/kyber/v3/util/key"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
@@ -39,11 +39,12 @@ type VerifyDKG struct {
 	Receipts map[string]*core.OpcodeReceipt
 
 	Threshold int
+	Success   int
 	Failures  int
 	Verified  chan bool
 
 	responses []*VerifyResponse
-	suite     *pairing.SuiteBn256
+	suite     *bn256.Suite
 	mask      *sign.Mask
 	timeout   *time.Timer
 	doneOnce  sync.Once
@@ -54,7 +55,8 @@ func NewVerifyDKG(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
 		TreeNodeInstance: n,
 		Verified:         make(chan bool, 1),
 		Receipts:         make(map[string]*core.OpcodeReceipt),
-		suite:            pairing.NewSuiteBn256(),
+		suite:            bn256.NewSuite(),
+		responses:        make([]*VerifyResponse, len(n.Roster().List)),
 	}
 	err := v.RegisterHandlers(v.verifyDKG, v.verifyDKGResponse)
 	if err != nil {
@@ -80,7 +82,8 @@ func (v *VerifyDKG) Start() error {
 		v.finish(false)
 		return err
 	}
-	v.responses = append(v.responses, resp)
+	v.responses[v.Index()] = resp
+	v.Success++
 	v.mask, err = sign.NewMask(v.suite, v.Roster().ServicePublics(blscosi.ServiceName), v.KP.Public)
 	if err != nil {
 		v.finish(false)
@@ -134,24 +137,28 @@ func (v *VerifyDKG) verifyDKGResponse(r structVerifyResponse) error {
 	}
 
 	v.mask.SetBit(index, true)
-	v.responses = append(v.responses, &r.VerifyResponse)
-	if len(v.responses) == v.Threshold {
+	v.responses[r.RosterIndex] = &r.VerifyResponse
+	v.Success++
+	if v.Success == v.Threshold {
 		for name, receipt := range v.Receipts {
-			aggSignature := v.suite.G1().Point()
+			var partialSigs [][]byte
 			for _, resp := range v.responses {
-				sig, err := resp.Signatures[name].Point(v.suite)
-				if err != nil {
-					v.finish(false)
-					return err
+				if resp != nil {
+					partialSigs = append(partialSigs, resp.Signatures[name])
 				}
-				aggSignature = aggSignature.Add(aggSignature, sig)
 			}
-			sig, err := aggSignature.MarshalBinary()
+			aggSig, err := bdn.AggregateSignatures(v.suite, partialSigs, v.mask)
 			if err != nil {
+				log.Error(err)
 				v.finish(false)
 				return err
 			}
-			// Add aggregated BLS signature to the receipt
+			sig, err := aggSig.MarshalBinary()
+			if err != nil {
+				log.Error(err)
+				v.finish(false)
+				return err
+			}
 			receipt.Sig = append(sig, v.mask.Mask()...)
 		}
 		v.finish(true)
@@ -173,11 +180,11 @@ func (v *VerifyDKG) generateResponse() (*VerifyResponse, error) {
 	if v.IsRoot() {
 		v.Receipts["X"] = r
 	}
-	sig, err := bls.Sign(v.suite, v.KP.Private, r.Hash())
+	sig, err := bdn.Sign(v.suite, v.KP.Private, r.Hash())
 	if err != nil {
 		return &VerifyResponse{}, err
 	}
-	sigs := make(map[string]blsproto.BlsSignature)
+	sigs := make(map[string]bdnproto.BdnSignature)
 	sigs["X"] = sig
 	return &VerifyResponse{Signatures: sigs}, nil
 }

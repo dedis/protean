@@ -11,15 +11,26 @@ const (
 )
 
 func init() {
-	network.RegisterMessages(&SignRequest{}, &SignReply{})
+	network.RegisterMessages(&BLSSignRequest{}, &BLSSignReply{}, &BDNSignRequest{},
+		&BDNSignReply{})
 }
 
-type SignRequest struct {
+type BLSSignRequest struct {
 	Roster     *onet.Roster
 	OutputData map[string][]byte
 	ExecReq    *core.ExecutionRequest
 }
 
-type SignReply struct {
+type BLSSignReply struct {
+	Receipts map[string]*core.OpcodeReceipt
+}
+
+type BDNSignRequest struct {
+	Roster     *onet.Roster
+	OutputData map[string][]byte
+	ExecReq    *core.ExecutionRequest
+}
+
+type BDNSignReply struct {
 	Receipts map[string]*core.OpcodeReceipt
 }

@@ -4,7 +4,7 @@ import (
 	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/easyneff/base"
 	"github.com/dedis/protean/utils"
-	blscosi "go.dedis.ch/cothority/v3/blscosi/protocol"
+	"go.dedis.ch/cothority/v3/blscosi/bdnproto"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/network"
@@ -31,8 +31,8 @@ type structVerifyProofs struct {
 }
 
 type VerifyProofsResponse struct {
-	InSignatures  map[string]blscosi.BlsSignature
-	OutSignatures map[string]blscosi.BlsSignature
+	InSignatures  map[string]bdnproto.BdnSignature
+	OutSignatures map[string]bdnproto.BdnSignature
 }
 
 type structVerifyProofsResponse struct {

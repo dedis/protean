@@ -1,20 +1,20 @@
 package verify
 
 import (
+	"go.dedis.ch/cothority/v3/blscosi/bdnproto"
+	"go.dedis.ch/kyber/v3/pairing/bn256"
+	"go.dedis.ch/kyber/v3/sign/bdn"
 	"sync"
 	"time"
 
 	"github.com/dedis/protean/core"
 	"go.dedis.ch/cothority/v3/blscosi"
-	blsproto "go.dedis.ch/cothority/v3/blscosi/protocol"
 	"go.dedis.ch/kyber/v3/util/key"
 
 	"github.com/dedis/protean/easyneff/base"
 	"github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3"
-	"go.dedis.ch/kyber/v3/pairing"
 	"go.dedis.ch/kyber/v3/sign"
-	"go.dedis.ch/kyber/v3/sign/bls"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
 	"golang.org/x/xerrors"
@@ -40,10 +40,11 @@ type ShuffleVerify struct {
 	ShufVerify VerificationFn
 
 	Threshold int
+	Success   int
 	Failures  int
 	Verified  chan bool
 
-	suite     *pairing.SuiteBn256
+	suite     *bn256.Suite
 	responses []*VerifyProofsResponse
 	mask      *sign.Mask
 	timeout   *time.Timer
@@ -55,7 +56,8 @@ func NewShuffleVerify(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
 		TreeNodeInstance: n,
 		Verified:         make(chan bool, 1),
 		OutputReceipts:   make(map[string]*core.OpcodeReceipt),
-		suite:            pairing.NewSuiteBn256(),
+		suite:            bn256.NewSuite(),
+		responses:        make([]*VerifyProofsResponse, len(n.Roster().List)),
 	}
 	err := s.RegisterHandlers(s.verify, s.verifyResponse)
 	if err != nil {
@@ -82,7 +84,8 @@ func (s *ShuffleVerify) Start() error {
 		s.finish(false)
 		return err
 	}
-	s.responses = append(s.responses, resp)
+	s.responses[s.Index()] = resp
+	s.Success++
 	s.mask, err = sign.NewMask(s.suite, s.Roster().ServicePublics(blscosi.ServiceName), s.KP.Public)
 	if err != nil {
 		log.Errorf("couldn't generate mask: %v", err)
@@ -138,20 +141,25 @@ func (s *ShuffleVerify) verifyResponse(r structVerifyProofsResponse) error {
 	}
 
 	s.mask.SetBit(index, true)
-	s.responses = append(s.responses, &r.VerifyProofsResponse)
+	s.responses[r.RosterIndex] = &r.VerifyProofsResponse
+	s.Success++
 	if len(s.responses) == s.Threshold {
 		for name, receipt := range s.OutputReceipts {
-			aggSignature := s.suite.G1().Point()
+			var partialSigs [][]byte
 			for _, resp := range s.responses {
-				sig, err := resp.Signatures[name].Point(s.suite)
-				if err != nil {
-					s.finish(false)
-					return err
+				if resp != nil {
+					partialSigs = append(partialSigs, resp.Signatures[name])
 				}
-				aggSignature = aggSignature.Add(aggSignature, sig)
 			}
-			sig, err := aggSignature.MarshalBinary()
+			aggSig, err := bdn.AggregateSignatures(s.suite, partialSigs, s.mask)
 			if err != nil {
+				log.Error(err)
+				s.finish(false)
+				return err
+			}
+			sig, err := aggSig.MarshalBinary()
+			if err != nil {
+				log.Error(err)
 				s.finish(false)
 				return err
 			}
@@ -163,7 +171,7 @@ func (s *ShuffleVerify) verifyResponse(r structVerifyProofsResponse) error {
 }
 
 func (s *ShuffleVerify) generateResponse() (*VerifyProofsResponse, error) {
-	sigs := make(map[string]blsproto.BlsSignature)
+	sigs := make(map[string]bdnproto.BdnSignature)
 	hash, err := s.ShufOutput.Hash()
 	if err != nil {
 		return &VerifyProofsResponse{}, err
@@ -177,7 +185,7 @@ func (s *ShuffleVerify) generateResponse() (*VerifyProofsResponse, error) {
 	if s.IsRoot() {
 		s.OutputReceipts["proofs"] = r
 	}
-	sig, err := bls.Sign(s.suite, s.KP.Private, r.Hash())
+	sig, err := bdn.Sign(s.suite, s.KP.Private, r.Hash())
 	if err != nil {
 		return &VerifyProofsResponse{}, err
 	}

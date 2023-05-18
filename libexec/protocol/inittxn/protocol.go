@@ -7,9 +7,9 @@ import (
 	"github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/kyber/v3"
-	"go.dedis.ch/kyber/v3/pairing"
+	"go.dedis.ch/kyber/v3/pairing/bn256"
 	"go.dedis.ch/kyber/v3/sign"
-	"go.dedis.ch/kyber/v3/sign/bls"
+	"go.dedis.ch/kyber/v3/sign/bdn"
 	"go.dedis.ch/kyber/v3/util/key"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
@@ -30,13 +30,14 @@ type InitTxn struct {
 	KP           *key.Pair
 	Publics      []kyber.Point
 
+	Success        int
 	Threshold      int
+	Failures       int
 	Executed       chan bool
 	Plan           *core.ExecutionPlan
 	FinalSignature []byte // final signature that is sent back to client
 
-	suite     *pairing.SuiteBn256
-	failures  int
+	suite     *bn256.Suite
 	responses []*Response
 	mask      *sign.Mask
 	timeout   *time.Timer
@@ -47,7 +48,8 @@ func NewInitTxn(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
 	p := &InitTxn{
 		TreeNodeInstance: n,
 		Executed:         make(chan bool, 1),
-		suite:            pairing.NewSuiteBn256(),
+		suite:            bn256.NewSuite(),
+		responses:        make([]*Response, len(n.Roster().List)),
 	}
 	err := p.RegisterHandlers(p.execute, p.executeResponse)
 	if err != nil {
@@ -82,7 +84,9 @@ func (p *InitTxn) Start() error {
 		p.finish(false)
 		return err
 	}
-	p.responses = append(p.responses, resp)
+	//p.responses = append(p.responses, resp)
+	p.responses[p.Index()] = resp
+	p.Success++
 	p.mask, err = sign.NewMask(p.suite, p.Publics, p.KP.Public)
 	if err != nil {
 		log.Errorf("couldn't create the mask: %v", err)
@@ -126,8 +130,8 @@ func (p *InitTxn) execute(r StructRequest) error {
 func (p *InitTxn) executeResponse(r StructResponse) error {
 	index := utils.SearchPublicKey(p.TreeNodeInstance, r.ServerIdentity)
 	if len(r.Signature) == 0 || index < 0 {
-		p.failures++
-		if p.failures > len(p.Roster().List)-p.Threshold {
+		p.Failures++
+		if p.Failures > len(p.Roster().List)-p.Threshold {
 			log.Lvl2(p.ServerIdentity, "couldn't get enough shares")
 			p.finish(false)
 		}
@@ -135,19 +139,24 @@ func (p *InitTxn) executeResponse(r StructResponse) error {
 	}
 
 	p.mask.SetBit(index, true)
-	p.responses = append(p.responses, &r.Response)
-	if len(p.responses) == p.Threshold {
-		finalSignature := p.suite.G1().Point()
+	p.responses[r.RosterIndex] = &r.Response
+	p.Success++
+	if p.Success == p.Threshold {
+		var partialSigs [][]byte
 		for _, resp := range p.responses {
-			sig, err := resp.Signature.Point(p.suite)
-			if err != nil {
-				p.finish(false)
-				return err
+			if resp != nil {
+				partialSigs = append(partialSigs, resp.Signature)
 			}
-			finalSignature = finalSignature.Add(finalSignature, sig)
 		}
-		sig, err := finalSignature.MarshalBinary()
+		aggSig, err := bdn.AggregateSignatures(p.suite, partialSigs, p.mask)
 		if err != nil {
+			log.Error(err)
+			p.finish(false)
+			return err
+		}
+		sig, err := aggSig.MarshalBinary()
+		if err != nil {
+			log.Error(err)
 			p.finish(false)
 			return err
 		}
@@ -158,7 +167,7 @@ func (p *InitTxn) executeResponse(r StructResponse) error {
 }
 
 func (p *InitTxn) makeResponse(data []byte) (*Response, error) {
-	sig, err := bls.Sign(p.suite, p.KP.Private, data)
+	sig, err := bdn.Sign(p.suite, p.KP.Private, data)
 	if err != nil {
 		return &Response{}, err
 	}

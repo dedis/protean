@@ -7,7 +7,7 @@ import (
 	"go.dedis.ch/cothority/v3"
 	dkgprotocol "go.dedis.ch/cothority/v3/dkg/pedersen"
 	"go.dedis.ch/kyber/v3"
-	"go.dedis.ch/kyber/v3/pairing"
+	"go.dedis.ch/kyber/v3/pairing/bn256"
 	"go.dedis.ch/kyber/v3/share"
 	"go.dedis.ch/kyber/v3/sign"
 	"go.dedis.ch/onet/v3"
@@ -39,7 +39,7 @@ type ThreshDecrypt struct {
 	Decrypted chan bool
 
 	// private fields
-	suite       *pairing.SuiteBn256
+	suite       *bn256.Suite
 	dsResponses []*DecryptShareResponse
 	mask        *sign.Mask
 	timeout     *time.Timer
@@ -50,7 +50,7 @@ func NewThreshDecrypt(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
 	d := &ThreshDecrypt{
 		TreeNodeInstance: n,
 		Decrypted:        make(chan bool, 1),
-		suite:            pairing.NewSuiteBn256(),
+		suite:            bn256.NewSuite(),
 	}
 	err := d.RegisterHandlers(d.decryptShare, d.decryptShareResponse)
 	if err != nil {

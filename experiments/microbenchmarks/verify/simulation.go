@@ -34,7 +34,6 @@ type SimulationService struct {
 	FSMFile      string
 	DFUFile      string
 	BlockTime    int
-	LocalVerify  bool
 	NumInputsStr string
 	NumInputs    []int
 	execReqs     []*core.ExecutionRequest
@@ -175,34 +174,6 @@ func (s *SimulationService) executeVerifyOpc(config *onet.SimulationConfig) erro
 	return err
 }
 
-func (s *SimulationService) executeLocalVerifyOPC() error {
-	idx := 0
-	vData := &core.VerificationData{
-		UID:         "verifier",
-		OpcodeName:  "verify",
-		StateProofs: make(map[string]*core.StateProof),
-		InputHashes: make(map[string][]byte),
-	}
-	for _, ni := range s.NumInputs {
-		for _, ns := range s.DataSizes {
-			execReq := s.execReqs[idx]
-			outputData := s.outputData[idx]
-			for round := 0; round < s.Rounds; round++ {
-				m := monitor.NewTimeMeasure(fmt.Sprintf("verify_local_%d_%d", ni, ns))
-				prepareInputHashes(vData, outputData)
-				err := execReq.Verify(vData)
-				if err != nil {
-					log.Error(err)
-					return err
-				}
-				m.Record()
-			}
-			idx++
-		}
-	}
-	return nil
-}
-
 func prepareInputHashes(vdata *core.VerificationData, inputData map[string][]byte) {
 	for varName, data := range inputData {
 		h := sha256.New()
@@ -244,12 +215,12 @@ func (s *SimulationService) generateVerifyOPCData(config *onet.SimulationConfig)
 		for _, ns := range s.DataSizes {
 			outputData := commons.PrepareData(ni, ns)
 			signer := config.GetService(signsvc.ServiceName).(*signsvc.Signer)
-			signReq := signsvc.SignRequest{
+			signReq := signsvc.BLSSignRequest{
 				Roster:     s.signerRoster,
 				OutputData: outputData,
 				ExecReq:    execReq,
 			}
-			signReply, err := signer.Sign(&signReq)
+			signReply, err := signer.BLSSign(&signReq)
 			if err != nil {
 				log.Error(err)
 			}
@@ -299,55 +270,15 @@ func (s *SimulationService) executeVerifyKv(config *onet.SimulationConfig) error
 	return err
 }
 
-func (s *SimulationService) executeLocalVerifyKV() error {
-	execCl := libexec.NewClient(s.execRoster)
-	defer execCl.Close()
-
-	vData := &core.VerificationData{
-		UID:         "verifier",
-		OpcodeName:  "verify",
-		InputHashes: make(map[string][]byte),
-	}
-	for _, ni := range s.NumInputs {
-		for _, nb := range s.NumBlocks {
-			pr := &s.latestProof[nb].Proof
-			sp := commons.PrepareStateProof(ni, pr, s.contractGen)
-			cdata := &execbase.ByzData{IID: s.CID, Proof: pr, Genesis: s.contractGen}
-			txnName := fmt.Sprintf("verify_%d", ni)
-			itReply, err := execCl.InitTransaction(s.rdata, cdata, "verifywf", txnName)
-			if err != nil {
-				log.Error(err)
-				return err
-			}
-			execReq := &core.ExecutionRequest{Index: 0, EP: &itReply.Plan}
-			for round := 0; round < s.Rounds; round++ {
-				lvMonitor := monitor.NewTimeMeasure(fmt.Sprintf(
-					"verify_local_%d_%d", ni, nb))
-				_, err := core.PrepareKVDicts(execReq, sp)
-				vData.StateProofs = sp
-				if err != nil {
-					log.Error(err)
-					return err
-				}
-				err = execReq.Verify(vData)
-				if err != nil {
-					log.Error(err)
-					return err
-				}
-				lvMonitor.Record()
-			}
-		}
-	}
-	return nil
-}
-
 func (s *SimulationService) generateBlocks() error {
 	s.latestProof = make(map[int]*byzcoin.GetProofResponse)
 	idx := 0
 	blkCount := s.NumBlocks[len(s.NumBlocks)-1]
+	buf := make([]byte, 128)
+	rand.Read(buf)
 	for i := 1; i <= blkCount; i++ {
-		buf := make([]byte, 128*i)
-		rand.Read(buf)
+		//buf := make([]byte, 128*i)
+		//rand.Read(buf)
 		args := byzcoin.Arguments{{Name: "test_key", Value: buf}}
 		_, err := s.stCl.DummyUpdate(s.CID, args, 2)
 		if err != nil {
@@ -381,25 +312,18 @@ func (s *SimulationService) runMicrobenchmark(config *onet.SimulationConfig) err
 		return err
 	}
 	if s.DepType == "OPC" {
-		err := s.generateVerifyOPCData(config)
+		err = s.generateVerifyOPCData(config)
 		if err != nil {
 			return err
 		}
-		if s.LocalVerify {
-			err = s.executeLocalVerifyOPC()
-		} else {
-			err = s.executeVerifyOpc(config)
-		}
+		err = s.executeVerifyOpc(config)
+
 	} else {
 		err = s.generateBlocks()
 		if err != nil {
 			return err
 		}
-		if s.LocalVerify {
-			err = s.executeLocalVerifyKV()
-		} else {
-			err = s.executeVerifyKv(config)
-		}
+		err = s.executeVerifyKv(config)
 	}
 	return err
 }

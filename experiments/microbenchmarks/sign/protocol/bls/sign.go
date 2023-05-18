@@ -1,8 +1,10 @@
-package protocol
+package bls
 
 import (
 	"crypto/sha256"
+	"github.com/dedis/protean/experiments/commons"
 	blsproto "go.dedis.ch/cothority/v3/blscosi/protocol"
+	"go.dedis.ch/kyber/v3/pairing/bn256"
 	"go.dedis.ch/kyber/v3/sign/bls"
 	"sync"
 	"time"
@@ -13,7 +15,6 @@ import (
 	"go.dedis.ch/kyber/v3/util/key"
 
 	"go.dedis.ch/cothority/v3"
-	"go.dedis.ch/kyber/v3/pairing"
 	"go.dedis.ch/kyber/v3/sign"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
@@ -21,7 +22,7 @@ import (
 )
 
 func init() {
-	_, err := onet.GlobalProtocolRegister(SignProtoName, NewSign)
+	_, err := onet.GlobalProtocolRegister(BLSSignProtoName, NewSign)
 	if err != nil {
 		log.Errorf("cannot register protocol: %v", err)
 		panic(err)
@@ -40,8 +41,8 @@ type Sign struct {
 	Failures  int
 	Signed    chan bool
 
-	suite     *pairing.SuiteBn256
-	responses []*SignResponse
+	suite     *bn256.Suite
+	responses []*BLSSignResponse
 	mask      *sign.Mask
 	timeout   *time.Timer
 	doneOnce  sync.Once
@@ -52,7 +53,7 @@ func NewSign(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
 		TreeNodeInstance: n,
 		Signed:           make(chan bool, 1),
 		Receipts:         make(map[string]*core.OpcodeReceipt),
-		suite:            pairing.NewSuiteBn256(),
+		suite:            bn256.NewSuite(),
 	}
 	err := rv.RegisterHandlers(rv.sign, rv.signResponse)
 	if err != nil {
@@ -76,6 +77,9 @@ func (s *Sign) Start() error {
 		s.finish(false)
 		return err
 	}
+
+	log.Info("Keys hash:", commons.HashKeys(s.Roster().ServicePublics(blscosi.ServiceName)))
+
 	s.responses = append(s.responses, resp)
 	s.mask, err = sign.NewMask(s.suite, s.Roster().ServicePublics(blscosi.ServiceName),
 		s.KP.Public)
@@ -88,7 +92,7 @@ func (s *Sign) Start() error {
 		log.Lvl1("Sign protocol timeout")
 		s.finish(false)
 	})
-	errs := s.SendToChildrenInParallel(&SignRequest{OutputData: s.OutputData, ExecReq: s.ExecReq})
+	errs := s.SendToChildrenInParallel(&BLSSignRequest{OutputData: s.OutputData, ExecReq: s.ExecReq})
 	if len(errs) > (len(s.Roster().List) - s.Threshold) {
 		log.Errorf("some nodes failed with error(s) %s", errs)
 		return xerrors.New("too many nodes failed in broadcast")
@@ -96,7 +100,7 @@ func (s *Sign) Start() error {
 	return nil
 }
 
-func (s *Sign) sign(r structSign) error {
+func (s *Sign) sign(r structBLSSign) error {
 	defer s.Done()
 	var err error
 	s.ExecReq = r.ExecReq
@@ -106,10 +110,10 @@ func (s *Sign) sign(r structSign) error {
 		log.Errorf("%s couldn't generate response: %s", s.Name(), err)
 	}
 	return cothority.ErrorOrNil(s.SendToParent(resp),
-		"sending SignResponse to parent")
+		"sending BDNSignResponse to parent")
 }
 
-func (s *Sign) signResponse(r structSignResponse) error {
+func (s *Sign) signResponse(r structBLSSignResponse) error {
 	index := utils.SearchPublicKey(s.TreeNodeInstance, r.ServerIdentity)
 	if len(r.Signatures) == 0 || index < 0 {
 		log.Lvl2(r.ServerIdentity, "refused to respond")
@@ -121,7 +125,7 @@ func (s *Sign) signResponse(r structSignResponse) error {
 		return nil
 	}
 	s.mask.SetBit(index, true)
-	s.responses = append(s.responses, &r.SignResponse)
+	s.responses = append(s.responses, &r.BLSSignResponse)
 	if len(s.responses) == s.Threshold {
 		for name, receipt := range s.Receipts {
 			aggSignature := s.suite.G1().Point()
@@ -145,7 +149,7 @@ func (s *Sign) signResponse(r structSignResponse) error {
 	return nil
 }
 
-func (s *Sign) generateResponse() (*SignResponse, error) {
+func (s *Sign) generateResponse() (*BLSSignResponse, error) {
 	sigs := make(map[string]blsproto.BlsSignature)
 	for varName, data := range s.OutputData {
 		h := sha256.New()
@@ -162,11 +166,11 @@ func (s *Sign) generateResponse() (*SignResponse, error) {
 		}
 		sig, err := bls.Sign(s.suite, s.KP.Private, r.Hash())
 		if err != nil {
-			return &SignResponse{}, err
+			return &BLSSignResponse{}, err
 		}
 		sigs[varName] = sig
 	}
-	return &SignResponse{Signatures: sigs}, nil
+	return &BLSSignResponse{Signatures: sigs}, nil
 }
 
 func (s *Sign) finish(result bool) {

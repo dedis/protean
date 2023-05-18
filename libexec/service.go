@@ -17,6 +17,7 @@ import (
 const ServiceName = "libexec_svc"
 
 var execID onet.ServiceID
+
 var suite = suites.MustFind("bn256.adapter").(*pairing.SuiteBn256)
 
 func init() {
@@ -64,6 +65,7 @@ func (s *Service) InitTransaction(req *InitTransaction) (*InitTransactionReply, 
 	if !<-proto.Executed {
 		return nil, xerrors.New("couldn't generate the execution plan")
 	}
+	//proto.Plan.Sig = proto.FinalSignature
 	proto.Plan.Sig = proto.FinalSignature
 	return &InitTransactionReply{
 		Plan: *proto.Plan,

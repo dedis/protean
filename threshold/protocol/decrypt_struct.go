@@ -3,7 +3,7 @@ package protocol
 import (
 	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/threshold/base"
-	blscosi "go.dedis.ch/cothority/v3/blscosi/protocol"
+	"go.dedis.ch/cothority/v3/blscosi/bdnproto"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/share"
 	"go.dedis.ch/onet/v3"
@@ -59,8 +59,8 @@ type structReconstruct struct {
 }
 
 type ReconstructResponse struct {
-	InSignatures  map[string]blscosi.BlsSignature
-	OutSignatures map[string]blscosi.BlsSignature
+	InSignatures  map[string]bdnproto.BdnSignature
+	OutSignatures map[string]bdnproto.BdnSignature
 }
 
 type structReconstructResponse struct {

@@ -12,7 +12,6 @@ BlockTime = 5
 ContractFile = "../input/opc/opc.json"
 FSMFile = "../input/opc/fsm.json"
 DFUFile = "../input/opc/units.json"
-LocalVerify = false
 
 NumInputsStr,DataSizesStr
 "1;2;3;4","4096;8192;65536;524288;4194304"

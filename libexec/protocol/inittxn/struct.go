@@ -3,7 +3,7 @@ package inittxn
 import (
 	"github.com/dedis/protean/core"
 	"github.com/dedis/protean/libexec/base"
-	"go.dedis.ch/cothority/v3/blscosi/protocol"
+	"go.dedis.ch/cothority/v3/blscosi/bdnproto"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/network"
 )
@@ -27,7 +27,7 @@ type StructRequest struct {
 }
 
 type Response struct {
-	Signature protocol.BlsSignature
+	Signature bdnproto.BdnSignature
 }
 
 type StructResponse struct {

@@ -3,7 +3,7 @@ package verify
 import (
 	"github.com/dedis/protean/easyneff/base"
 	"github.com/dedis/protean/utils"
-	blscosi "go.dedis.ch/cothority/v3/blscosi/protocol"
+	"go.dedis.ch/cothority/v3/blscosi/bdnproto"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/network"
@@ -29,7 +29,7 @@ type structVerifyProofs struct {
 }
 
 type VerifyProofsResponse struct {
-	Signatures map[string]blscosi.BlsSignature
+	Signatures map[string]bdnproto.BdnSignature
 }
 
 type structVerifyProofsResponse struct {

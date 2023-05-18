@@ -1,7 +1,7 @@
 package core
 
 import (
-	"go.dedis.ch/cothority/v3/blscosi/protocol"
+	"go.dedis.ch/cothority/v3/blscosi/bdnproto"
 	"go.dedis.ch/cothority/v3/byzcoin"
 	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/kyber/v3"
@@ -67,7 +67,7 @@ type ExecutionPlan struct {
 	TxnName   string
 	Txn       *Transaction
 	DFUData   map[string]*DFUIdentity
-	Sig       protocol.BlsSignature
+	Sig       bdnproto.BdnSignature
 }
 
 type ExecutionRequest struct {
@@ -84,7 +84,7 @@ type OpcodeReceipt struct {
 	Name string
 	// hash = H(output)
 	HashBytes []byte
-	Sig       protocol.BlsSignature
+	Sig       bdnproto.BdnSignature
 }
 
 type DFUIdentity struct {

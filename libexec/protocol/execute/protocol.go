@@ -5,11 +5,11 @@ import (
 	"github.com/dedis/protean/libexec/base"
 	"github.com/dedis/protean/utils"
 	"go.dedis.ch/cothority/v3"
-	blsproto "go.dedis.ch/cothority/v3/blscosi/protocol"
+	"go.dedis.ch/cothority/v3/blscosi/bdnproto"
 	"go.dedis.ch/kyber/v3"
-	"go.dedis.ch/kyber/v3/pairing"
+	"go.dedis.ch/kyber/v3/pairing/bn256"
 	"go.dedis.ch/kyber/v3/sign"
-	"go.dedis.ch/kyber/v3/sign/bls"
+	"go.dedis.ch/kyber/v3/sign/bdn"
 	"go.dedis.ch/kyber/v3/util/key"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
@@ -31,16 +31,18 @@ type Execute struct {
 	InputReceipts  map[string]*core.OpcodeReceipt
 	OutputReceipts map[string]*core.OpcodeReceipt
 
-	KP        *key.Pair
-	Publics   []kyber.Point
+	KP      *key.Pair
+	Publics []kyber.Point
+
+	Failures  int
+	Success   int
 	Threshold int
-	Executed  chan bool
 
 	inHashes     map[string][]byte
 	outputHashes map[string][]byte
 
-	suite     *pairing.SuiteBn256
-	failures  int
+	Executed  chan bool
+	suite     *bn256.Suite
 	responses []*Response
 	mask      *sign.Mask
 	timeout   *time.Timer
@@ -53,7 +55,8 @@ func NewExecute(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
 		Executed:         make(chan bool, 1),
 		InputReceipts:    make(map[string]*core.OpcodeReceipt),
 		OutputReceipts:   make(map[string]*core.OpcodeReceipt),
-		suite:            pairing.NewSuiteBn256(),
+		suite:            bn256.NewSuite(),
+		responses:        make([]*Response, len(n.Roster().List)),
 	}
 	err := p.RegisterHandlers(p.execute, p.executeResponse)
 	if err != nil {
@@ -101,7 +104,8 @@ func (p *Execute) Start() error {
 		p.finish(false)
 		return err
 	}
-	p.responses = append(p.responses, resp)
+	p.responses[p.Index()] = resp
+	p.Success++
 	p.mask, err = sign.NewMask(p.suite, p.Publics, p.KP.Public)
 	if err != nil {
 		p.finish(false)
@@ -162,8 +166,8 @@ func (p *Execute) executeResponse(r StructResponse) error {
 	index := utils.SearchPublicKey(p.TreeNodeInstance, r.ServerIdentity)
 	if len(r.OutSignatures) == 0 || index < 0 {
 		log.Lvl2(r.ServerIdentity, "refused to respond")
-		p.failures++
-		if p.failures > (len(p.Roster().List) - p.Threshold) {
+		p.Failures++
+		if p.Failures > (len(p.Roster().List) - p.Threshold) {
 			log.Lvl2(p.ServerIdentity, "couldn't get enough responses")
 			p.finish(false)
 		}
@@ -171,42 +175,49 @@ func (p *Execute) executeResponse(r StructResponse) error {
 	}
 
 	p.mask.SetBit(index, true)
-	p.responses = append(p.responses, &r.Response)
-	if len(p.responses) == p.Threshold {
+	p.responses[r.RosterIndex] = &r.Response
+	p.Success++
+	if p.Success == p.Threshold {
 		for name, receipt := range p.OutputReceipts {
-			aggSignature := p.suite.G1().Point()
+			var partialSigs [][]byte
 			for _, resp := range p.responses {
-				sig, err := resp.OutSignatures[name].Point(p.suite)
-				if err != nil {
-					p.finish(false)
-					return err
+				if resp != nil {
+					partialSigs = append(partialSigs, resp.OutSignatures[name])
 				}
-				aggSignature = aggSignature.Add(aggSignature, sig)
 			}
-			sig, err := aggSignature.MarshalBinary()
+			aggSig, err := bdn.AggregateSignatures(p.suite, partialSigs, p.mask)
 			if err != nil {
+				log.Error(err)
 				p.finish(false)
 				return err
 			}
-			// Add aggregated BLS signature to the receipt
+			sig, err := aggSig.MarshalBinary()
+			if err != nil {
+				log.Error(err)
+				p.finish(false)
+				return err
+			}
 			receipt.Sig = append(sig, p.mask.Mask()...)
 		}
 		for name, receipt := range p.InputReceipts {
-			aggSignature := p.suite.G1().Point()
+			var partialSigs [][]byte
 			for _, resp := range p.responses {
-				sig, err := resp.InSignatures[name].Point(p.suite)
-				if err != nil {
-					p.finish(false)
-					return err
+				if resp != nil {
+					partialSigs = append(partialSigs, resp.InSignatures[name])
 				}
-				aggSignature = aggSignature.Add(aggSignature, sig)
 			}
-			sig, err := aggSignature.MarshalBinary()
+			aggSig, err := bdn.AggregateSignatures(p.suite, partialSigs, p.mask)
 			if err != nil {
+				log.Error(err)
 				p.finish(false)
 				return err
 			}
-			// Add aggregated BLS signature to the receipt
+			sig, err := aggSig.MarshalBinary()
+			if err != nil {
+				log.Error(err)
+				p.finish(false)
+				return err
+			}
 			receipt.Sig = append(sig, p.mask.Mask()...)
 		}
 		p.finish(true)
@@ -215,7 +226,7 @@ func (p *Execute) executeResponse(r StructResponse) error {
 }
 
 func (p *Execute) generateResponse() (*Response, error) {
-	outSigs := make(map[string]blsproto.BlsSignature)
+	outSigs := make(map[string]bdnproto.BdnSignature)
 	epid := p.ExecReq.EP.Hash()
 	opIdx := p.ExecReq.Index
 	for outputName, outputHash := range p.outputHashes {
@@ -225,7 +236,7 @@ func (p *Execute) generateResponse() (*Response, error) {
 			Name:      outputName,
 			HashBytes: outputHash,
 		}
-		sig, err := bls.Sign(p.suite, p.KP.Private, r.Hash())
+		sig, err := bdn.Sign(p.suite, p.KP.Private, r.Hash())
 		if err != nil {
 			return &Response{}, err
 		}
@@ -236,7 +247,7 @@ func (p *Execute) generateResponse() (*Response, error) {
 	}
 	resp := &Response{InSignatures: nil, OutSignatures: outSigs}
 	if p.inHashes != nil {
-		inSigs := make(map[string]blsproto.BlsSignature)
+		inSigs := make(map[string]bdnproto.BdnSignature)
 		for inputName, inputHash := range p.inHashes {
 			r := core.OpcodeReceipt{
 				EPID:      epid,
@@ -244,7 +255,7 @@ func (p *Execute) generateResponse() (*Response, error) {
 				Name:      inputName,
 				HashBytes: inputHash,
 			}
-			sig, err := bls.Sign(p.suite, p.KP.Private, r.Hash())
+			sig, err := bdn.Sign(p.suite, p.KP.Private, r.Hash())
 			if err != nil {
 				return &Response{}, err
 			}
