@@ -143,7 +143,7 @@ func (s *ShuffleVerify) verifyResponse(r structVerifyProofsResponse) error {
 	s.mask.SetBit(index, true)
 	s.responses[r.RosterIndex] = &r.VerifyProofsResponse
 	s.Success++
-	if len(s.responses) == s.Threshold {
+	if s.Success == s.Threshold {
 		for name, receipt := range s.OutputReceipts {
 			var partialSigs [][]byte
 			for _, resp := range s.responses {

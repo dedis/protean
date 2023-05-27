@@ -77,6 +77,7 @@ func (s *Service) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
 	}
 	setupDKG.Wait = true
 	setupDKG.KeyPair = s.getKeyPair()
+	setupDKG.Threshold = uint32(req.Threshold)
 	err = pi.Start()
 	if err != nil {
 		log.Errorf("Start protocol error: %v", err)
@@ -164,7 +165,7 @@ func (s *Service) regularDecrypt(req *DecryptRequest) (*DecryptReply, error) {
 	reply := &DecryptReply{}
 	ps := make([]kyber.Point, len(decProto.Partials))
 	for i, partial := range decProto.Partials {
-		ps[i] = recoverCommit(nodeCount, &req.Input.Pairs[i], partial.Shares)
+		ps[i] = recoverCommit(req.Threshold, nodeCount, &req.Input.Pairs[i], partial.Shares)
 	}
 	reply.Output = base.DecryptOutput{Ps: ps}
 	return reply, nil
@@ -227,9 +228,9 @@ func (s *Service) getKeyPair() *key.Pair {
 	}
 }
 
-func recoverCommit(numNodes int, cs *protean.ElGamalPair, pubShares []*share.PubShare) kyber.Point {
-	threshold := numNodes - (numNodes-1)/3
-	rc, err := share.RecoverCommit(cothority.Suite, pubShares, threshold, numNodes)
+func recoverCommit(t int, numNodes int, cs *protean.ElGamalPair,
+	pubShares []*share.PubShare) kyber.Point {
+	rc, err := share.RecoverCommit(cothority.Suite, pubShares, t, numNodes)
 	if err != nil {
 		log.Errorf("Cannot recover message: %v", err)
 		return nil
@@ -288,6 +289,7 @@ func (s *Service) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConfi
 		}
 		setupDKG := pi.(*dkgprotocol.Setup)
 		setupDKG.KeyPair = s.getKeyPair()
+		setupDKG.Threshold = uint32(len(tn.Roster().List) - (len(tn.Roster().List)-1)/2)
 		go func(idSlice []byte) {
 			<-setupDKG.Finished
 			shared, dks, err := setupDKG.SharedSecret()

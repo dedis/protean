@@ -66,6 +66,7 @@ func (s *EasyRand) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
 		return nil, err
 	}
 	setup := pi.(*dkgprotocol.Setup)
+	setup.Threshold = uint32(s.threshold)
 	setup.Wait = true
 
 	err = pi.Start()
@@ -125,7 +126,6 @@ func (s *EasyRand) GetRandomness(req *GetRandomnessRequest) (*GetRandomnessReply
 	binary.LittleEndian.PutUint64(rBuf, round)
 
 	nodeCount := len(s.roster.List)
-	//threshold := nodeCount - (nodeCount-1)/3
 	tree := s.roster.GenerateNaryTreeWithRoot(nodeCount-1, s.ServerIdentity())
 	pi, err := s.CreateProtocol(protocol.VerifyProtoName, tree)
 	if err != nil {
@@ -214,6 +214,7 @@ func (s *EasyRand) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConf
 			return nil, err
 		}
 		setup := pi.(*dkgprotocol.Setup)
+		setup.Threshold = uint32(s.threshold)
 		go func() {
 			<-setup.Finished
 			err := s.storeShare(setup)

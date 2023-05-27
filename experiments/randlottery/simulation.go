@@ -332,7 +332,7 @@ func (s *SimulationService) executeJoin(signer darc.Signer, idx int) error {
 			gcs.Proof.Proof = pr
 			cdata.Proof = gcs.Proof.Proof
 			lastRoot = pr.InclusionProof.GetRoot()
-			//fmt.Println("retry:", idx)
+			//log.Info("retry:", idx)
 		} else {
 			_, err = stCl.WaitProof(s.CID[:], lastRoot, commons.PROOF_WAIT)
 			if err != nil {
@@ -348,13 +348,11 @@ func (s *SimulationService) executeJoin(signer darc.Signer, idx int) error {
 
 func (s *SimulationService) executeClose() error {
 	// Get state
-	//m0 := monitor.NewTimeMeasure("close_getstate")
 	gcs, err := s.stCl.GetState(s.CID)
 	if err != nil {
 		log.Errorf("getting state: %v", err)
 		return err
 	}
-	//m0.Record()
 
 	// Initialize transaction
 	m1 := monitor.NewTimeMeasure("close_inittxn")
@@ -424,13 +422,11 @@ func (s *SimulationService) executeFinalize() error {
 	inReceipts := make(map[int]map[string]*core.OpcodeReceipt)
 
 	// Get state
-	//m0 := monitor.NewTimeMeasure("finalize_getstate")
 	gcs, err := s.stCl.GetState(s.CID)
 	if err != nil {
 		log.Errorf("getting state: %v", err)
 		return err
 	}
-	//m0.Record()
 
 	// Initialize transaction
 	m1 := monitor.NewTimeMeasure("finalize_inittxn")

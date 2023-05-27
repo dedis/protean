@@ -155,15 +155,12 @@ func (s *SimulationService) executeSetup() error {
 	inReceipts := make(map[int]map[string]*core.OpcodeReceipt)
 
 	// Get state
-	//m0 := monitor.NewTimeMeasure("setup_getstate")
 	gcs, err := s.stCl.GetState(s.CID)
 	if err != nil {
 		log.Errorf("getting state: %v", err)
 		return err
 	}
-	//m0.Record()
 
-	//m := monitor.NewTimeMeasure("setup")
 	// Initialize transaction
 	m1 := monitor.NewTimeMeasure("setup_inittxn")
 	cdata := &execbase.ByzData{IID: s.CID, Proof: gcs.Proof.Proof,
@@ -235,7 +232,6 @@ func (s *SimulationService) executeSetup() error {
 	}
 	s.X = dkgReply.Output.X
 	m4.Record()
-	//m.Record()
 	return err
 }
 
@@ -394,7 +390,7 @@ func (s *SimulationService) executeJoin(idx int) error {
 			gcs.Proof.Proof = pr
 			cdata.Proof = gcs.Proof.Proof
 			lastRoot = pr.InclusionProof.GetRoot()
-			//fmt.Println("retry:", idx)
+			//log.Info("retry:", idx)
 		} else {
 			_, err := stCl.WaitProof(s.CID[:], lastRoot, commons.PROOF_WAIT)
 			if err != nil {
@@ -410,15 +406,12 @@ func (s *SimulationService) executeJoin(idx int) error {
 
 func (s *SimulationService) executeClose() error {
 	// Get state
-	//m0 := monitor.NewTimeMeasure("close_getstate")
 	gcs, err := s.stCl.GetState(s.CID)
 	if err != nil {
 		log.Errorf("getting state: %v", err)
 		return err
 	}
-	//m0.Record()
 
-	//m := monitor.NewTimeMeasure("close")
 	// Initialize transaction
 	m1 := monitor.NewTimeMeasure("close_inittxn")
 	cdata := &execbase.ByzData{IID: s.CID, Proof: gcs.Proof.Proof,
@@ -480,7 +473,6 @@ func (s *SimulationService) executeClose() error {
 		log.Errorf("wait proof: %v", err)
 	}
 	m3.Record()
-	//m.Record()
 	return err
 }
 
@@ -488,15 +480,12 @@ func (s *SimulationService) executeFinalize() error {
 	inReceipts := make(map[int]map[string]*core.OpcodeReceipt)
 
 	// Get state
-	//m0 := monitor.NewTimeMeasure("finalize_getstate")
 	gcs, err := s.stCl.GetState(s.CID)
 	if err != nil {
 		log.Errorf("getting state: %v", err)
 		return err
 	}
-	//m0.Record()
 
-	//m := monitor.NewTimeMeasure("finalize")
 	// Initialize transaction
 	m1 := monitor.NewTimeMeasure("finalize_inittxn")
 	cdata := &execbase.ByzData{IID: s.CID, Proof: gcs.Proof.Proof,
@@ -591,7 +580,6 @@ func (s *SimulationService) executeFinalize() error {
 		log.Errorf("wait proof: %v", err)
 	}
 	m5.Record()
-	//m.Record()
 	return err
 }
 

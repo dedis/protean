@@ -18,7 +18,7 @@
                 },
                 "easyrand": {
                         "num_nodes": 19,
-                        "threshold": 13,
+                        "threshold": 10,
                         "opcodes": [
                                 "init_dkg",
                                 "get_randomness"

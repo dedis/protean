@@ -95,7 +95,7 @@ func (s *SimulationService) runMicrobenchmark(config *onet.SimulationConfig) err
 			return err
 		}
 		for _, p := range reply.Output.Ps {
-			_, err := p.Data()
+			_, err = p.Data()
 			if err != nil {
 				log.Error(err)
 				return err
@@ -112,7 +112,8 @@ func (s *SimulationService) runMicrobenchmark(config *onet.SimulationConfig) err
 
 func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 	s.NodeCount = len(config.Roster.List)
-	s.Threshold = s.NodeCount - (s.NodeCount-1)/3
+	//s.Threshold = s.NodeCount - (s.NodeCount-1)/3
+	s.Threshold = s.NodeCount - (s.NodeCount-1)/2
 	return s.runMicrobenchmark(config)
 
 }

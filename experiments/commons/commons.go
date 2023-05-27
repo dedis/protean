@@ -2,6 +2,7 @@ package commons
 
 import (
 	"bufio"
+	"crypto/sha256"
 	"fmt"
 	"math/rand"
 	"os"
@@ -24,8 +25,8 @@ import (
 )
 
 const BATCH_COUNT int = 10
-const UPDATE_WAIT int = 10
-const PROOF_WAIT int = 15
+const UPDATE_WAIT int = 0
+const PROOF_WAIT int = 20
 
 func SetupStateUnit(roster *onet.Roster, blockTime int) (skipchain.SkipBlockID, error) {
 	adminCl, byzID, err := libstate.SetupByzcoin(roster, blockTime)
@@ -209,4 +210,13 @@ func StringToIntSlice(src string) []int {
 		dstSlice = append(dstSlice, xx)
 	}
 	return dstSlice
+}
+
+func HashKeys(ps []kyber.Point) []byte {
+	s := sha256.New()
+	for _, p := range ps {
+		data, _ := p.MarshalBinary()
+		s.Write(data)
+	}
+	return s.Sum(nil)
 }

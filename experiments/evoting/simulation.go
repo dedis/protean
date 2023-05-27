@@ -169,13 +169,11 @@ func (s *SimulationService) executeSetup() error {
 	inReceipts := make(map[int]map[string]*core.OpcodeReceipt)
 
 	// Get state
-	//m0 := monitor.NewTimeMeasure("setup_getstate")
 	gcs, err := s.stCl.GetState(s.CID)
 	if err != nil {
 		log.Errorf("getting state: %v", err)
 		return err
 	}
-	//m0.Record()
 
 	// Initialize transaction
 	m1 := monitor.NewTimeMeasure("setup_inittxn")
@@ -404,7 +402,7 @@ func (s *SimulationService) executeVote(ballot string, idx int) error {
 			gcs.Proof.Proof = pr
 			cdata.Proof = gcs.Proof.Proof
 			lastRoot = pr.InclusionProof.GetRoot()
-			//fmt.Println("retry:", idx)
+			//log.Info("retry:", idx)
 		} else {
 			_, err := stCl.WaitProof(s.CID[:], lastRoot, commons.PROOF_WAIT)
 			if err != nil {
@@ -420,13 +418,11 @@ func (s *SimulationService) executeVote(ballot string, idx int) error {
 
 func (s *SimulationService) executeLock() error {
 	// Get state
-	//m0 := monitor.NewTimeMeasure("lock_getstate")
 	gcs, err := s.stCl.GetState(s.CID)
 	if err != nil {
 		log.Errorf("getting state: %v", err)
 		return err
 	}
-	//m0.Record()
 
 	// Initialize transaction
 	m1 := monitor.NewTimeMeasure("lock_inittxn")
@@ -504,13 +500,11 @@ func (s *SimulationService) executeShuffle() error {
 	inReceipts := make(map[int]map[string]*core.OpcodeReceipt)
 
 	// Get state
-	//m0 := monitor.NewTimeMeasure("shuffle_getstate")
 	gcs, err := s.stCl.GetState(s.CID)
 	if err != nil {
 		log.Errorf("getting state: %v", err)
 		return err
 	}
-	//m0.Record()
 
 	// Initialize transaction
 	m1 := monitor.NewTimeMeasure("shuffle_inittxn")
@@ -611,13 +605,11 @@ func (s *SimulationService) executeTally() error {
 	inReceipts := make(map[int]map[string]*core.OpcodeReceipt)
 
 	// Get state
-	//m0 := monitor.NewTimeMeasure("tally_getstate")
 	gcs, err := s.stCl.GetState(s.CID)
 	if err != nil {
 		log.Errorf("getting state: %v", err)
 		return err
 	}
-	//m0.Record()
 
 	// Initialize transaction
 	m1 := monitor.NewTimeMeasure("tally_inittxn")

@@ -92,6 +92,7 @@ func (s *Service) InitDKG(req *InitDKGRequest) (*InitDKGReply, error) {
 		log.Errorf("could not set config: %v", err)
 		return nil, err
 	}
+	setupDKG.Threshold = uint32(s.threshold)
 	setupDKG.Wait = true
 	setupDKG.KeyPair = s.getKeyPair()
 	err = pi.Start()
@@ -154,7 +155,6 @@ func (s *Service) Decrypt(req *DecryptRequest) (*DecryptReply, error) {
 	decProto.DecInput = &req.Input
 	decProto.ExecReq = &req.ExecReq
 	decProto.KP = protean.GetBLSKeyPair(s.ServerIdentity())
-	//decProto.Threshold = nodeCount - (nodeCount-1)/3
 	decProto.Threshold = s.threshold
 	err = decProto.SetConfig(&onet.GenericConfig{Data: dkgID[:]})
 	if err != nil {
@@ -276,6 +276,7 @@ func (s *Service) NewProtocol(tn *onet.TreeNodeInstance, conf *onet.GenericConfi
 		}
 		setupDKG := pi.(*dkgprotocol.Setup)
 		setupDKG.KeyPair = s.getKeyPair()
+		setupDKG.Threshold = uint32(s.threshold)
 		go func(idSlice []byte) {
 			<-setupDKG.Finished
 			shared, dks, err := setupDKG.SharedSecret()

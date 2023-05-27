@@ -2,7 +2,6 @@ package main
 
 import (
 	"crypto/rand"
-	"crypto/sha256"
 	"fmt"
 	statebase "github.com/dedis/protean/libstate/base"
 	"go.dedis.ch/cothority/v3/blscosi"
@@ -174,14 +173,6 @@ func (s *SimulationService) executeVerifyOpc(config *onet.SimulationConfig) erro
 	return err
 }
 
-func prepareInputHashes(vdata *core.VerificationData, inputData map[string][]byte) {
-	for varName, data := range inputData {
-		h := sha256.New()
-		h.Write(data)
-		vdata.InputHashes[varName] = h.Sum(nil)
-	}
-}
-
 func (s *SimulationService) generateVerifyOPCData(config *onet.SimulationConfig) error {
 	execCl := libexec.NewClient(s.execRoster)
 	stCl := libstate.NewClient(byzcoin.NewClient(s.byzID, *s.stRoster))
@@ -215,12 +206,12 @@ func (s *SimulationService) generateVerifyOPCData(config *onet.SimulationConfig)
 		for _, ns := range s.DataSizes {
 			outputData := commons.PrepareData(ni, ns)
 			signer := config.GetService(signsvc.ServiceName).(*signsvc.Signer)
-			signReq := signsvc.BLSSignRequest{
+			signReq := signsvc.BDNSignRequest{
 				Roster:     s.signerRoster,
 				OutputData: outputData,
 				ExecReq:    execReq,
 			}
-			signReply, err := signer.BLSSign(&signReq)
+			signReply, err := signer.BDNSign(&signReq)
 			if err != nil {
 				log.Error(err)
 			}
@@ -274,7 +265,7 @@ func (s *SimulationService) generateBlocks() error {
 	s.latestProof = make(map[int]*byzcoin.GetProofResponse)
 	idx := 0
 	blkCount := s.NumBlocks[len(s.NumBlocks)-1]
-	buf := make([]byte, 128)
+	buf := make([]byte, 1024*64)
 	rand.Read(buf)
 	for i := 1; i <= blkCount; i++ {
 		//buf := make([]byte, 128*i)

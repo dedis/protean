@@ -17,11 +17,9 @@ import (
 	"go.dedis.ch/cothority/v3/skipchain"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/pairing/bn256"
-	"go.dedis.ch/kyber/v3/sign"
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/onet/v3/simul/monitor"
-	"time"
 )
 
 //var suite = pairing.NewSuiteBn256()
@@ -214,7 +212,6 @@ func (s *SimulationService) executeBDNSign(config *onet.SimulationConfig) error 
 	if err != nil {
 		return err
 	}
-	time.Sleep(3 * time.Second)
 	s.generateSignData()
 
 	execCl := libexec.NewClient(s.execRoster)
@@ -240,26 +237,17 @@ func (s *SimulationService) executeBDNSign(config *onet.SimulationConfig) error 
 	for _, no := range s.NumOutputs {
 		for _, ns := range s.DataSizes {
 			for round := 0; round < s.Rounds; round++ {
+				signMonitor := monitor.NewTimeMeasure(fmt.Sprintf("sign_%d_%d", no, ns))
 				req := service.BDNSignRequest{
 					Roster:     s.signerRoster,
 					OutputData: s.outputData[idx],
 					ExecReq:    execReq,
 				}
-				reply, err := signer.BDNSign(&req)
+				_, err = signer.BDNSign(&req)
 				if err != nil {
 					log.Error(err)
 				}
-				for _, r := range reply.Receipts {
-					err = r.Sig.VerifyWithPolicy(suite, r.Hash(),
-						s.signerRoster.ServicePublics(blscosi.ServiceName),
-						sign.NewThresholdPolicy(13))
-					if err != nil {
-						log.Error(err)
-						return err
-					} else {
-						log.Info("Success:", no, ns)
-					}
-				}
+				signMonitor.Record()
 			}
 			idx++
 		}
@@ -288,8 +276,5 @@ func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 	s.DataSizes = commons.StringToIntSlice(s.DataSizesStr)
 
 	err = s.runMicrobenchmark(config)
-	if err == nil {
-		log.Info("Success")
-	}
 	return err
 }

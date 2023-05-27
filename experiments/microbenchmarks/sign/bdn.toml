@@ -1,0 +1,16 @@
+Simulation = "SignMicrobenchmark"
+Servers = 1
+Hosts = 23
+Bf = 22
+Rounds = 50
+RunWait = "30000s"
+Delay = 100
+Bandwidth = 100
+Suite = "Ed25519"
+BlockTime = 5
+ContractFile = "../input/contract.json"
+FSMFile = "../input/fsm.json"
+DFUFile = "../input/units.json"
+
+NumOutputStr,DataSizesStr
+"1;2;3;4","4096;8192;65536;524288;4194304"
