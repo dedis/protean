@@ -8,7 +8,8 @@ import numpy as np
 num_batches = 10
 
 jv_header = ['num_participants', 'avg', 'min', 'max', 'std']
-txn_header = ['num_participants', 'total']
+# txn_header = ['num_participants', 'total']
+txn_header = ['num_participants', 'avg']
 
 BASE_DIR = "data"
 
@@ -24,7 +25,6 @@ SHUFFLE = "shuffle"
 TALLY = "tally"
 FINALIZE = "finalize"
 
-# vpattern_local = 'verify_local_(\d+)_(\d+)_wall_avg'
 vpattern = 'verify_(\d+)_(\d+)_wall_avg'
 vpattern_min = 'verify_(\d+)_(\d+)_wall_min'
 vpattern_max = 'verify_(\d+)_(\d+)_wall_max'
@@ -52,13 +52,10 @@ def read_data(fname):
             data_read.append(dict(zip(labels, row)))
     return data_read
 
-def process_kv(data_read, local):
+def process_kv(data_read):
     data = dict()
     for label, value in data_read[0].items():
-        if local:
-            match = re.search(vpattern_local, label)
-        else:
-            match = re.search(vpattern, label)
+        match = re.search(vpattern, label)
         if match is not None:
             input_num = int(match.group(1))
             blk_num = int(match.group(2))
@@ -74,13 +71,10 @@ def process_kv(data_read, local):
         for blk_num, val in sorted(val_dict.items()):
             print("%d,%d,%.6f" % (input_num, blk_num, float(val)))
 
-def process_opc(data_read, local):
+def process_opc(data_read):
     data = dict()
     for label, value in data_read[0].items():
-        if local:
-            match = re.search(vpattern_local, label)
-        else:
-            match = re.search(vpattern, label)
+        match = re.search(vpattern, label)
         if match is not None:
             input_num = int(match.group(1))
             data_size = int(match.group(2))
@@ -96,13 +90,10 @@ def process_opc(data_read, local):
         for data_size, val in sorted(val_dict.items()):
             print("%d,%d,%.6f" % (input_num, data_size, float(val)))
 
-def process_sign(data_read, local):
+def process_sign(data_read):
     data = dict()
     for label, value in data_read[0].items():
-        if local:
-            match = re.search(spattern_local, label)
-        else:
-            match = re.search(spattern, label)
+        match = re.search(spattern, label)
         if match is not None:
             output_num = int(match.group(1))
             data_size = int(match.group(2))
@@ -188,6 +179,35 @@ def process_jv_batch(data_read, app_type, txn_type, outfile):
             writer.writerow(data)
             # print("%d,%.6f,%.6f,%.6f" % (k, mean_val, min_val, max_val))
 
+def process_jv_multi(data_read, app_type, txn_type, outfile):
+    latency_vals = dict()
+    for dr in data_read:
+        num_participants = int(dr['numparticipants'])
+        vals = list()
+        for i in range(num_participants):
+            val = float(dr[f'p{i}_{txn_type}_wall_avg'])
+            vals.append(val)
+        if num_participants in latency_vals:
+            latency_vals[num_participants] = latency_vals[num_participants] + vals
+        else:
+            latency_vals[num_participants] = vals
+    if outfile:
+        fpath = os.path.join(cwd, BASE_DIR, app_type, f'{outfile}_{txn_type}_multi.csv')
+    else:
+        fpath = os.path.join(cwd, BASE_DIR, app_type, f'{txn_type}_multi.csv')
+
+    with open(fpath, 'w') as f:
+        writer = csv.writer(f)
+        writer.writerow(jv_header)
+        for k in latency_vals:
+            vals = np.array(latency_vals[k])
+            min_val = np.min(vals)
+            max_val = np.max(vals)
+            mean_val = np.mean(vals)
+            std_val = np.std(vals)
+            data = [k, mean_val, min_val, max_val, std_val]
+            writer.writerow(data)
+
 def process_txn(data_read, app_type, txn_type, outfile, batch):
     print(">>>", txn_type)
     pattern = pattern_dict[txn_type]
@@ -221,32 +241,79 @@ def process_txn(data_read, app_type, txn_type, outfile, batch):
         for nump in sorted(dedup):
             writer.writerow(dedup[nump])
 
-def process_randlot(data_read, outfile, batch):
-    if batch:
-        process_jv_batch(data_read, RANDLOTTERY, JOIN, outfile)
-    else:
-        process_jv(data_read, RANDLOTTERY, JOIN, outfile)
-    process_txn(data_read, RANDLOTTERY, CLOSE, outfile, batch)
-    process_txn(data_read, RANDLOTTERY, FINALIZE, outfile, batch)
+def process_txn_multi(data_read, app_type, txn_type, outfile):
+    print(">>>", txn_type)
+    latency_vals = dict()
+    pattern = pattern_dict[txn_type]
+    for dr in data_read:
+        num_participants = int(dr['numparticipants'])
+        total = 0.0
+        for label, value in dr.items():
+            match = re.search(pattern, label)
+            if match is not None: 
+                total += float(value)
+        if num_participants in latency_vals:
+            latency_vals[num_participants].append(total)
+        else:
+            latency_vals[num_participants] = [total]
 
-def process_dkglot(data_read, outfile, batch):
-    if batch:
-        process_jv_batch(data_read, DKGLOTTERY, JOIN, outfile)
+    if outfile:
+        fpath = os.path.join(cwd, BASE_DIR, app_type, f'{outfile}_{txn_type}_multi.csv')
     else:
-        process_jv(data_read, DKGLOTTERY, JOIN, outfile)
-    process_txn(data_read, DKGLOTTERY, SETUP, outfile, batch)
-    process_txn(data_read, DKGLOTTERY, CLOSE, outfile, batch)
-    process_txn(data_read, DKGLOTTERY, FINALIZE, outfile, batch)
+        fpath = os.path.join(cwd, BASE_DIR, app_type, f'{txn_type}_multi.csv')
+    with open(fpath, 'w') as f:
+        writer = csv.writer(f)
+        writer.writerow(txn_header)
+        for k in latency_vals:
+            vals = np.array(latency_vals[k])
+            mean_val = np.mean(vals)
+            data = [k, mean_val]
+            writer.writerow(data)
 
-def process_evote(data_read, outfile, batch):
-    if batch:
-        process_jv_batch(data_read, EVOTING, VOTE, outfile)
+def process_randlot(data_read, outfile, batch, multi):
+    if multi:
+        process_jv_multi(data_read, RANDLOTTERY, JOIN, outfile)
+        process_txn_multi(data_read, RANDLOTTERY, CLOSE, outfile)
+        process_txn_multi(data_read, RANDLOTTERY, FINALIZE, outfile)
     else:
-        process_jv(data_read, EVOTING, VOTE, outfile)
-    process_txn(data_read, EVOTING, SETUP, outfile, batch)
-    process_txn(data_read, EVOTING, LOCK, outfile, batch)
-    process_txn(data_read, EVOTING, SHUFFLE, outfile, batch)
-    process_txn(data_read, EVOTING, TALLY, outfile, batch)
+        if batch:
+            process_jv_batch(data_read, RANDLOTTERY, JOIN, outfile)
+        else:
+            process_jv(data_read, RANDLOTTERY, JOIN, outfile)
+        process_txn(data_read, RANDLOTTERY, CLOSE, outfile, batch)
+        process_txn(data_read, RANDLOTTERY, FINALIZE, outfile, batch)
+
+def process_dkglot(data_read, outfile, batch, multi):
+    if multi:
+        process_jv_multi(data_read, DKGLOTTERY, JOIN, outfile)
+        process_txn_multi(data_read, DKGLOTTERY, SETUP, outfile)
+        process_txn_multi(data_read, DKGLOTTERY, CLOSE, outfile)
+        process_txn_multi(data_read, DKGLOTTERY, FINALIZE, outfile)
+    else:
+        if batch:
+            process_jv_batch(data_read, DKGLOTTERY, JOIN, outfile)
+        else:
+            process_jv(data_read, DKGLOTTERY, JOIN, outfile)
+        process_txn(data_read, DKGLOTTERY, SETUP, outfile, batch)
+        process_txn(data_read, DKGLOTTERY, CLOSE, outfile, batch)
+        process_txn(data_read, DKGLOTTERY, FINALIZE, outfile, batch)
+
+def process_evote(data_read, outfile, batch, multi):
+    if multi:
+        process_jv_multi(data_read, EVOTING, VOTE, outfile)
+        process_txn_multi(data_read, EVOTING, SETUP, outfile)
+        process_txn_multi(data_read, EVOTING, LOCK, outfile)
+        process_txn_multi(data_read, EVOTING, SHUFFLE, outfile)
+        process_txn_multi(data_read, EVOTING, TALLY, outfile)
+    else:
+        if batch:
+            process_jv_batch(data_read, EVOTING, VOTE, outfile)
+        else:
+            process_jv(data_read, EVOTING, VOTE, outfile)
+        process_txn(data_read, EVOTING, SETUP, outfile, batch)
+        process_txn(data_read, EVOTING, LOCK, outfile, batch)
+        process_txn(data_read, EVOTING, SHUFFLE, outfile, batch)
+        process_txn(data_read, EVOTING, TALLY, outfile, batch)
 
 def dump_kv(data_read):
     data = dict()
@@ -298,31 +365,31 @@ def main():
     parser.add_argument('-b', dest='batch', action='store_true')
     parser.add_argument('-o', dest='outfile', type=str)
     parser.add_argument('-d', dest='dump', action='store_true')
-    parser.add_argument('-l', dest='local', action='store_true')
+    parser.add_argument('-m', dest='multi', action='store_true')
     args = parser.parse_args()
     data_read = read_data(args.fname)
     if "kv" in args.exp_type:
         if args.dump:
             dump_kv(data_read)
         else:
-            process_kv(data_read, args.local)
+            process_kv(data_read)
     elif "opc" in args.exp_type:
         if args.dump:
             dump_opc(data_read)
         else:
-            process_opc(data_read, args.local)
+            process_opc(data_read)
     elif "sign" in args.exp_type:
-        process_sign(data_read, args.local)
+        process_sign(data_read)
     elif "shuf" in args.exp_type:
         process_dfu_mb(data_read, "shuffle")
     elif "dec" in args.exp_type:
         process_dfu_mb(data_read, "decrypt")
     elif "rlot" in args.exp_type:
-        process_randlot(data_read, args.outfile, args.batch)
+        process_randlot(data_read, args.outfile, args.batch, args.multi)
     elif "dlot" in args.exp_type:
-        process_dkglot(data_read, args.outfile, args.batch)
+        process_dkglot(data_read, args.outfile, args.batch, args.multi)
     elif "evote" in args.exp_type:
-        process_evote(data_read, args.outfile, args.batch)
+        process_evote(data_read, args.outfile, args.batch, args.multi)
 
 if __name__ == '__main__':
     main()
