@@ -2,6 +2,7 @@ package bdn
 
 import (
 	"crypto/sha256"
+	"fmt"
 	"go.dedis.ch/cothority/v3/blscosi"
 	"go.dedis.ch/cothority/v3/blscosi/bdnproto"
 	"go.dedis.ch/kyber/v3/pairing/bn256"
@@ -180,6 +181,7 @@ func (s *BDNSign) generateResponse() (*BDNSignResponse, error) {
 			return &BDNSignResponse{}, err
 		}
 		sigs[varName] = sig
+		fmt.Println("In:", s.ServerIdentity().String(), len(sig))
 	}
 	return &BDNSignResponse{Signatures: sigs}, nil
 }

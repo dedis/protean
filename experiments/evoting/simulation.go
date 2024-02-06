@@ -2,13 +2,14 @@ package main
 
 import (
 	"fmt"
+	"sync"
+	"sync/atomic"
+	"time"
+
 	statebase "github.com/dedis/protean/libstate/base"
 	"go.dedis.ch/cothority/v3"
 	"go.dedis.ch/cothority/v3/blscosi"
 	"go.dedis.ch/kyber/v3/util/key"
-	"sync"
-	"sync/atomic"
-	"time"
 
 	"github.com/BurntSushi/toml"
 	"github.com/dedis/protean/core"

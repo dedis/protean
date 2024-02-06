@@ -1,0 +1,8 @@
+Plots to use:
+
+- kv.pdf (w/o subplots; # of deps on x-axis; bar graph)
+- opc_log.pdf
+- sign_log.pdf
+- shuf_log.pdf
+- dec_log.pdf
+- {APP}_{TXN}_line.pdf (not using the bar plot)

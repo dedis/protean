@@ -20,6 +20,7 @@ import (
 	"go.dedis.ch/onet/v3"
 	"go.dedis.ch/onet/v3/log"
 	"go.dedis.ch/onet/v3/simul/monitor"
+	"time"
 )
 
 //var suite = pairing.NewSuiteBn256()
@@ -165,10 +166,11 @@ func (s *SimulationService) executeBLSSign(config *onet.SimulationConfig) error 
 					OutputData: s.outputData[idx],
 					ExecReq:    execReq,
 				}
-				_, err = signer.BLSSign(&req)
+				reply, err := signer.BLSSign(&req)
 				if err != nil {
 					log.Error(err)
 				}
+				fmt.Println("length:", len(reply.Receipts["data0"].Sig))
 				signMonitor.Record()
 			}
 			idx++
@@ -197,7 +199,9 @@ func (s *SimulationService) runMicrobenchmark(config *onet.SimulationConfig) err
 		return err
 	}
 	s.generateSignData()
+	time.Sleep(5 * time.Second)
 	err = s.executeBDNSign(config)
+	//err = s.executeBLSSign(config)
 	return nil
 }
 
@@ -214,6 +218,7 @@ func (s *SimulationService) executeBDNSign(config *onet.SimulationConfig) error 
 	}
 	s.generateSignData()
 
+	time.Sleep(5 * time.Second)
 	execCl := libexec.NewClient(s.execRoster)
 	stCl := libstate.NewClient(byzcoin.NewClient(s.byzID, *s.stRoster))
 	defer execCl.Close()
@@ -243,10 +248,11 @@ func (s *SimulationService) executeBDNSign(config *onet.SimulationConfig) error 
 					OutputData: s.outputData[idx],
 					ExecReq:    execReq,
 				}
-				_, err = signer.BDNSign(&req)
+				reply, err := signer.BDNSign(&req)
 				if err != nil {
 					log.Error(err)
 				}
+				fmt.Println("sig length:", len(reply.Receipts["data0"].Sig))
 				signMonitor.Record()
 			}
 			idx++
